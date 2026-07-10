@@ -19,6 +19,7 @@ import re
 import sys
 import time
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -40,6 +41,8 @@ MAX_TOOL_STEPS = 16      # cap orchestrator tool calls in stage 1
 SCAN_CHARS = 5000        # truncation while the orchestrator is scanning pages
 FULLTEXT_CHARS = 24000   # much larger read for the distillation stage
 TARGET_SOURCES = 8       # how many sources to aim for
+MAX_REVIEW_ROUNDS = 2    # write -> review -> revise iterations before accepting
+DISTILL_WORKERS = 4      # concurrent source distillations (needs server --parallel >= this)
 
 
 # ----------------------------------------------------------------- fetching
@@ -163,11 +166,13 @@ def force_submit(messages: list) -> list[dict]:
 
 def gather_sources(topic: dict) -> list[dict]:
     sys_msg = (
-        "You are a research agent for an expert, citation-backed wiki. Use search_web "
-        "and read_url to find the PRIMARY sources on the topic — prefer original papers "
-        "(arXiv) over blogs, and include the seminal ones plus recent work that agrees "
-        f"or DISAGREES. Do not repeat searches. Aim for {TARGET_SOURCES} sources. When "
-        "you have them, call submit_sources with their titles and URLs."
+        "You are a research agent for an expert, citation-backed wiki. Find the PRIMARY "
+        "sources on the topic — prefer original papers (arXiv) over blogs, include the "
+        "seminal ones plus recent work that agrees or DISAGREES.\n"
+        "Be efficient: run at most 2-3 searches, then READ candidate pages with read_url "
+        "to confirm them. Never repeat a search. Once you have identified "
+        f"{TARGET_SOURCES} good sources (you do NOT need to read all of them), call "
+        "submit_sources immediately with their titles and URLs."
     )
     messages = [{"role": "system", "content": sys_msg},
                 {"role": "user",
@@ -213,11 +218,15 @@ def distill(topic: dict, src: dict) -> dict | None:
         print(f"    skip (thin fetch): {src['url']}")
         return None
     sid = source_id(src["url"], src["title"])
-    resp = QWEN.chat.completions.create(
-        model="local", temperature=0.3,
-        messages=[{"role": "system", "content": DISTILL_SYS},
-                  {"role": "user", "content":
-                   f"Source: {src['title']}\nURL: {src['url']}\n\nTEXT:\n{text}"}])
+    try:
+        resp = QWEN.chat.completions.create(
+            model="local", temperature=0.3,
+            messages=[{"role": "system", "content": DISTILL_SYS},
+                      {"role": "user", "content":
+                       f"Source: {src['title']}\nURL: {src['url']}\n\nTEXT:\n{text}"}])
+    except Exception as e:  # noqa: BLE001
+        print(f"    distill failed ({sid}): {e}")
+        return None
     summary = resp.choices[0].message.content.strip()
     print(f"    distilled [{sid}] ({len(summary)} chars)")
     return {"id": sid, "title": src["title"], "url": src["url"], "summary": summary}
@@ -237,7 +246,9 @@ WRITE_RUBRIC = (
     "condition Y; Z would settle it.' Do not smooth it over.\n"
     "4. Use inline LaTeX for math and markdown tables where useful. No length cap; "
     "depth and precision are the bar. Do not invent citations or numbers.\n"
-    "Structure: 2-sentence intro, then ## sections, then '## Key takeaways' (bullets).\n"
+    "Structure: 2-sentence intro, then ## sections, then '## Key takeaways' (bullets), "
+    "then '## Related topics' linking genuinely-related sibling articles (only from the "
+    "provided list) as markdown links.\n"
     "FINALLY, after the article, output a line 'OPEN_QUESTIONS:' followed by 2-4 bullet "
     "questions that the sources leave genuinely unresolved."
 )
@@ -251,23 +262,91 @@ def normalize_citations(text: str) -> str:
     return re.sub(r"\[(source:[^\]]+)\]", split, text)
 
 
-def write_article(topic: dict, distilled: list[dict]) -> tuple[str, list[str]]:
-    corpus = "\n\n".join(f"[source:{d['id']}] {d['title']}\n{d['summary']}"
-                         for d in distilled)
-    prompt = (f"Topic: {topic['title']}\nScope: {topic.get('notes','')}\n\n"
-              f"{WRITE_RUBRIC}\n\nSOURCE SUMMARIES (cite by their [source:<id>]):\n\n{corpus}")
-    resp = GEMMA.chat.completions.create(
-        model="local", temperature=0.7,
-        messages=[{"role": "system", "content": WRITE_SYS},
-                  {"role": "user", "content": prompt}])
-    body = normalize_citations(resp.choices[0].message.content.strip())
+def _siblings_block(topic: dict, tax: dict) -> str:
+    sibs = [f"- [{t['title']}]({t['slug']}.md)" for t in tax["topics"]
+            if t["slug"] != topic["slug"]]
+    return "RELATED SIBLING TOPICS (link only the relevant ones):\n" + "\n".join(sibs)
 
+
+def _split_open_qs(body: str) -> tuple[str, list[str]]:
     open_qs: list[str] = []
     if "OPEN_QUESTIONS:" in body:
         body, tail = body.split("OPEN_QUESTIONS:", 1)
         open_qs = [re.sub(r"^[-*\d.\s]+", "", ln).strip()
                    for ln in tail.splitlines() if ln.strip()][:4]
     return body.strip(), open_qs
+
+
+def write_article(topic: dict, distilled: list[dict], tax: dict) -> tuple[str, list[str]]:
+    corpus = "\n\n".join(f"[source:{d['id']}] {d['title']}\n{d['summary']}"
+                         for d in distilled)
+    prompt = (f"Topic: {topic['title']}\nScope: {topic.get('notes','')}\n\n"
+              f"{WRITE_RUBRIC}\n\n{_siblings_block(topic, tax)}\n\n"
+              f"SOURCE SUMMARIES (cite by their [source:<id>]):\n\n{corpus}")
+    resp = GEMMA.chat.completions.create(
+        model="local", temperature=0.7,
+        messages=[{"role": "system", "content": WRITE_SYS},
+                  {"role": "user", "content": prompt}])
+    return _split_open_qs(normalize_citations(resp.choices[0].message.content.strip()))
+
+
+# ----------------------------------------------------------------- review gate
+REVIEW_SYS = (
+    "You are a strict reviewer for an expert research wiki. Approve an article ONLY if it "
+    "meets ALL of these; otherwise request_changes with specific, actionable issues:\n"
+    "1. Every non-obvious claim is cited inline as [source:<id>] using ONLY the valid ids.\n"
+    "2. It has a '## Current status and trajectory' section, hedged (no ungrounded "
+    "'the field abandoned X').\n"
+    "3. Disagreement between sources is written in, not smoothed over.\n"
+    "4. It is deep and precise (not a thin stub): key formulas, numbers, and method.\n"
+    "5. It has '## Key takeaways'. Open questions are stored in FRONTMATTER, not the "
+    "body — treat rule 5 as satisfied when the 'Open questions present' count below is "
+    ">= 2. Do NOT ask for an open-questions heading in the body.\n"
+    "Be terse. Give concrete fixes ('add the PPO clip equation', 'cite the AIME number')."
+)
+REVIEW_TOOL = {"type": "function", "function": {
+    "name": "submit_review",
+    "description": "Return the review verdict.",
+    "parameters": {"type": "object", "properties": {
+        "verdict": {"type": "string", "enum": ["approve", "request_changes"]},
+        "issues": {"type": "array", "items": {"type": "string"}}},
+        "required": ["verdict"]}}}
+
+
+def review(topic: dict, article: str, open_qs: list[str], distilled: list[dict]) -> dict:
+    ids = ", ".join(d["id"] for d in distilled)
+    content = (f"Topic: {topic['title']}\nValid source ids: {ids}\n"
+               f"Open questions present: {len(open_qs)}\n\nARTICLE:\n{article}")
+    try:
+        resp = QWEN.chat.completions.create(
+            model="local", temperature=0.2, tools=[REVIEW_TOOL],
+            tool_choice={"type": "function", "function": {"name": "submit_review"}},
+            messages=[{"role": "system", "content": REVIEW_SYS},
+                      {"role": "user", "content": content}])
+        tc = (resp.choices[0].message.tool_calls or [None])[0]
+        if tc:
+            return json.loads(tc.function.arguments or "{}")
+    except Exception as e:  # noqa: BLE001
+        print(f"  review failed: {e}")
+    return {"verdict": "approve", "issues": []}
+
+
+def revise(topic: dict, article: str, issues: list[str], distilled: list[dict],
+           tax: dict) -> tuple[str, list[str]]:
+    corpus = "\n\n".join(f"[source:{d['id']}] {d['title']}\n{d['summary']}"
+                         for d in distilled)
+    fixes = "\n".join(f"- {i}" for i in issues)
+    prompt = (f"Revise this wiki article to fix the reviewer's issues. Keep what is good; "
+              f"output the FULL improved article (same format: [source:<id>] citations, "
+              f"'## Current status and trajectory', '## Key takeaways', '## Related "
+              f"topics', then an 'OPEN_QUESTIONS:' trailer).\n\n"
+              f"REVIEWER ISSUES:\n{fixes}\n\n{_siblings_block(topic, tax)}\n\n"
+              f"SOURCE SUMMARIES:\n{corpus}\n\nCURRENT ARTICLE:\n{article}")
+    resp = GEMMA.chat.completions.create(
+        model="local", temperature=0.6,
+        messages=[{"role": "system", "content": WRITE_SYS},
+                  {"role": "user", "content": prompt}])
+    return _split_open_qs(normalize_citations(resp.choices[0].message.content.strip()))
 
 
 # ----------------------------------------------------------------- persistence
@@ -323,13 +402,25 @@ def main() -> None:
     if not srcs:
         print("no sources gathered; aborting"); return
 
-    print(f"== distilling {len(srcs)} sources...")
-    distilled = [d for d in (distill(topic, s) for s in srcs) if d]
+    print(f"== distilling {len(srcs)} sources ({DISTILL_WORKERS}-way concurrent)...")
+    with ThreadPoolExecutor(max_workers=DISTILL_WORKERS) as ex:
+        distilled = [d for d in ex.map(lambda s: distill(topic, s), srcs) if d]
     if not distilled:
         print("no sources distilled; aborting"); return
 
     print(f"== writing article from {len(distilled)} distilled sources...")
-    article, open_qs = write_article(topic, distilled)
+    article, open_qs = write_article(topic, distilled, tax)
+
+    for rnd in range(MAX_REVIEW_ROUNDS):
+        verdict = review(topic, article, open_qs, distilled)
+        issues = verdict.get("issues") or []
+        if verdict.get("verdict") == "approve":
+            print(f"  review round {rnd+1}: APPROVE"); break
+        print(f"  review round {rnd+1}: request_changes ({len(issues)} issues)")
+        for i in issues[:6]:
+            print(f"      - {i}")
+        new_article, new_qs = revise(topic, article, issues, distilled, tax)
+        article, open_qs = new_article, (new_qs or open_qs)  # never lose open questions
     save(topic, distilled, article, open_qs)
 
     topic["status"] = "done"

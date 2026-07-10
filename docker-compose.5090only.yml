@@ -1,0 +1,34 @@
+# One-off 5090-only benchmark: single Qwen 3.6 35B-A3B does BOTH orchestration
+# and writing. Gemma/3090 not used. Quant + context are env-parameterized.
+#
+#   # Q4 (22GB, more headroom -> bigger context):
+#   QWEN_MODEL=Qwen3.6-35B-A3B-UD-Q4_K_M.gguf QWEN_CTX=65536 \
+#     docker-compose -f docker-compose.5090only.yml up -d
+#
+#   # Q5 (26.5GB, tighter -> smaller context):
+#   QWEN_MODEL=Qwen3.6-35B-A3B-UD-Q5_K_M.gguf QWEN_CTX=32768 \
+#     docker-compose -f docker-compose.5090only.yml up -d
+#
+# Then run the agent with the writer pointed at the same endpoint:
+#   GEMMA_URL=http://localhost:8181/v1 .venv/bin/python agent.py <slug>
+version: "2.4"
+services:
+  qwen:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: rlwiki-qwen-solo
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=1        # RTX 5090 only
+    volumes:
+      - /home/gokul/models/gguf:/models:ro
+    ports:
+      - "8181:8181"
+    command: >
+      --model /models/${QWEN_MODEL:-Qwen3.6-35B-A3B-UD-Q4_K_M.gguf}
+      -ngl 999 -fa on
+      -c ${QWEN_CTX:-65536} -n 8192 --parallel 1
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --jinja
+      --temp 0.6 --top-p 0.95 --top-k 20
+      --host 0.0.0.0 --port 8181
+    restart: "no"

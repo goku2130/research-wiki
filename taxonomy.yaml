@@ -15,8 +15,8 @@ topics:
 - slug: reward-modeling
   title: Reward modeling for LLMs
   notes: Bradley-Terry, reward hacking, process vs outcome rewards
-  status: empty
+  status: done
 - slug: rl-for-reasoning
   title: RL for reasoning models
   notes: Verifiable rewards, long chain-of-thought, o1/R1-style training
-  status: empty
+  status: done
