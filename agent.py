@@ -33,9 +33,36 @@ TAXONOMY = ROOT / "taxonomy.yaml"
 TOPICS_DIR = ROOT / "topics"
 SOURCES_DIR = ROOT / "sources"
 
+def _load_env() -> None:
+    envf = ROOT / ".env"
+    if envf.exists():
+        for line in envf.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip().strip('"\''))
+
+
+_load_env()
+
 QWEN = OpenAI(base_url=os.getenv("QWEN_URL", "http://localhost:8181/v1"), api_key="local")
 GEMMA = OpenAI(base_url=os.getenv("GEMMA_URL", "http://localhost:8182/v1"), api_key="local")
 SEARXNG = os.getenv("SEARXNG_URL", "http://localhost:8888")
+
+# Writer role: full-precision Gemma 4 31B via Google API if a key is present,
+# else the local quantized Gemma on the 3090.
+_GKEY = os.getenv("GOOGLE_API_KEY")
+if _GKEY:
+    WRITER = OpenAI(base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+                    api_key=_GKEY)
+    WRITER_MODEL = os.getenv("WRITER_MODEL", "gemma-4-31b-it")
+else:
+    WRITER, WRITER_MODEL = GEMMA, "local"
+
+
+def strip_thoughts(text: str) -> str:
+    """Gemma 4 (API) emits inline <thought>...</thought>; drop it."""
+    return re.sub(r"<thought>.*?</thought>", "", text, flags=re.DOTALL).strip()
 
 MAX_TOOL_STEPS = 16      # cap orchestrator tool calls in stage 1
 SCAN_CHARS = 5000        # truncation while the orchestrator is scanning pages
@@ -283,11 +310,12 @@ def write_article(topic: dict, distilled: list[dict], tax: dict) -> tuple[str, l
     prompt = (f"Topic: {topic['title']}\nScope: {topic.get('notes','')}\n\n"
               f"{WRITE_RUBRIC}\n\n{_siblings_block(topic, tax)}\n\n"
               f"SOURCE SUMMARIES (cite by their [source:<id>]):\n\n{corpus}")
-    resp = GEMMA.chat.completions.create(
-        model="local", temperature=0.7,
+    resp = WRITER.chat.completions.create(
+        model=WRITER_MODEL, temperature=0.7,
         messages=[{"role": "system", "content": WRITE_SYS},
                   {"role": "user", "content": prompt}])
-    return _split_open_qs(normalize_citations(resp.choices[0].message.content.strip()))
+    body = strip_thoughts(resp.choices[0].message.content or "")
+    return _split_open_qs(normalize_citations(body))
 
 
 # ----------------------------------------------------------------- review gate
@@ -384,11 +412,12 @@ def revise(topic: dict, article: str, issues: list[str], distilled: list[dict],
               f"fabricated number, equation, or misattribution.\n\n"
               f"ISSUES:\n{fixes}\n\n{_siblings_block(topic, tax)}\n\n"
               f"SOURCE SUMMARIES:\n{corpus}\n\nCURRENT ARTICLE:\n{article}")
-    resp = GEMMA.chat.completions.create(
-        model="local", temperature=0.6,
+    resp = WRITER.chat.completions.create(
+        model=WRITER_MODEL, temperature=0.6,
         messages=[{"role": "system", "content": WRITE_SYS},
                   {"role": "user", "content": prompt}])
-    return _split_open_qs(normalize_citations(resp.choices[0].message.content.strip()))
+    body = strip_thoughts(resp.choices[0].message.content or "")
+    return _split_open_qs(normalize_citations(body))
 
 
 # ----------------------------------------------------------------- persistence

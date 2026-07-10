@@ -2,3 +2,5 @@
 __pycache__/
 *.pyc
 searxng/uwsgi.ini
+.env
+*.key
