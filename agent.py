@@ -331,16 +331,58 @@ def review(topic: dict, article: str, open_qs: list[str], distilled: list[dict])
     return {"verdict": "approve", "issues": []}
 
 
+# ----------------------------------------------------------------- fact-check gate
+FACTCHECK_SYS = (
+    "You are a strict fact-checker for a citation-backed wiki. You are given an ARTICLE "
+    "and the SOURCE SUMMARIES it cites. Audit every cited claim: is it actually supported "
+    "by the summary of the source it cites? Flag fabricated numbers/equations/dates/"
+    "findings, and claims attributed to the wrong source. Also flag any claim that is "
+    "clearly false on its face.\n"
+    "Work through the article claim by claim and reason explicitly. THEN, on the very "
+    "last lines, write 'ISSUES:' followed by one bullet per problem — each stating the "
+    "claim, the id it cites, and the fix (correct/remove/re-cite). If every cited claim "
+    "is supported, write exactly 'ISSUES: NONE'."
+)
+
+
+def fact_check(topic: dict, article: str, distilled: list[dict]) -> list[str]:
+    corpus = "\n\n".join(f"[source:{d['id']}] {d['title']}\n{d['summary']}"
+                         for d in distilled)
+    content = f"ARTICLE:\n{article}\n\nSOURCE SUMMARIES:\n{corpus}"
+    try:
+        resp = QWEN.chat.completions.create(
+            model="local", temperature=0.1, max_tokens=8000,
+            messages=[{"role": "system", "content": FACTCHECK_SYS},
+                      {"role": "user", "content": content}])
+        msg = resp.choices[0].message
+        out = msg.content or ""
+        if "ISSUES:" not in out:  # reasoning model may leave answer only in reasoning
+            out = (getattr(msg, "reasoning_content", "") or "") + "\n" + out
+    except Exception as e:  # noqa: BLE001
+        print(f"  fact_check failed: {e}")
+        return []
+    if "ISSUES:" not in out:
+        return []
+    tail = out.rsplit("ISSUES:", 1)[1].strip()
+    if tail.upper().startswith("NONE") or not tail:
+        return []
+    return [re.sub(r"^[-*\d.\s]+", "", ln).strip()
+            for ln in tail.splitlines() if ln.strip() and ln.strip().upper() != "NONE"]
+
+
 def revise(topic: dict, article: str, issues: list[str], distilled: list[dict],
            tax: dict) -> tuple[str, list[str]]:
     corpus = "\n\n".join(f"[source:{d['id']}] {d['title']}\n{d['summary']}"
                          for d in distilled)
     fixes = "\n".join(f"- {i}" for i in issues)
-    prompt = (f"Revise this wiki article to fix the reviewer's issues. Keep what is good; "
+    prompt = (f"Revise this wiki article to fix the issues below. Keep what is good; "
               f"output the FULL improved article (same format: [source:<id>] citations, "
               f"'## Current status and trajectory', '## Key takeaways', '## Related "
-              f"topics', then an 'OPEN_QUESTIONS:' trailer).\n\n"
-              f"REVIEWER ISSUES:\n{fixes}\n\n{_siblings_block(topic, tax)}\n\n"
+              f"topics', then an 'OPEN_QUESTIONS:' trailer).\n"
+              f"For any issue marked [grounding], the claim is NOT supported by its cited "
+              f"source: correct it to match the source, or REMOVE it — never keep a "
+              f"fabricated number, equation, or misattribution.\n\n"
+              f"ISSUES:\n{fixes}\n\n{_siblings_block(topic, tax)}\n\n"
               f"SOURCE SUMMARIES:\n{corpus}\n\nCURRENT ARTICLE:\n{article}")
     resp = GEMMA.chat.completions.create(
         model="local", temperature=0.6,
@@ -413,11 +455,15 @@ def main() -> None:
 
     for rnd in range(MAX_REVIEW_ROUNDS):
         verdict = review(topic, article, open_qs, distilled)
-        issues = verdict.get("issues") or []
-        if verdict.get("verdict") == "approve":
-            print(f"  review round {rnd+1}: APPROVE"); break
-        print(f"  review round {rnd+1}: request_changes ({len(issues)} issues)")
-        for i in issues[:6]:
+        grounding = fact_check(topic, article, distilled)
+        struct = verdict.get("issues") or [] if verdict.get("verdict") != "approve" else []
+        issues = struct + [f"[grounding] {g}" for g in grounding]
+        if not issues:
+            print(f"  round {rnd+1}: APPROVE (structure ok, {len(distilled)} sources grounded)")
+            break
+        print(f"  round {rnd+1}: revise — {len(struct)} structural, "
+              f"{len(grounding)} grounding issues")
+        for i in issues[:8]:
             print(f"      - {i}")
         new_article, new_qs = revise(topic, article, issues, distilled, tax)
         article, open_qs = new_article, (new_qs or open_qs)  # never lose open questions
