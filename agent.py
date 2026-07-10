@@ -31,7 +31,7 @@ QWEN = OpenAI(base_url=os.getenv("QWEN_URL", "http://localhost:8181/v1"), api_ke
 GEMMA = OpenAI(base_url=os.getenv("GEMMA_URL", "http://localhost:8182/v1"), api_key="local")
 SEARXNG = os.getenv("SEARXNG_URL", "http://localhost:8888")
 
-MAX_TOOL_STEPS = 12          # cap orchestrator tool calls per cycle
+MAX_TOOL_STEPS = 16          # cap orchestrator tool calls per cycle
 PAGE_CHARS = 6000            # truncate fetched pages to keep context sane
 
 
@@ -85,6 +85,43 @@ TOOLS = [
 ]
 
 DISPATCH = {"search_web": search_web, "read_url": read_url}
+SUBMIT_TOOL = TOOLS[-1]   # submit_research
+
+
+def _read_urls(messages: list) -> list[str]:
+    """Pull every URL the orchestrator actually fetched via read_url."""
+    urls = []
+    for m in messages:
+        for tc in (m.get("tool_calls") or []):
+            if tc.get("function", {}).get("name") == "read_url":
+                try:
+                    u = json.loads(tc["function"].get("arguments") or "{}").get("url")
+                    if u and u not in urls:
+                        urls.append(u)
+                except Exception:  # noqa: BLE001
+                    pass
+    return urls
+
+
+def force_submit(messages: list) -> list[dict]:
+    """Local models keep researching forever; make them wrap up on demand."""
+    read = _read_urls(messages)
+    read_list = "\n".join(f"- {u}" for u in read) or "(none)"
+    messages = messages + [{"role": "user", "content":
+        "Stop searching. You already read these pages:\n" + read_list +
+        "\nCall submit_research now. Include EACH distinct page above that was useful "
+        "(aim for 4-6 sources), each with concrete key_points drawn from what you read."}]
+    try:
+        resp = QWEN.chat.completions.create(
+            model="local", messages=messages, tools=[SUBMIT_TOOL],
+            tool_choice={"type": "function", "function": {"name": "submit_research"}},
+            temperature=0.4)
+        tcs = resp.choices[0].message.tool_calls or []
+        if tcs:
+            return json.loads(tcs[0].function.arguments or "{}").get("sources", [])
+    except Exception as e:  # noqa: BLE001
+        print(f"  force_submit failed: {e}")
+    return []
 
 
 # ----------------------------------------------------------------- orchestrator
@@ -92,9 +129,10 @@ def research(topic: dict) -> list[dict]:
     sys_msg = (
         "You are a research agent building an expert, citation-backed wiki. "
         "Use search_web and read_url to gather accurate, primary information about the "
-        "given topic. Prefer papers and authoritative sources. Read at least 3 pages. "
-        "When done, call submit_research with 4-8 sources and concrete key_points "
-        "(specific facts/equations/findings, not vague summaries)."
+        "given topic. Prefer papers and authoritative sources. Read at least 4 distinct "
+        "pages. Do NOT repeat a search you already ran or re-read a page. As soon as you "
+        "have read 4-5 good pages, call submit_research with those 4-6 sources and "
+        "concrete key_points (specific facts/equations/findings, not vague summaries)."
     )
     messages = [
         {"role": "system", "content": sys_msg},
@@ -122,8 +160,8 @@ def research(topic: dict) -> list[dict]:
                 result = f"[tool error: {e}]"
             messages.append({"role": "tool", "tool_call_id": tc.id,
                              "content": json.dumps(result)[:PAGE_CHARS]})
-    print("  ! hit MAX_TOOL_STEPS without submit_research")
-    return []
+    print("  ! hit MAX_TOOL_STEPS -> forcing submit_research")
+    return force_submit(messages)
 
 
 # ----------------------------------------------------------------- writer

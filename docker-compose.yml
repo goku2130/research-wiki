@@ -2,8 +2,10 @@
 #   qwen    -> RTX 5090 (GPU 1): orchestrator / tool-caller  (OpenAI API on :8181)
 #   gemma   -> RTX 3090 (GPU 0): article writer              (OpenAI API on :8182)
 #   searxng -> self-hosted metasearch (JSON API on :8888)
-# Bring up:   docker compose up -d
-# Logs:       docker compose logs -f qwen
+# Bring up:   docker-compose up -d
+# Logs:       docker-compose logs -f qwen
+# (uses compose file v2.4 for `runtime: nvidia` support under docker-compose v1)
+version: "2.4"
 services:
   qwen:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda

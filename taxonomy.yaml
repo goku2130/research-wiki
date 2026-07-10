@@ -1,33 +1,22 @@
-# ============================================================
-#  YOUR interest map. This is the agent's to-do list.
-#  Each cycle it picks the least-covered topic and writes it.
-#  ==> EDIT THIS FILE with the topics you actually care about.
-#  status: empty | draft | done   (agent updates this)
-# ============================================================
-domain: "RL for LLMs"
-
+domain: RL for LLMs
 topics:
-  - slug: ppo-for-llms
-    title: "PPO for LLM fine-tuning (RLHF)"
-    notes: "Policy-gradient basics, reward model, KL penalty, PPO clipping"
-    status: empty
-
-  - slug: dpo-and-preference-optimization
-    title: "Direct Preference Optimization and variants"
-    notes: "DPO, IPO, KTO, ORPO — why they skip the reward model"
-    status: empty
-
-  - slug: grpo
-    title: "GRPO (Group Relative Policy Optimization)"
-    notes: "How DeepSeek-style critic-free RL works"
-    status: empty
-
-  - slug: reward-modeling
-    title: "Reward modeling for LLMs"
-    notes: "Bradley-Terry, reward hacking, process vs outcome rewards"
-    status: empty
-
-  - slug: rl-for-reasoning
-    title: "RL for reasoning models"
-    notes: "Verifiable rewards, long chain-of-thought, o1/R1-style training"
-    status: empty
+- slug: ppo-for-llms
+  title: PPO for LLM fine-tuning (RLHF)
+  notes: Policy-gradient basics, reward model, KL penalty, PPO clipping
+  status: done
+- slug: dpo-and-preference-optimization
+  title: Direct Preference Optimization and variants
+  notes: "DPO, IPO, KTO, ORPO \u2014 why they skip the reward model"
+  status: done
+- slug: grpo
+  title: GRPO (Group Relative Policy Optimization)
+  notes: How DeepSeek-style critic-free RL works
+  status: empty
+- slug: reward-modeling
+  title: Reward modeling for LLMs
+  notes: Bradley-Terry, reward hacking, process vs outcome rewards
+  status: empty
+- slug: rl-for-reasoning
+  title: RL for reasoning models
+  notes: Verifiable rewards, long chain-of-thought, o1/R1-style training
+  status: empty
