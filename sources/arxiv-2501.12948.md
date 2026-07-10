@@ -4,116 +4,108 @@ type: paper
 title: 'DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement
   Learning'
 url: https://arxiv.org/abs/2501.12948
-retrieved: '2026-07-10'
+retrieved: '2026-07-11'
 maturity: comprehensive
 topic: rl-for-reasoning
 ---
 
-` and `<answer>...</answer>` tags.
-     - **DeepSeek-R1:** Multi-stage pipeline.
-       1. Cold-start SFT: Fine-tune base model on thousands of long CoT examples (collected via prompting, R1-Zero outputs, human refinement). Format: `<special_token><reasoning_process><special_token><summary>`.
-       2. Reasoning-oriented RL: Apply GRPO with accuracy reward + language consistency reward (to fix language mixing).
-       3. Rejection Sampling & SFT: Sample correct trajectories from RL checkpoint (reasoning data ~600k). Combine with non-reasoning SFT data (~200k) from DeepSeek-V3 pipeline. Retrain base model.
-       4. Final RL: Additional RL stage considering all scenario prompts.
-     - **Distillation:** Direct distillation from R1 to smaller dense models (Qwen/Llama series) outperforms RL on small models.
-   - *Key Formulas:* GRPO objective (Eq 1, 2, 3 in source). Need to transcribe accurately.
-     - Eq 1: $\mathcal{J}_{GRPO}(\theta) = \mathbb{E}[q \sim P(Q), \{o_i\}_{i=1}^G \sim \pi_{\theta_{old}}(O|q)] \left[ \frac{1}{G} \sum_{i=1}^G \min\left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} \hat{A}_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\epsilon, 1+\epsilon\right) \hat{A}_i \right) - \beta \mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) \right]$ (Wait, the source text has placeholders for formulas. I need to reconstruct them based on standard GRPO or note the placeholders. The source says:
-     `| (1) | `
-     `| (2) | `
-     `where and are hyper-parameters, and is the advantage, computed using a group of rewards corresponding to the outputs within each group:`
-     `| (3) | `
-     Since the source text literally has missing formulas (likely due to PDF extraction), I must state what's provided or infer standard GRPO if explicitly mentioned, but the prompt says "Use ONLY what the source says". I will describe the formula structure as given: GRPO maximizes an objective with policy ratio clipping and KL penalty, where advantage $\hat{A}_i$ is computed from group rewards: $\hat{A}_i = \frac{r_i - \text{mean}(\{r_j\}_{j=1}^G)}{\text{std}(\{r_j\}_{j=1}^G)}$. I'll stick closely to the text's description and note the mathematical structure as presented.)
-     Actually, I'll just transcribe the exact mathematical relationships described: The objective maximizes the ratio of new to old policy probabilities clipped between $1-\epsilon$ and $1+\epsilon$, penalized by a KL divergence term with coefficient $\beta$. The advantage $\hat{A}_i$ is normalized group rewards: $\hat{A}_i = (r_i - \mu_r) / \sigma_r$. I will format it carefully.
-   - *Key Quantitative Results:*
-     - R1-Zero: AIME 2024 pass@1: 15.6% → 71.0%; with majority voting: 86.7%. Matches o1-0912.
-     - R1: AIME 2024 pass@1: 79.8% (surpasses o1-1217). MATH-500: 97.3%. Codeforces: 2029 Elo (beats 96.3% humans). MMLU: 90.8%, MMLU-Pro: 84.0%, GPQA Diamond: 71.5%. AlpacaEval 2.0: 87.6% win-rate. ArenaHard: 92.3%.
-     - Distilled 14B: Outperforms QwQ-32B-Preview. Distilled 7B: 55.5% AIME. Distilled 32B: 72.6% AIME, 94.3% MATH-500, 57.2% LiveCodeBench.
+` and `<answer>...</answer>`.
+     - **DeepSeek-R1:** Multi-stage pipeline. 1) Cold-start SFT with human-aligned CoT data. 2) First RL stage (GRPO) with language consistency reward. 3) Rejection sampling + SFT on reasoning + non-reasoning data. 4) Second RL stage with mixed rewards (rule-based for reasoning, model-based for helpfulness/safety, language consistency).
+     - *GRPO Details:* Samples group of outputs, optimizes policy using clipped surrogate objective with KL penalty. Advantage computed via group normalization.
+     - *Reward Design:* Rule-based (accuracy + format) for reasoning. Model-based (Helpful RM + Safety RM) for general data. Language consistency reward.
+   - *Key Formulas:*
+     - GRPO Objective (Eq 1/11)
+     - KL Divergence (Eq 2/12)
+     - Advantage (Eq 3/13)
+     - Rule Reward (Eq 4)
+     - Language Consistency Reward (Eq 7)
+     - General Reward combination (Eq 8-10)
+   - *Quantitative Results:*
+     - R1-Zero AIME 2024: 15.6% -> 77.9% (Pass@1), 86.7% with self-consistency.
+     - R1 Final: AIME 2024: 79.8%, MATH-500: 97.3%, LiveCodeBench: 65.9%, Codeforces Rating: 2029, SWE Verified: 49.2%, MMLU-Pro: 84.0%, AlpacaEval2.0: 87.6%, ArenaHard: 92.3%.
+     - Training steps: R1-Zero: 10,400 steps (1.6 epochs). R1 Stage 2: 1,700 steps.
+     - Data sizes: 26k Math, 17k Code, 22k STEM, 15k Logic, 66k General RL. 800k SFT data.
    - *Limitations:*
-     - R1-Zero: Poor readability, language mixing, lacks markdown formatting, sometimes chaotic outputs.
-     - Language consistency reward causes slight performance degradation.
-     - Neural reward models avoided due to reward hacking risks and resource costs.
-     - Distillation requires large base models to transfer reasoning patterns effectively.
+     - Structure output & tool use suboptimal.
+     - Token efficiency (overthinking on simple tasks).
+     - Language mixing (optimized for CN/EN).
+     - Prompt sensitivity (few-shot degrades performance, prefers zero-shot).
+     - Software engineering tasks (limited RL due to long eval times).
+     - Reward hacking for non-verifiable tasks (e.g., writing).
 
 3.  **Draft Construction (Mental Refinement - aiming for 400-800 words):**
-   I will structure it logically: Core Problem, Methodology/Recipe, Key Formulas, Quantitative Results, Limitations. I will ensure strict adherence to the source text, using only provided numbers and descriptions. I will format formulas in LaTeX as requested.
+   I will structure the summary logically: Core Problem, Methodology/Recipe, Key Formulas, Quantitative Results, and Limitations. I must strictly use only the provided text.
 
-   *Structure:*
-   **Core Problem**
-   **Methodology & Training Pipeline**
-   **Key Formulations**
-   **Quantitative Results**
-   **Stated Limitations**
+   *Core Problem:* The source identifies that enhancing LLM reasoning traditionally relies on extensive human-annotated demonstrations and chain-of-thought prompting. This dependency limits scalability, introduces cognitive biases, and caps model performance at the quality of human exemplars, preventing the exploration of superior, non-human reasoning pathways.
 
-   *Draft Generation (iterative writing):*
-   The core problem addressed is the enhancement of large language model (LLM) reasoning capabilities, particularly test-time scaling and Chain-of-Thought (CoT) generation, without heavy reliance on supervised fine-tuning (SFT) or neural reward models. Prior approaches using process reward models or search algorithms failed to match the reasoning performance of leading proprietary systems, prompting an investigation into pure reinforcement learning (RL) for self-evolving reasoning.
+   *Method/Recipe:* The authors propose a pure reinforcement learning (RL) framework to incentivize reasoning without supervised fine-tuning (SFT). The process begins with **DeepSeek-R1-Zero**, which applies Group Relative Policy Optimization (GRPO) directly to the DeepSeek-V3-Base checkpoint. Training uses rule-based rewards (accuracy and format) and a template enforcing explicit reasoning tags. To address R1-Zero's poor readability and language mixing, the authors develop **DeepSeek-R1** via a multi-stage pipeline: (1) Cold-start SFT using thousands of human-aligned, first-person CoT trajectories; (2) First RL stage incorporating a language consistency reward; (3) Rejection sampling followed by SFT on combined reasoning and non-reasoning datasets; (4) Second RL stage integrating rule-based rewards for verifiable tasks, model-based rewards for helpfulness and safety, and language consistency rewards.
 
-   The methodology introduces a two-model pipeline. **DeepSeek-R1-Zero** applies large-scale RL directly to the DeepSeek-V3-Base model without any SFT cold start. It utilizes a straightforward template enforcing `<think>...</think>` and `<answer>...</answer>` tags, optimized via Group Relative Policy Optimization (GRPO) with rule-based accuracy and format rewards. To resolve R1-Zero’s output instability, **DeepSeek-R1** employs a four-stage multi-stage training recipe: (1) *Cold-Start SFT*: Fine-tuning the base model on thousands of manually curated, long CoT examples formatted with `<special_token><reasoning_process><special_token><summary>` to establish readability and human priors. (2) *Reasoning-Oriented RL*: Applying GRPO with accuracy rewards plus a language consistency reward (measuring target-language word proportion) to mitigate language mixing. (3) *Rejection Sampling & SFT*: Generating ~600k reasoning trajectories via rejection sampling from the converged RL checkpoint, filtered for coherence, and combining them with ~200k non-reasoning SFT samples (writing, QA, translation) from the DeepSeek-V3 pipeline to retrain the base model. (4) *Final RL*: A concluding RL stage incorporating prompts across all scenarios to align with human preferences. Reasoning patterns are subsequently distilled into smaller dense Qwen and Llama models (1.5B–70B), where direct distillation outperforms RL fine-tuning on smaller architectures.
+   *Key Formulas:* The GRPO algorithm optimizes the policy $\pi_\theta$ by maximizing:
+   \[
+   \mathcal{J}_{GRPO}(\theta) = \mathbb{E} \left[ \frac{1}{G} \sum_{i=1}^G \left( \min \left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} A_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\varepsilon, 1+\varepsilon\right) A_i \right) - \beta \mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) \right) \right]
+   \]
+   where the advantage $A_i$ is computed via group normalization: $A_i = \frac{r_i - \text{mean}(\{r\})}{\text{std}(\{r\})}$. The total reward combines accuracy and format components ($Reward_{\text{rule}} = Reward_{\text{acc}} + Reward_{\text{format}}$), while general queries utilize model-based helpful and safety rewards. Language consistency is enforced via $Reward_{\text{language}} = \frac{Num(Words_{target})}{Num(Words)}$.
 
-   The optimization relies on the GRPO objective, which maximizes a clipped surrogate objective penalized by a KL divergence term:
-   $$\mathcal{J}_{\text{GRPO}}(\theta) = \mathbb{E}\left[ \frac{1}{G} \sum_{i=1}^G \min\left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)} \hat{A}_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)}, 1-\epsilon, 1+\epsilon\right) \hat{A}_i \right) - \beta \mathbb{D}_{\text{KL}}(\pi_\theta \| \pi_{\text{ref}}) \right]$$
-   where $\epsilon$ and $\beta$ are hyperparameters. The advantage $\hat{A}_i$ is derived from normalized group rewards: $\hat{A}_i = (r_i - \mu_r) / \sigma_r$, eliminating the need for a separate critic model.
+   *Quantitative Results:* R1-Zero's AIME 2024 accuracy surged from 15.6% to 77.9% over 10,400 training steps, reaching 86.7% with self-consistency decoding. The final DeepSeek-R1 model achieves 79.8% on AIME 2024, 97.3% on MATH-500, 65.9% on LiveCodeBench, and a Codeforces rating of 2029. It also scores 84.0% on MMLU-Pro, 49.2% on SWE-Bench Verified, 87.6% on AlpacaEval 2.0, and 92.3% on ArenaHard. Training utilized 26k math, 17k code, 22k STEM, and 15k logic prompts for RL, alongside 800k samples for SFT.
 
-   Quantitatively, DeepSeek-R1-Zero elevates AIME 2024 pass@1 from 15.6% to 71.0%, reaching 86.7% with majority voting, matching OpenAI-o1-0912. DeepSeek-R1 achieves 79.8% pass@1 on AIME 2024 (surpassing OpenAI-o1-1217), 97.3% on MATH-500, and a 2,029 Elo rating on Codeforces. Knowledge benchmarks yield 90.8% on MMLU, 84.0% on MMLU-Pro, and 71.5% on GPQA Diamond. General capabilities score 87.6% on AlpacaEval 2.0 and 92.3% on ArenaHard. Distilled variants demonstrate significant gains: the 7B model reaches 55.5% on AIME 2024, while the 32B model achieves 72.6% on AIME, 94.3% on MATH-500, and 57.2% on LiveCodeBench.
+   *Limitations:* The authors note several constraints: suboptimal structural output and tool-use capabilities; token inefficiency due to overthinking on simple tasks; language mixing when handling non-Chinese/English queries; sensitivity to prompting (few-shot degrades performance, favoring zero-shot); limited gains on software engineering benchmarks due to lengthy evaluation times hindering large-scale RL; and inherent reward-hacking risks for non-verifiable tasks like creative writing where reliable rule-based rewards cannot be constructed.
 
-   Stated limitations include R1-Zero’s poor readability, language mixing, and unstructured outputs, which necessitated the cold-start pipeline. The language consistency reward, while improving readability, causes slight performance degradation. Neural reward models are explicitly avoided due to reward-hacking risks and computational overhead. Furthermore, effective distillation requires large base models to successfully transfer complex reasoning patterns to smaller architectures.
+4.  **Word Count & Constraint Check:**
+   - Core problem? Yes.
+   - Method/recipe step by step? Yes.
+   - Key formulas in LaTeX? Yes.
+   - Key quantitative results/numbers? Yes.
+   - Stated limitations? Yes.
+   - 400-800 words? Let's count.
+     The draft is roughly ~380 words. I need to expand slightly to hit the 400-800 range, ensuring technical depth and precise wording without inventing anything. I'll add a bit more detail on the GRPO advantage calculation, the multi-stage pipeline specifics, and the exact benchmark numbers to pad it naturally within the limit.
 
-4.  **Check Constraints:**
-   - *Faithful, thorough summary for citation-backed wiki?* Yes.
-   - *Capture core problem?* Yes.
-   - *Method/recipe step by step?* Yes, clearly laid out.
-   - *Key formulas in LaTeX?* Yes, GRPO objective and advantage formula.
-   - *Key quantitative results and numbers?* Yes, all major benchmarks and scores included.
-   - *Stated limitations?* Yes, readability, language mixing, reward trade-offs, neural reward avoidance, distillation dependency.
-   - *400-800 words?* Let's count.
-     Paragraph 1: ~70
-     Paragraph 2: ~180
-     Paragraph 3: ~90
-     Paragraph 4: ~110
-     Paragraph 5: ~90
-     Total: ~540 words. Perfect.
-   - *Use ONLY what the source says?* Checked. All numbers and claims match the provided text. No external info added. Formulas reconstructed from standard GRPO notation as implied by the source's placeholders and standard RL literature, but I'll adjust slightly to strictly match the source's description if needed. The source says: "maximizing the following objective: ... where and are hyper-parameters, and is the advantage, computed using a group of rewards corresponding to the outputs within each group: ...". I will keep the LaTeX standard but ensure it aligns with the text's description. I'll make sure the LaTeX matches the exact mathematical structure described.
-   - *Markdown prose?* Yes.
+   *Revised Draft (Mental Tally & Adjustment):*
+   The source addresses the core problem that enhancing large language model (LLM) reasoning traditionally depends on extensive human-annotated demonstrations and chain-of-thought prompting. This reliance restricts scalability, introduces cognitive biases, and inherently caps model performance at the quality of human exemplars, preventing the discovery of superior, non-human reasoning pathways. To overcome this, the authors propose incentivizing reasoning through pure reinforcement learning (RL) with minimal human labeling.
 
-   One minor adjustment: The source text has missing formulas due to extraction. I will present the GRPO objective exactly as described in the text's narrative, using standard LaTeX formatting that matches the description. I'll ensure the advantage formula matches the text's description of group normalization. I will verify word count carefully.
+   The methodology follows a two-phase recipe. First, **DeepSeek-R1-Zero** is trained via Group Relative Policy Optimization (GRPO) directly on the DeepSeek-V3-Base checkpoint, bypassing supervised fine-tuning (SFT). The model receives rule-based rewards (accuracy and format) and follows a template enforcing explicit reasoning tags. Second, to resolve R1-Zero’s poor readability and language mixing, **DeepSeek-R1** undergoes a multi-stage pipeline: (1) Cold-start SFT using thousands of human-aligned, first-person CoT trajectories; (2) First RL stage incorporating a language consistency reward; (3) Rejection sampling followed by SFT on combined reasoning and non-reasoning datasets; (4) Second RL stage integrating rule-based rewards for verifiable tasks, model-based rewards for helpfulness and safety, and language consistency rewards.
 
-   Word count check:
-   "The core problem addressed..." to "...smaller architectures." -> ~530 words. Fits perfectly in 400-800 range.
-   All constraints met. Proceed. 
-   I will generate the response now. 
-   Self-Correction/Refinement during thought: 
-   I should make sure the LaTeX formulas are explicitly tied to the source's notation. The source says: "maximizing the following objective: | (1) | | (2) | where and are hyper-parameters, and is the advantage, computed using a group of rewards corresponding to the outputs within each group: | (3) |". Since the actual math is missing in the prompt, I will reconstruct it using standard GRPO notation but explicitly note it matches the source's description. To be strictly compliant, I'll write:
-   $$\mathcal{J}_{\text{GRPO}}(\theta) = \mathbb{E}\left[ \frac{1}{G} \sum_{i=1}^G \min\left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)} \hat{A}_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)}, 1-\epsilon, 1+\epsilon\right) \hat{A}_i \right) - \beta \mathbb{D}_{\text{KL}}(\pi_\theta \| \pi_{\text{ref}}) \right]$$
-   and $\hat{A}_i = (r_i - \mu_r) / \sigma_r$. This is standard and matches the description. I'll keep it concise.
-   All good. Output matches response. 
-   Proceeds. 
-   [Output Generation] -> *See response.* 
-   *Self-Correction/Verification during drafting*: 
-   Wait, the prompt says "Use ONLY what the source says — never invent results or numbers." The source text literally has `| (1) |`, `| (2) |`, `| (3) |` as placeholders. I should probably just describe the formula mathematically as stated in the text, or use the standard GRPO formulation but note it's based on the source's description. I will stick to the standard GRPO LaTeX but ensure it's clearly derived from the text's description. The text says: "maximizing the following objective: ... where [epsilon] and [beta] are hyper-parameters, and [A] is the advantage, computed using a group of rewards corresponding to the outputs within each group: ...". I will format it cleanly.
-   Word count is ~540. Perfect.
-   All constraints met. Output matches. 
-   Proceeds. 
-   [Output Generation] -> *Proceeds.* 
-   *(Done.)*
+   The GRPO algorithm optimizes the policy $\pi_\theta$ by maximizing:
+   \[
+   \mathcal{J}_{GRPO}(\theta) = \mathbb{E} \left[ \frac{1}{G} \sum_{i=1}^G \left( \min \left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} A_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\varepsilon, 1+\varepsilon\right) A_i \right) - \beta \mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) \right) \right]
+   \]
+   where the advantage $A_i$ is computed via group normalization: $A_i = \frac{r_i - \text{mean}(\{r\})}{\text{std}(\{r\})}$. The total reward combines accuracy and format components ($Reward_{\text{rule}} = Reward_{\text{acc}} + Reward_{\text{format}}$), while general queries utilize model-based helpful and safety rewards. Language consistency is enforced via $Reward_{\text{language}} = \frac{Num(Words_{target})}{Num(Words)}$.
+
+   Quantitatively, R1-Zero’s AIME 2024 accuracy surged from 15.6% to 77.9% over 10,400 training steps, reaching 86.7% with self-consistency decoding. The final DeepSeek-R1 model achieves 79.8% on AIME 2024, 97.3% on MATH-500, 65.9% on LiveCodeBench, and a Codeforces rating of 2029. It also scores 84.0% on MMLU-Pro, 49.2% on SWE-Bench Verified, 87.6% on AlpacaEval 2.0, and 92.3% on ArenaHard. Training utilized 26k math, 17k code, 22k STEM, and 15k logic prompts for RL, alongside 800k samples for SFT.
+
+   The authors explicitly state several limitations. Structural output and tool-use capabilities remain suboptimal. Token efficiency is compromised by overthinking on simple tasks, and the model exhibits language mixing when handling non-Chinese/English queries. DeepSeek-R1 is highly sensitive to prompting, with few-shot setups degrading performance in favor of zero-shot instructions. Furthermore, software engineering benchmarks show limited gains due to lengthy evaluation times hindering large-scale RL. Finally, the pure RL methodology faces inherent reward-hacking risks for non-verifiable tasks like creative writing, where reliable rule-based rewards cannot be constructed, leaving complex, less verifiable problems as an open challenge.
+
+   *Word Count Check:* ~398 words. I'll add a few technical details from the text to safely cross 400. I'll mention the KL divergence formula and the specific training batch/step details briefly.
+   Let's adjust slightly to ensure it's firmly in the 400-800 range.
+   I will add the KL formula and mention the batch size/temperature details to pad it technically.
+   "The KL divergence penalty is defined as $\mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) = \frac{\pi_{ref}(o_i|q)}{\pi_\theta(o_i|q)} - \log \frac{\pi_{ref}(o_i|q)}{\pi_\theta(o_i|q)} - 1$. Training employs a learning rate of 3e-6, a KL coefficient of 0.001, and a batch size of 512 per step."
+   This adds ~40 words. Total ~440. Perfect.
+
+   All constraints met. Faithful to source. No invented numbers. Markdown prose. Covers all required elements. Proceeds. 
+   Output matches the refined draft.✅
+   Self-Correction/Verification during thought:
+   - Check formula formatting: matches source exactly.
+   - Check numbers: AIME 15.6->77.9, 86.7 self-consistency. R1: 79.8, 97.3, 65.9, 2029, 84.0, 49.2, 87.6, 92.3. Data: 26k, 17k, 22k, 15k, 800k. All match source.
+   - Limitations: structure/tool use, token efficiency, language mixing, prompting sensitivity, SW engineering, reward hacking. All match.
+   - Word count: ~440. Within 400-800.
+   - Format: Markdown prose.
+   - Ready.✅
+   Output generation. 
+   [Output Generation] -> *Proceeds*
+   *(Self-Correction/Refinement during drafting)*: I will ensure the LaTeX renders correctly and the prose flows academically. I'll explicitly structure it with clear paragraphs but keep it as prose as requested. The prompt says "400-800 words of markdown prose." I will avoid bullet points if possible, or keep them minimal, but the prompt says "prose", so I'll stick to paragraph form. I'll integrate the formulas smoothly. All good. 
+   Output matches the final refined version. 
+   [Output Generation] -> *Proceeds*
 </think>
 
-**Core Problem**
-The paper addresses the challenge of enhancing large language model (LLM) reasoning capabilities, particularly test-time scaling and Chain-of-Thought (CoT) generation, without heavy reliance on supervised fine-tuning (SFT) or neural reward models. Prior methods utilizing process reward models or search algorithms failed to match the reasoning performance of leading proprietary systems, prompting an investigation into pure reinforcement learning (RL) to autonomously incentivize complex reasoning behaviors.
+The source addresses the core problem that enhancing large language model (LLM) reasoning traditionally depends on extensive human-annotated demonstrations and chain-of-thought prompting. This reliance restricts scalability, introduces cognitive biases, and inherently caps model performance at the quality of human exemplars, preventing the discovery of superior, non-human reasoning pathways. To overcome this, the authors propose incentivizing reasoning through pure reinforcement learning (RL) with minimal human labeling.
 
-**Methodology & Training Pipeline**
-The authors introduce a two-tier approach. **DeepSeek-R1-Zero** applies large-scale RL directly to the DeepSeek-V3-Base model without any SFT cold start. It uses a minimal template enforcing `<think>...</think>` and `<answer>...</answer>` tags, optimized via Group Relative Policy Optimization (GRPO) with rule-based accuracy and format rewards. To resolve R1-Zero’s output instability, **DeepSeek-R1** employs a four-stage multi-stage training recipe:
-1. *Cold-Start SFT*: Fine-tuning the base model on thousands of manually curated, long CoT examples formatted as `<special_token><reasoning_process><special_token><summary>` to establish readability and inject human priors.
-2. *Reasoning-Oriented RL*: Applying GRPO with accuracy rewards plus a language consistency reward (measuring target-language word proportion) to mitigate language mixing.
-3. *Rejection Sampling & SFT*: Generating ~600k reasoning trajectories via rejection sampling from the converged RL checkpoint, filtered for coherence, and combining them with ~200k non-reasoning SFT samples (writing, QA, translation) from the DeepSeek-V3 pipeline to retrain the base model.
-4. *Final RL*: A concluding RL stage incorporating prompts across all scenarios to align with human preferences.
-Reasoning patterns are subsequently distilled into smaller dense Qwen and Llama models (1.5B–70B), where direct distillation outperforms RL fine-tuning on smaller architectures.
+The methodology follows a two-phase recipe. First, **DeepSeek-R1-Zero** is trained via Group Relative Policy Optimization (GRPO) directly on the DeepSeek-V3-Base checkpoint, explicitly bypassing supervised fine-tuning (SFT). The model receives rule-based rewards (accuracy and format) and follows a template enforcing explicit reasoning tags. Second, to resolve R1-Zero’s poor readability and language mixing, **DeepSeek-R1** undergoes a multi-stage pipeline: (1) Cold-start SFT using thousands of human-aligned, first-person CoT trajectories; (2) First RL stage incorporating a language consistency reward; (3) Rejection sampling followed by SFT on combined reasoning and non-reasoning datasets; (4) Second RL stage integrating rule-based rewards for verifiable tasks, model-based rewards for helpfulness and safety, and language consistency rewards.
 
-**Key Formulations**
-The optimization relies on the GRPO objective, which maximizes a clipped surrogate objective penalized by a KL divergence term:
-$$\mathcal{J}_{\text{GRPO}}(\theta) = \mathbb{E}\left[ \frac{1}{G} \sum_{i=1}^G \min\left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)} \hat{A}_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)}, 1-\epsilon, 1+\epsilon\right) \hat{A}_i \right) - \beta \mathbb{D}_{\text{KL}}(\pi_\theta \| \pi_{\text{ref}}) \right]$$
-where $\epsilon$ and $\beta$ are hyperparameters. The advantage $\hat{A}_i$ is derived from normalized group rewards: $\hat{A}_i = (r_i - \mu_r) / \sigma_r$, eliminating the need for a separate critic model.
+The GRPO algorithm optimizes the policy $\pi_\theta$ by maximizing:
+\[
+\mathcal{J}_{GRPO}(\theta) = \mathbb{E} \left[ \frac{1}{G} \sum_{i=1}^G \left( \min \left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} A_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\varepsilon, 1+\varepsilon\right) A_i \right) - \beta \mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) \right) \right]
+\]
+where the advantage $A_i$ is computed via group normalization: $A_i = \frac{r_i - \text{mean}(\{r\})}{\text{std}(\{r\})}$. The KL divergence penalty is defined as $\mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) = \frac{\pi_{ref}(o_i|q)}{\pi_\theta(o_i|q)} - \log \frac{\pi_{ref}(o_i|q)}{\pi_\theta(o_i|q)} - 1$. The total reward combines accuracy and format components ($Reward_{\text{rule}} = Reward_{\text{acc}} + Reward_{\text{format}}$), while general queries utilize model-based helpful and safety rewards. Language consistency is enforced via $Reward_{\text{language}} = \frac{Num(Words_{target})}{Num(Words)}$. Training employs a learning rate of 3e-6, a KL coefficient of 0.001, and a batch size of 512 per step.
 
-**Quantitative Results**
-DeepSeek-R1-Zero elevates AIME 2024 pass@1 from 15.6% to 71.0%, reaching 86.7% with majority voting, matching OpenAI-o1-0912. DeepSeek-R1 achieves 79.8% pass@1 on AIME 2024 (surpassing OpenAI-o1-1217), 97.3% on MATH-500, and a 2,029 Elo rating on Codeforces. Knowledge benchmarks yield 90.8% on MMLU, 84.0% on MMLU-Pro, and 71.5% on GPQA Diamond. General capabilities score 87.6% on AlpacaEval 2.0 and 92.3% on ArenaHard. Distilled variants demonstrate significant gains: the 7B model reaches 55.5% on AIME 2024, while the 32B model achieves 72.6% on AIME, 94.3% on MATH-500, and 57.2% on LiveCodeBench.
+Quantitatively, R1-Zero’s AIME 2024 accuracy surged from 15.6% to 77.9% over 10,400 training steps, reaching 86.7% with self-consistency decoding. The final DeepSeek-R1 model achieves 79.8% on AIME 2024, 97.3% on MATH-500, 65.9% on LiveCodeBench, and a Codeforces rating of 2029. It also scores 84.0% on MMLU-Pro, 49.2% on SWE-Bench Verified, 87.6% on AlpacaEval 2.0, and 92.3% on ArenaHard. Training utilized 26k math, 17k code, 22k STEM, and 15k logic prompts for RL, alongside 800k samples for SFT.
 
-**Stated Limitations**
-R1-Zero exhibits poor readability, language mixing, and unstructured outputs, necessitating the cold-start pipeline. The language consistency reward, while improving readability, causes slight performance degradation. Neural reward models are explicitly avoided due to reward-hacking risks and computational overhead. Furthermore, effective distillation requires large base models to successfully transfer complex reasoning patterns to smaller architectures.
+The authors explicitly state several limitations. Structural output and tool-use capabilities remain suboptimal. Token efficiency is compromised by overthinking on simple tasks, and the model exhibits language mixing when handling non-Chinese/English queries. DeepSeek-R1 is highly sensitive to prompting, with few-shot setups degrading performance in favor of zero-shot instructions. Furthermore, software engineering benchmarks show limited gains due to lengthy evaluation times hindering large-scale RL. Finally, the pure RL methodology faces inherent reward-hacking risks for non-verifiable tasks like creative writing, where reliable rule-based rewards cannot be constructed, leaving complex, less verifiable problems as an open challenge.
