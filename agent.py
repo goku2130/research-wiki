@@ -49,15 +49,24 @@ QWEN = OpenAI(base_url=os.getenv("QWEN_URL", "http://localhost:8181/v1"), api_ke
 GEMMA = OpenAI(base_url=os.getenv("GEMMA_URL", "http://localhost:8182/v1"), api_key="local")
 SEARXNG = os.getenv("SEARXNG_URL", "http://localhost:8888")
 
-# Writer role: full-precision Gemma 4 31B via Google API if a key is present,
-# else the local quantized Gemma on the 3090.
 _GKEY = os.getenv("GOOGLE_API_KEY")
+_GOOGLE_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+
+def google_client() -> OpenAI:
+    return OpenAI(base_url=_GOOGLE_BASE, api_key=_GKEY)
+
+
+# Role backends = (client, model), overridable at runtime (the A/B experiment sets these).
+#   WRITER   -> write_article + revise
+#   REVIEWER -> review + fact_check
+# Defaults: writer = Gemma 4 31B via API if a key is present else local Gemma;
+#           reviewer = local Qwen (its tool loop / reasoning).
 if _GKEY:
-    WRITER = OpenAI(base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-                    api_key=_GKEY)
-    WRITER_MODEL = os.getenv("WRITER_MODEL", "gemma-4-31b-it")
+    WRITER, WRITER_MODEL = google_client(), os.getenv("WRITER_MODEL", "gemma-4-31b-it")
 else:
     WRITER, WRITER_MODEL = GEMMA, "local"
+REVIEWER, REVIEWER_MODEL = QWEN, "local"
 
 
 def strip_thoughts(text: str) -> str:
@@ -330,15 +339,10 @@ REVIEW_SYS = (
     "5. It has '## Key takeaways'. Open questions are stored in FRONTMATTER, not the "
     "body — treat rule 5 as satisfied when the 'Open questions present' count below is "
     ">= 2. Do NOT ask for an open-questions heading in the body.\n"
-    "Be terse. Give concrete fixes ('add the PPO clip equation', 'cite the AIME number')."
+    "Reason briefly, THEN on the last lines write 'VERDICT: approve' or "
+    "'VERDICT: request_changes', and if requesting changes an 'ISSUES:' block with one "
+    "concrete fix per bullet ('add the PPO clip equation', 'cite the AIME number')."
 )
-REVIEW_TOOL = {"type": "function", "function": {
-    "name": "submit_review",
-    "description": "Return the review verdict.",
-    "parameters": {"type": "object", "properties": {
-        "verdict": {"type": "string", "enum": ["approve", "request_changes"]},
-        "issues": {"type": "array", "items": {"type": "string"}}},
-        "required": ["verdict"]}}}
 
 
 def review(topic: dict, article: str, open_qs: list[str], distilled: list[dict]) -> dict:
@@ -346,17 +350,24 @@ def review(topic: dict, article: str, open_qs: list[str], distilled: list[dict])
     content = (f"Topic: {topic['title']}\nValid source ids: {ids}\n"
                f"Open questions present: {len(open_qs)}\n\nARTICLE:\n{article}")
     try:
-        resp = QWEN.chat.completions.create(
-            model="local", temperature=0.2, tools=[REVIEW_TOOL],
-            tool_choice={"type": "function", "function": {"name": "submit_review"}},
+        resp = REVIEWER.chat.completions.create(
+            model=REVIEWER_MODEL, temperature=0.2, max_tokens=4000,
             messages=[{"role": "system", "content": REVIEW_SYS},
                       {"role": "user", "content": content}])
-        tc = (resp.choices[0].message.tool_calls or [None])[0]
-        if tc:
-            return json.loads(tc.function.arguments or "{}")
+        msg = resp.choices[0].message
+        out = strip_thoughts(msg.content or "")
+        if "VERDICT:" not in out:
+            out = (getattr(msg, "reasoning_content", "") or "") + "\n" + out
     except Exception as e:  # noqa: BLE001
         print(f"  review failed: {e}")
-    return {"verdict": "approve", "issues": []}
+        return {"verdict": "approve", "issues": []}
+    verdict = "request_changes" if re.search(r"VERDICT:\s*request", out, re.I) else "approve"
+    issues: list[str] = []
+    if verdict == "request_changes" and "ISSUES:" in out:
+        tail = out.rsplit("ISSUES:", 1)[1]
+        issues = [re.sub(r"^[-*\d.\s]+", "", ln).strip()
+                  for ln in tail.splitlines() if ln.strip()][:8]
+    return {"verdict": verdict, "issues": issues}
 
 
 # ----------------------------------------------------------------- fact-check gate
@@ -378,12 +389,12 @@ def fact_check(topic: dict, article: str, distilled: list[dict]) -> list[str]:
                          for d in distilled)
     content = f"ARTICLE:\n{article}\n\nSOURCE SUMMARIES:\n{corpus}"
     try:
-        resp = QWEN.chat.completions.create(
-            model="local", temperature=0.1, max_tokens=8000,
+        resp = REVIEWER.chat.completions.create(
+            model=REVIEWER_MODEL, temperature=0.1, max_tokens=8000,
             messages=[{"role": "system", "content": FACTCHECK_SYS},
                       {"role": "user", "content": content}])
         msg = resp.choices[0].message
-        out = msg.content or ""
+        out = strip_thoughts(msg.content or "")
         if "ISSUES:" not in out:  # reasoning model may leave answer only in reasoning
             out = (getattr(msg, "reasoning_content", "") or "") + "\n" + out
     except Exception as e:  # noqa: BLE001
@@ -462,6 +473,41 @@ def pick_topic(tax: dict, forced: str | None):
     return min(tax["topics"], key=lambda t: order.get(t["status"], 3))
 
 
+def gather_and_distill(topic: dict) -> list[dict]:
+    srcs = gather_sources(topic)
+    if not srcs:
+        return []
+    print(f"== distilling {len(srcs)} sources ({DISTILL_WORKERS}-way concurrent)...")
+    with ThreadPoolExecutor(max_workers=DISTILL_WORKERS) as ex:
+        return [d for d in ex.map(lambda s: distill(topic, s), srcs) if d]
+
+
+def compose(topic: dict, distilled: list[dict], tax: dict, verbose: bool = True):
+    """Write -> review + fact-check -> revise, using the current WRITER/REVIEWER
+    backends. Returns (article, open_qs, meta) where meta records the gate activity."""
+    article, open_qs = write_article(topic, distilled, tax)
+    rounds = []
+    for rnd in range(MAX_REVIEW_ROUNDS):
+        # review and fact_check are independent reads of the article -> run concurrently
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            f_rev = ex.submit(review, topic, article, open_qs, distilled)
+            f_fc = ex.submit(fact_check, topic, article, distilled)
+            verdict, grounding = f_rev.result(), f_fc.result()
+        struct = verdict.get("issues") or [] if verdict.get("verdict") != "approve" else []
+        issues = struct + [f"[grounding] {g}" for g in grounding]
+        rounds.append({"structural": len(struct), "grounding": len(grounding)})
+        if not issues:
+            if verbose:
+                print(f"  round {rnd+1}: APPROVE ({len(distilled)} sources grounded)")
+            break
+        if verbose:
+            print(f"  round {rnd+1}: revise — {len(struct)} structural, "
+                  f"{len(grounding)} grounding")
+        new_article, new_qs = revise(topic, article, issues, distilled, tax)
+        article, open_qs = new_article, (new_qs or open_qs)
+    return article, open_qs, {"rounds": rounds}
+
+
 def main() -> None:
     tax = yaml.safe_load(TAXONOMY.read_text())
     forced = sys.argv[1] if len(sys.argv) > 1 else None
@@ -469,33 +515,12 @@ def main() -> None:
     print(f"== topic: {topic['slug']} ({topic['title']})")
     t0 = time.time()
 
-    srcs = gather_sources(topic)
-    if not srcs:
-        print("no sources gathered; aborting"); return
-
-    print(f"== distilling {len(srcs)} sources ({DISTILL_WORKERS}-way concurrent)...")
-    with ThreadPoolExecutor(max_workers=DISTILL_WORKERS) as ex:
-        distilled = [d for d in ex.map(lambda s: distill(topic, s), srcs) if d]
+    distilled = gather_and_distill(topic)
     if not distilled:
-        print("no sources distilled; aborting"); return
+        print("no sources; aborting"); return
 
     print(f"== writing article from {len(distilled)} distilled sources...")
-    article, open_qs = write_article(topic, distilled, tax)
-
-    for rnd in range(MAX_REVIEW_ROUNDS):
-        verdict = review(topic, article, open_qs, distilled)
-        grounding = fact_check(topic, article, distilled)
-        struct = verdict.get("issues") or [] if verdict.get("verdict") != "approve" else []
-        issues = struct + [f"[grounding] {g}" for g in grounding]
-        if not issues:
-            print(f"  round {rnd+1}: APPROVE (structure ok, {len(distilled)} sources grounded)")
-            break
-        print(f"  round {rnd+1}: revise — {len(struct)} structural, "
-              f"{len(grounding)} grounding issues")
-        for i in issues[:8]:
-            print(f"      - {i}")
-        new_article, new_qs = revise(topic, article, issues, distilled, tax)
-        article, open_qs = new_article, (new_qs or open_qs)  # never lose open questions
+    article, open_qs, _ = compose(topic, distilled, tax)
     save(topic, distilled, article, open_qs)
 
     topic["status"] = "done"
