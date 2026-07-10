@@ -94,10 +94,12 @@ def strip_thoughts(text: str) -> str:
 
 MAX_TOOL_STEPS = 16      # cap orchestrator tool calls in stage 1
 SCAN_CHARS = 5000        # truncation while the orchestrator is scanning pages
-FULLTEXT_CHARS = 24000   # much larger read for the distillation stage
+FULLTEXT_CHARS = 24000   # HTML/trafilatura read for the distillation stage (fallback)
+OCR_CHARS = 90000        # Mistral OCR full-paper read (fits local Qwen 65k ctx)
 TARGET_SOURCES = 8       # how many sources to aim for
 MAX_REVIEW_ROUNDS = 2    # write -> review -> revise iterations before accepting
 DISTILL_WORKERS = 4      # concurrent source distillations (needs server --parallel >= this)
+OCR_CACHE = ROOT / "ocr_cache"
 
 
 # ----------------------------------------------------------------- fetching
@@ -118,9 +120,43 @@ def _extract(url: str, cap: int) -> str:
     return text[:cap] if text else ""
 
 
+def ocr_pdf(pdf_url: str, cache_key: str) -> str | None:
+    """Mistral OCR -> full-paper markdown (faithful, complete). Disk-cached by
+    cache_key so re-runs don't re-OCR. Returns None if no key or on failure."""
+    if not _MKEY:
+        return None
+    OCR_CACHE.mkdir(exist_ok=True)
+    cached = OCR_CACHE / (re.sub(r"[^a-z0-9.]+", "-", cache_key.lower()) + ".md")
+    if cached.exists():
+        return cached.read_text()
+    try:
+        r = requests.post("https://api.mistral.ai/v1/ocr",
+            headers={"Authorization": f"Bearer {_MKEY}", "Content-Type": "application/json"},
+            json={"model": "mistral-ocr-latest",
+                  "document": {"type": "document_url", "document_url": pdf_url}},
+            timeout=180)
+        r.raise_for_status()
+        text = "\n\n".join(p.get("markdown", "") for p in r.json().get("pages", []))
+    except Exception as e:  # noqa: BLE001
+        print(f"    OCR failed ({pdf_url}): {str(e)[:100]}")
+        return None
+    if len(text) > 2000:
+        cached.write_text(text)
+        return text
+    return None
+
+
 def fetch_fulltext(url: str) -> str:
-    """Full source text; for arXiv prefer HTML (real LaTeX) over the PDF/abs page."""
+    """Full source text. Prefer Mistral OCR of the complete PDF (faithful, no
+    truncation of the paper); fall back to arXiv HTML, then trafilatura."""
     aid = arxiv_id(url)
+    # 1) Mistral OCR of the full paper — the highest-fidelity path.
+    if _MKEY and (aid or url.lower().endswith(".pdf") or "/pdf/" in url):
+        pdf_url = f"https://arxiv.org/pdf/{aid}" if aid else url
+        text = ocr_pdf(pdf_url, cache_key=aid or urlparse(url).path)
+        if text:
+            return text[:OCR_CHARS]
+    # 2) arXiv HTML (real LaTeX) / 3) trafilatura fallback.
     if aid:
         for cand in (f"https://arxiv.org/html/{aid}",
                      f"https://ar5iv.labs.arxiv.org/html/{aid}"):

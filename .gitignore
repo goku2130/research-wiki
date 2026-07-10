@@ -4,3 +4,4 @@ __pycache__/
 searxng/uwsgi.ini
 .env
 *.key
+ocr_cache/

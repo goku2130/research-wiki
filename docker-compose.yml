@@ -20,7 +20,7 @@ services:
     command: >
       --model /models/Qwen3.6-35B-A3B-UD-Q3_K_M.gguf
       -ngl 999 -fa on
-      -c 65536 -n 8192 --parallel 4
+      -c 131072 -n 8192 --parallel 4
       --cache-type-k q8_0 --cache-type-v q8_0
       --jinja
       --temp 0.6 --top-p 0.95 --top-k 20
