@@ -6,12 +6,12 @@ topics:
   status: done
 - slug: dpo-and-preference-optimization
   title: Direct Preference Optimization and variants
-  notes: "DPO, IPO, KTO, ORPO \u2014 why they skip the reward model"
+  notes: DPO, IPO, KTO, ORPO — why they skip the reward model
   status: done
 - slug: grpo
   title: GRPO (Group Relative Policy Optimization)
   notes: How DeepSeek-style critic-free RL works
-  status: empty
+  status: done
 - slug: reward-modeling
   title: Reward modeling for LLMs
   notes: Bradley-Terry, reward hacking, process vs outcome rewards
