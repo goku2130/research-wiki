@@ -51,10 +51,29 @@ SEARXNG = os.getenv("SEARXNG_URL", "http://localhost:8888")
 
 _GKEY = os.getenv("GOOGLE_API_KEY")
 _GOOGLE_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
+_MKEY = os.getenv("MISTRAL_API_KEY")
 
 
 def google_client() -> OpenAI:
     return OpenAI(base_url=_GOOGLE_BASE, api_key=_GKEY)
+
+
+def mistral_client() -> OpenAI:
+    return OpenAI(base_url="https://api.mistral.ai/v1", api_key=_MKEY)
+
+
+def content_text(msg) -> str:
+    """Read message text across backends. Mistral reasoning models (magistral)
+    return content as a list of {'type': 'thinking'|'text', ...} blocks."""
+    c = getattr(msg, "content", None)
+    if isinstance(c, list):
+        out = []
+        for b in c:
+            d = b if isinstance(b, dict) else (b.model_dump() if hasattr(b, "model_dump") else {})
+            if isinstance(d, dict) and d.get("type") == "text":
+                out.append(d.get("text", ""))
+        return "\n".join(out)
+    return c or ""
 
 
 # Role backends = (client, model), overridable at runtime (the A/B experiment sets these).
@@ -323,7 +342,7 @@ def write_article(topic: dict, distilled: list[dict], tax: dict) -> tuple[str, l
         model=WRITER_MODEL, temperature=0.7,
         messages=[{"role": "system", "content": WRITE_SYS},
                   {"role": "user", "content": prompt}])
-    body = strip_thoughts(resp.choices[0].message.content or "")
+    body = strip_thoughts(content_text(resp.choices[0].message))
     return _split_open_qs(normalize_citations(body))
 
 
@@ -355,7 +374,7 @@ def review(topic: dict, article: str, open_qs: list[str], distilled: list[dict])
             messages=[{"role": "system", "content": REVIEW_SYS},
                       {"role": "user", "content": content}])
         msg = resp.choices[0].message
-        out = strip_thoughts(msg.content or "")
+        out = strip_thoughts(content_text(msg))
         if "VERDICT:" not in out:
             out = (getattr(msg, "reasoning_content", "") or "") + "\n" + out
     except Exception as e:  # noqa: BLE001
@@ -394,7 +413,7 @@ def fact_check(topic: dict, article: str, distilled: list[dict]) -> list[str]:
             messages=[{"role": "system", "content": FACTCHECK_SYS},
                       {"role": "user", "content": content}])
         msg = resp.choices[0].message
-        out = strip_thoughts(msg.content or "")
+        out = strip_thoughts(content_text(msg))
         if "ISSUES:" not in out:  # reasoning model may leave answer only in reasoning
             out = (getattr(msg, "reasoning_content", "") or "") + "\n" + out
     except Exception as e:  # noqa: BLE001
@@ -427,7 +446,7 @@ def revise(topic: dict, article: str, issues: list[str], distilled: list[dict],
         model=WRITER_MODEL, temperature=0.6,
         messages=[{"role": "system", "content": WRITE_SYS},
                   {"role": "user", "content": prompt}])
-    body = strip_thoughts(resp.choices[0].message.content or "")
+    body = strip_thoughts(content_text(resp.choices[0].message))
     return _split_open_qs(normalize_citations(body))
 
 
