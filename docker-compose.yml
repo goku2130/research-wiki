@@ -1,0 +1,57 @@
+# Local research-wiki serving stack.
+#   qwen    -> RTX 5090 (GPU 1): orchestrator / tool-caller  (OpenAI API on :8181)
+#   gemma   -> RTX 3090 (GPU 0): article writer              (OpenAI API on :8182)
+#   searxng -> self-hosted metasearch (JSON API on :8888)
+# Bring up:   docker compose up -d
+# Logs:       docker compose logs -f qwen
+services:
+  qwen:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: rlwiki-qwen
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=1        # RTX 5090 (32GB)
+    volumes:
+      - /home/gokul/models/gguf:/models:ro
+    ports:
+      - "8181:8181"
+    command: >
+      --model /models/Qwen3.6-35B-A3B-UD-Q3_K_M.gguf
+      -ngl 999 -fa on
+      -c 65536 -n 8192 --parallel 1
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --jinja
+      --temp 0.6 --top-p 0.95 --top-k 20
+      --host 0.0.0.0 --port 8181
+    restart: unless-stopped
+
+  gemma:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: rlwiki-gemma
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0        # RTX 3090 (24GB)
+    volumes:
+      - /home/gokul/models/gguf:/models:ro
+    ports:
+      - "8182:8182"
+    command: >
+      --model /models/gemma-4-31B-it-UD-Q5_K_XL.gguf
+      -ngl 999 -fa on
+      -c 32768 -n 8192 --parallel 1
+      --cache-type-k q8_0 --cache-type-v q8_0
+      --jinja
+      --temp 1.0 --top-p 0.95 --top-k 64
+      --host 0.0.0.0 --port 8182
+    restart: unless-stopped
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: rlwiki-searxng
+    ports:
+      - "8888:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8888/
+    restart: unless-stopped
