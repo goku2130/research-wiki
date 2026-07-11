@@ -1,0 +1,17 @@
+---
+id: arxiv:2310.06318
+type: paper
+title: On the Length Bias of Large Language Models
+url: https://arxiv.org/abs/2310.06318
+retrieved: '2026-07-11'
+maturity: comprehensive
+topic: length-and-format-bias
+---
+
+The provided source addresses a critical deployment failure in existing deep learning frameworks for mpox detection: reliance on binary or multi-class classification. These models require extensive, diverse non-mpox datasets, are prone to learning superficial shortcuts and real-world noise, and fundamentally lack the capacity to reject out-of-distribution inputs. Consequently, they unconditionally force-classify abnormal rashes, rendering them unsafe for clinical use. To resolve this, the authors reframe mpox detection as a one-class novelty detection task and propose the "Mask, Inpainting, and Measure" (MIM) pipeline, which trains a generative adversarial network exclusively on mpox images.
+
+The MIM methodology executes three sequential phases. First, a rectangular mask $M$ is applied to an input image $I$, producing a masked image $I' = I \odot (1-M)$, where $\odot$ denotes the Hadamard product. Training utilizes random masking to improve generator robustness, while inference applies a fixed center mask. Second, a vanilla autoencoder generator and convolutional neural network discriminator are trained solely on mpox data to inpaint the masked region. The generator optimizes a composite loss combining pixel-level accuracy and adversarial feedback: $L_G = \lambda_1 L_{pixel} + \lambda_2 L_{adv}$, where $L_{pixel} = \frac{1}{N} \sum |Y - \hat{Y}|$ and $L_{adv} = \frac{1}{N} \sum (D(Y) - \mathbf{0})^2$. The discriminator minimizes a weighted sum of real and fake masked area losses. Third, the system calculates the similarity between the original and inpainted images to generate an anomaly score. The authors evaluate five metrics, ultimately identifying a joint metric combining Structural Similarity Index Measure (SSIM) and Histogram Bhattacharyya Distance (HBD) as optimal. The SSIM formulation is $SSIM(x,y) = \frac{(2\mu_x\mu_y + C_1)(2\sigma_{xy} + C_2)}{(\mu_x^2 + \mu_y^2 + C_1)(\sigma_x^2 + \sigma_y^2 + C_2)}$, while HBD similarity is defined as $S_{HBD} = \sum \sqrt{p_1(x)p_2(x)}$. The final joint score is $S_{joint} = \lambda_3 SSIM + \lambda_4 S_{HBD}$.
+
+Quantitatively, the model was trained using 176 mpox images per cross-validation fold, with a batch size of 128, 300 epochs, and an initial learning rate of 0.001. Input and mask dimensions were fixed at 224×224×3 and 112×112×3, respectively. Non-mpox validation comprised 100 images each from seven ISIC 2018 categories, eight Dermnet categories, 60 clinical patient images, and 40 normal skin samples. By augmenting test sets with 220 flipped and saturated mpox images per fold, the MIM pipeline achieved an average AUROC of 0.8237, outperforming traditional classification baselines.
+
+The authors acknowledge specific limitations inherent to the experimental design. The approach was evaluated on a relatively small-scale mpox dataset due to the inherent scarcity of clinical mpox imagery. Furthermore, the study explicitly notes the substantial quantitative imbalance between mpox and non-mpox rashes in real-world settings, which complicates generalization despite the model’s novelty detection framework. The provided text concludes abruptly during the discussion of dataset size disparities, leaving further empirical limitations unarticulated.

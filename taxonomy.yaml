@@ -83,7 +83,7 @@ topics:
 - slug: length-and-format-bias
   title: Length and format bias
   notes: Verbosity reward hacking, length-controlled evals
-  status: empty
+  status: done
 - slug: alignment-tax
   title: The alignment tax
   notes: Capability regressions from alignment; mitigation
