@@ -47,7 +47,7 @@ topics:
 - slug: rlaif
   title: RLAIF (RL from AI feedback)
   notes: Constitutional AI, AI preference labels, self-rewarding
-  status: empty
+  status: done
 - slug: rejection-sampling-and-bon
   title: Rejection sampling and Best-of-N
   notes: BoN, rejection-sampling fine-tuning, inference-time alignment
