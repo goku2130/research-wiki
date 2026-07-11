@@ -33,5 +33,5 @@ _Auto-generated 2026-07-11._
 - ⬜ Async and off-policy RL
 - ✅ [Rollout generation infrastructure](topics/rollout-generation-infra.md)
 - ✅ [RL for math and code](topics/rl-for-math-and-code.md)
-- ⬜ Agentic and tool-use RL
+- ✅ [Agentic and tool-use RL](topics/agentic-and-tool-use-rl.md)
 - ⬜ Test-time compute and RL interplay
