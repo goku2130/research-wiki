@@ -13,6 +13,7 @@ Two-stage research cycle for the local wiki (mirrors the rl-llm-wiki method).
 Run:  python agent.py            # fills the least-covered topic
       python agent.py <slug>     # force a specific topic
 """
+import itertools
 import json
 import os
 import re
@@ -51,7 +52,11 @@ SEARXNG = os.getenv("SEARXNG_URL", "http://localhost:8888")
 
 _GKEY = os.getenv("GOOGLE_API_KEY")
 _GOOGLE_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
-_MKEY = os.getenv("MISTRAL_API_KEY")
+# One or more Mistral keys, round-robined to multiply the (low) per-key rate limit.
+_MKEYS = [k.strip() for k in os.getenv("MISTRAL_API_KEYS",
+          os.getenv("MISTRAL_API_KEY", "")).split(",") if k.strip()]
+_MKEY = _MKEYS[0] if _MKEYS else None          # single key for OCR (limit is generous)
+_mkey_cycle = itertools.cycle(_MKEYS) if _MKEYS else None
 
 
 def google_client() -> OpenAI:
@@ -59,7 +64,8 @@ def google_client() -> OpenAI:
 
 
 def mistral_client() -> OpenAI:
-    return OpenAI(base_url="https://api.mistral.ai/v1", api_key=_MKEY)
+    key = next(_mkey_cycle) if _mkey_cycle else _MKEY   # rotate keys across calls
+    return OpenAI(base_url="https://api.mistral.ai/v1", api_key=key)
 
 
 def content_text(msg) -> str:
@@ -81,11 +87,21 @@ def content_text(msg) -> str:
 #   REVIEWER -> review + fact_check
 # Defaults: writer = Gemma 4 31B via API if a key is present else local Gemma;
 #           reviewer = local Qwen (its tool loop / reasoning).
-if _GKEY:
-    WRITER, WRITER_MODEL = google_client(), os.getenv("WRITER_MODEL", "gemma-4-31b-it")
+WRITER_MODEL = os.getenv("WRITER_MODEL", "gemma-4-31b-it" if _GKEY else "local")
+if WRITER_MODEL.startswith(("mistral", "magistral")) and _MKEYS:
+    WRITER = mistral_client()
+elif WRITER_MODEL.startswith(("gemma", "gemini")) and _GKEY:
+    WRITER = google_client()
 else:
     WRITER, WRITER_MODEL = GEMMA, "local"
 REVIEWER, REVIEWER_MODEL = QWEN, "local"
+
+
+def writer_client() -> OpenAI:
+    """Writer client for a single call — rotates Mistral keys when writing with Mistral."""
+    if WRITER_MODEL.startswith(("mistral", "magistral")) and _MKEYS:
+        return mistral_client()   # next key in the round-robin
+    return WRITER
 
 
 def strip_thoughts(text: str) -> str:
@@ -374,7 +390,7 @@ def write_article(topic: dict, distilled: list[dict], tax: dict) -> tuple[str, l
     prompt = (f"Topic: {topic['title']}\nScope: {topic.get('notes','')}\n\n"
               f"{WRITE_RUBRIC}\n\n{_siblings_block(topic, tax)}\n\n"
               f"SOURCE SUMMARIES (cite by their [source:<id>]):\n\n{corpus}")
-    resp = WRITER.chat.completions.create(
+    resp = writer_client().chat.completions.create(
         model=WRITER_MODEL, temperature=0.7,
         messages=[{"role": "system", "content": WRITE_SYS},
                   {"role": "user", "content": prompt}])
@@ -478,7 +494,7 @@ def revise(topic: dict, article: str, issues: list[str], distilled: list[dict],
               f"fabricated number, equation, or misattribution.\n\n"
               f"ISSUES:\n{fixes}\n\n{_siblings_block(topic, tax)}\n\n"
               f"SOURCE SUMMARIES:\n{corpus}\n\nCURRENT ARTICLE:\n{article}")
-    resp = WRITER.chat.completions.create(
+    resp = writer_client().chat.completions.create(
         model=WRITER_MODEL, temperature=0.6,
         messages=[{"role": "system", "content": WRITE_SYS},
                   {"role": "user", "content": prompt}])
