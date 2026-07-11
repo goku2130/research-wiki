@@ -29,7 +29,7 @@ $$
 The genus of the associated surface follows from the Euler-Poincaré formula:
 
 $$
-g(n) = 1 + \frac{n^2}{24} (n - 6) \prod_{p|n} \left(1 - \frac{1}{p^2}\right). \tag{1}
+g(n) = 1 + \frac{n^2}{24} (n - 6) \prod_{p|n} \left(1 - \frac{1}{p^2}\right).
 $$
 
 For prime levels $p$, the graph-theoretic distance between distinct vertices $\frac{a}{c}$ and $\frac{b}{d}$ is:

@@ -19,7 +19,7 @@ The authors propose Cumulative Token Policy Optimization (CTPO), which resolves 
 The cumulative token IS ratio is defined as $\rho_t^{\text{cum}} = \prod_{t'=1}^t r_{t'}$, where $r_{t'} = \pi_\theta(a_{t'} \mid s_{t'}) / \pi_b(a_{t'} \mid s_{t'}))$. Under an independence assumption across positions, its variance is $\text{Var}(\rho_t^{\text{cum}}) = \prod_{t'=1}^t (1 + \chi_{t'}^2) - 1$, which is strictly lower than the full-sequence variance. The log-space variance grows linearly: $\text{Var}(\log \rho_t^{\text{cum}}) = t\sigma^2$. Position-adaptive clipping thresholds scale as $\varepsilon_{\text{high}}(t) = \varepsilon_{\text{high}} \cdot t^{0.5}$ and $\varepsilon_{\text{low}}(t) = \varepsilon_{\text{low}} \cdot t^{0.5}$, defining the trust region $\rho_t^{\text{cum}} \in [e^{-\varepsilon_{\text{low}}(t)}, e^{\varepsilon_{\text{high}}(t)}]$. The final CTPO objective is:
 
 $$
-\mathcal{J}_{\text{CTPO}}(\theta) = \mathbb{E} \left[ \frac{1}{G} \sum_{i=1}^{G} \frac{1}{|o_i|} \sum_{t=1}^{|o_i|} \min \left( \rho_{i,t}^{\text{cum}} A_i, \operatorname{clip} \left( \rho_{i,t}^{\text{cum}}, e^{-\varepsilon_{\text{low}}(t)}, e^{\varepsilon_{\text{high}}(t)} \right) A_i \right) \right]
+\mathcal{J}_{\text{CTPO}}(\theta) = \mathbb{E} \left[ \frac{1}{G} \sum_{i=1}^{G} \frac{1}{|o_i|} \sum_{t=1}^{|o_i|} \min \left( \rho_{i,t}^{\text{cum}} A_i, \text{clip} \left( \rho_{i,t}^{\text{cum}}, e^{-\varepsilon_{\text{low}}(t)}, e^{\varepsilon_{\text{high}}(t)} \right) A_i \right) \right]
 $$
 
 **Quantitative Results**

@@ -16,7 +16,11 @@ The proposed Feature Pyramid Encoding Network (FPENet) resolves this trade-off t
 
 **Key Formulas**
 Training employs the Adam optimizer with a poly learning rate schedule defined as:
-$$lr = \text{init } lr \times \left( 1 - \frac{\text{epoch}}{\text{max\_epoch}} \right)^{\text{power}}$$
+
+$$
+lr = \text{init } lr \times \left( 1 - \frac{\text{epoch}}{\text{max\_epoch}} \right)^{\text{power}}
+$$
+
 where the power is set to 0.9. The optimization objective minimizes the mean cross-entropy error across all pixels.
 
 **Quantitative Results**

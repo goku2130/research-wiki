@@ -19,11 +19,22 @@ The study investigates three primary alignment interventions, each following a d
 
 **Key Formulas**
 The mathematical objectives underpinning these methods are central to the analysis. Context distillation minimizes the KL divergence between the prompted conditional distribution and the distilled model:
-$$L(\theta) = D_{KL}(p_0(X|C) \| p_\theta(X))$$
+
+$$
+L(\theta) = D_{KL}(p_0(X|C) \| p_\theta(X))
+$$
+
 where $p_0$ is the base model, $C$ is the fixed prompt context, and $X$ is drawn from a large corpus. Preference modeling employs a Bradley-Terry-style loss over paired sequences:
-$$L_{\mathrm{PM}} = \log \left(1 + e^{r_{\mathrm{bad}} - r_{\mathrm{good}}}\right)$$
+
+$$
+L_{\mathrm{PM}} = \log \left(1 + e^{r_{\mathrm{bad}} - r_{\mathrm{good}}}\right)
+$$
+
 where $r$ denotes the scalar score predicted by the value head. For evaluation, the authors utilize empirical mutual information to handle variable response lengths:
-$$I(a, q) = \log [P(a|q)/P(a)]$$
+
+$$
+I(a, q) = \log [P(a|q)/P(a)]
+$$
 
 **Key Quantitative Results and Numbers**
 Experiments span decoder-only Transformers from 13M to 52B parameters, pre-trained on 400B tokens with an 8192-token context window. Prompting significantly improves HHH evaluation scores and reduces automated toxicity, with effects scaling positively with model size. Notably, large models (13B/52B) incur negligible "alignment taxes" on coding tasks (HumanEval, QuixBugs), while smaller models suffer capability degradation. Comparing training objectives reveals a sharp divergence: ranked preference modeling vastly outperforms imitation learning and scales more favorably, yielding up to a 0.25 accuracy gain over IL on ranked tasks at 52B. Conversely, binary discrimination performs nearly identically to IL. The PMP stage dramatically improves sample efficiency; at 52B parameters, binary PMP on a mixed public dataset yields approximately a 0.10 accuracy gain over baseline finetuning when trained on fewer than 10k sequence pairs. Furthermore, binary PMP consistently transfers better to downstream tasks than ranked PMP.

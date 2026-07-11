@@ -27,13 +27,13 @@ VIGOR integrates into the Group Relative Policy Optimization (GRPO) framework an
     $\mathbf{g}(x,y)=\nabla_{\theta}\ell_{\mathrm{mean}}(x,y)$, and then $\|\mathbf{g}(x,y)\|_{2}$. This gradient norm is detached from the computation graph.
 4.  **Apply Length Correction:** To counteract a systematic length bias where $\|\mathbf{g}(x,y)\|_{2}$ tends to shrink as $T$ grows, the raw gradient norm is multiplied by $\sqrt{T}$ and negated to convert minimization into maximization:
     $S_{\mathrm{GN}}(x, y) = - \sqrt{T} \| \mathbf{g}(x, y) \|_{2}$.
-5.  **Apply Rank-based Normalization:** The raw signals $\{S_{\mathrm{GN}}(x,y_i)\}_{i=1}^G$ for a group are sorted from worst to best (smaller $S_{\mathrm{GN}}$ indicates larger gradient norms and worse completions). Each completion $y_i$ is assigned an integer rank $\operatorname{rank}_i \in \{0, \ldots, G-1\}$. The normalized intrinsic reward is then computed as:
-    $R_{\mathrm{GN}}(x, y_i) = 2 \frac{\operatorname{rank}_i}{G - 1} - 1$. This maps the worst completion to -1 and the best to +1.
+5.  **Apply Rank-based Normalization:** The raw signals $\{S_{\mathrm{GN}}(x,y_i)\}_{i=1}^G$ for a group are sorted from worst to best (smaller $S_{\mathrm{GN}}$ indicates larger gradient norms and worse completions). Each completion $y_i$ is assigned an integer rank $\text{rank}_i \in \{0, \ldots, G-1\}$. The normalized intrinsic reward is then computed as:
+    $R_{\mathrm{GN}}(x, y_i) = 2 \frac{\text{rank}_i}{G - 1} - 1$. This maps the worst completion to -1 and the best to +1.
 6.  **Compute Group-Relative Advantages:** The rank-normalized rewards $\{R_{\mathrm{GN}}(x,y_j)\}_{j=1}^G$ are standardized within each group to obtain group-relative advantages $\hat{A}_i$:
     $\hat{A}_i = \frac{R(x, y_i) - \frac{1}{G} \sum_{j=1}^{G} R(x, y_j)}{\sqrt{\frac{1}{G} \sum_{j=1}^{G} \left(R(x, y_j) - \hat{R}\right)^2}}$.
 7.  **Policy Optimization:** The policy $\pi_\theta$ is updated by maximizing a PPO-style objective that encourages completions with high group-relative advantages, regularized by the KL divergence between the current and reference policy:
     $\mathcal{J}(\pi_{\theta}) = \mathbb{E} \left[ \frac{1}{G} \sum_{i = 1}^{G} \frac{1}{| y_i |} \sum_{t = 1}^{| y_i |} \min \left(r_{i, t}(\theta) \hat{A}_i, \bar{r}_{i, t} \hat{A}_i\right) - \beta \mathrm{KL} \left(\pi_{\theta}, \pi_{\text{ref}}\right) \right]$,
-    where $r_{i,t}(\theta)=\frac{\pi_{\theta}(y_{i,t}|x,y_{i,<t})}{\pi_{\theta_{\mathrm{old}}}(y_{i,t}|x,y_{i,<t})}$ is the token-level probability ratio, and $\bar{r}_{i,t}=\operatorname{clip}(r_{i,t}(\theta),1-\epsilon,1+\epsilon)$ is its clipped version.
+    where $r_{i,t}(\theta)=\frac{\pi_{\theta}(y_{i,t}|x,y_{i,<t})}{\pi_{\theta_{\mathrm{old}}}(y_{i,t}|x,y_{i,<t})}$ is the token-level probability ratio, and $\bar{r}_{i,t}=\text{clip}(r_{i,t}(\theta),1-\epsilon,1+\epsilon)$ is its clipped version.
 
 ### Key Formulas in LaTeX
 
@@ -42,7 +42,7 @@ VIGOR integrates into the Group Relative Policy Optimization (GRPO) framework an
 *   **Length-Corrected Gradient-Norm Signal:**
     $S_{\mathrm{GN}}(x, y) = - \sqrt{T} \| \mathbf{g}(x, y) \|_{2}$
 *   **Rank-Normalized Intrinsic Reward:**
-    $R_{\mathrm{GN}}(x, y_i) = 2 \frac{\operatorname{rank}_i}{G - 1} - 1$
+    $R_{\mathrm{GN}}(x, y_i) = 2 \frac{\text{rank}_i}{G - 1} - 1$
 *   **Group-Relative Advantage:**
     $\hat{A}_i = \frac{R(x, y_i) - \frac{1}{G} \sum_{j=1}^{G} R(x, y_j)}{\sqrt{\frac{1}{G} \sum_{j=1}^{G} \left(R(x, y_j) - \hat{R}\right)^2}}$
 *   **Policy Optimization Objective:**

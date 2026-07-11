@@ -13,11 +13,22 @@ The core problem addressed by AlpacaFarm is the prohibitive cost, poor reproduci
 The methodology follows a structured recipe. First, the 52k Alpaca dataset is partitioned into supervised fine-tuning (SFT; 10k), pairwise preference (PREF; 10k), unlabeled (20k), and validation (2k) splits. Second, simulated pairwise feedback is generated using oracle API LLMs (GPT-4, ChatGPT, Davinci003). The authors construct a pool of 13 distinct simulated annotators by varying models, prompt formats, batch sizes, and in-context examples. To emulate human inter- and intra-annotator variability, 25% label-flip noise is injected during training, while the evaluation pool omits noise. Third, an automated evaluation protocol is established by combining 805 instructions from five open-source datasets (Self-Instruct, OASST, Anthropic, Vicuna, Koala) to mimic real-world interactions. Model performance is quantified via win-rate against a Davinci003 reference. Fourth, eight reference LPF methods are implemented: Binary FeedME, Binary Reward Conditioning, Direct Preference Optimization (DPO), Best-of-$n$, Expert Iteration, Proximal Policy Optimization (PPO), and Quark, all initialized from the SFT base. Finally, end-to-end validation compares method rankings derived from simulated training/evaluation against those trained and evaluated on actual human feedback.
 
 Key mathematical formulations underpin the reference implementations. Direct Preference Optimization maximizes the log-likelihood of preferences under the Bradley–Terry model:
-$$\mathbb{E}_{(x, y_0, y_1, z) \sim \mathcal{D}_{\text{pairwise}}} \left[ \log \sigma \left( \beta \log \frac{p_\theta(y_z \mid x)}{p_{\text{SFT}}(y_z \mid x)} - \beta \log \frac{p_\theta(y_{1-z} \mid x)}{p_{\text{SFT}}(y_{1-z} \mid x)} \right) \right].$$
+
+$$
+\mathbb{E}_{(x, y_0, y_1, z) \sim \mathcal{D}_{\text{pairwise}}} \left[ \log \sigma \left( \beta \log \frac{p_\theta(y_z \mid x)}{p_{\text{SFT}}(y_z \mid x)} - \beta \log \frac{p_\theta(y_{1-z} \mid x)}{p_{\text{SFT}}(y_{1-z} \mid x)} \right) \right].
+$$
+
 Surrogate reward models are trained by maximizing the Bradley–Terry likelihood:
-$$\text{maximize}_\phi \sum_j \log \frac{\exp(\hat{R}_\phi(x^{(j)}, y_z^{(j)}))}{\exp(\hat{R}_\phi(x^{(j)}, y_0^{(j)})) + \exp(\hat{R}_\phi(x^{(j)}, y_1^{(j)}))}.$$
+
+$$
+\text{maximize}_\phi \sum_j \log \frac{\exp(\hat{R}_\phi(x^{(j)}, y_z^{(j)}))}{\exp(\hat{R}_\phi(x^{(j)}, y_0^{(j)})) + \exp(\hat{R}_\phi(x^{(j)}, y_1^{(j)}))}.
+$$
+
 PPO optimizes a KL-regularized objective:
-$$\mathbb{E}_{x \sim p(x), y \sim p_\theta(y|x)} \left[ \hat{R}_\phi(x, y) - \beta \log \frac{p_\theta(y \mid x)}{p_{\text{SFT}}(y \mid x)} \right].$$
+
+$$
+\mathbb{E}_{x \sim p(x), y \sim p_\theta(y|x)} \left[ \hat{R}_\phi(x, y) - \beta \log \frac{p_\theta(y \mid x)}{p_{\text{SFT}}(y \mid x)} \right].
+$$
 
 Quantitative validation demonstrates high fidelity between simulation and reality. The simulated annotator pool achieves a 65% agreement rate with human majority votes, closely matching the 66% human-human agreement rate, while costing only $6 per 1,000 annotations (50× cheaper than crowdworkers). End-to-end method rankings exhibit a Spearman correlation of 0.98 between simulated and human pipelines. In terms of performance, PPO trained on human feedback improves the win-rate against Davinci003 from 44% (SFT baseline) to 55%, outperforming ChatGPT under constrained length prompts. Best-of-1024 sampling achieves a 50.7% human win-rate, while Expert Iteration and Quark lag behind. Crucially, the simulator successfully replicates reward model over-optimization—a phenomenon where win-rates decline after excessive reward maximization—only when annotator variability and label noise are included; deterministic GPT-4 prompts fail to exhibit this behavior.
 

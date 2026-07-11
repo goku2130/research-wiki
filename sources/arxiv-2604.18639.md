@@ -16,13 +16,13 @@ The methodology follows a three-stage recipe. First, **Knowledge Transfer** init
 The optimization and selection mechanisms are formalized through the following key equations. The GRPO objective is:
 
 $$
-\mathcal{J}_{\mathrm{GRPO}} = \mathbb{E}_{q \sim Q, \{x_i\}_{i=1}^G \sim \pi_\theta(X|q)} \left[ \frac{1}{G} \sum_{i=1}^G \left(\min (A_i, \operatorname{clip}(A_i, 1-\epsilon, 1+\epsilon)) - \beta \mathrm{KL}(\pi_\theta \| \pi_{\text{ref}})\right) \right],
+\mathcal{J}_{\mathrm{GRPO}} = \mathbb{E}_{q \sim Q, \{x_i\}_{i=1}^G \sim \pi_\theta(X|q)} \left[ \frac{1}{G} \sum_{i=1}^G \left(\min (A_i, \text{clip}(A_i, 1-\epsilon, 1+\epsilon)) - \beta \mathrm{KL}(\pi_\theta \| \pi_{\text{ref}})\right) \right],
 $$
 
 where the normalized advantage is $A_i=\frac{r_i-\text{mean}(\{r_1,\cdots,r_G\})}{\text{std}(\{r_1,\cdots,r_G\})}$. The correctness reward incorporates a format penalty:
 
 $$
-r_i = \begin{cases} 1, & \text{if } \operatorname{verifier}(x_i, a) = \text{True}, \\ -0.5, & \text{if } x_i \text{ is not in boxed format}, \\ 0, & \text{otherwise}. \end{cases}
+r_i = \begin{cases} 1, & \text{if } \text{verifier}(x_i, a) = \text{True}, \\ -0.5, & \text{if } x_i \text{ is not in boxed format}, \\ 0, & \text{otherwise}. \end{cases}
 $$
 
 Consistency-based selection retains samples where $o_1 = o_2 = \dots = o_N$. For reflection-based resolution, prediction entropy is computed as $H(x) = -\sum_{y \in \mathcal{O}_x} p_x(y) \log p_x(y)$, with resolution applied if $H(x) \leq \tau_t$. The iterative policy update is defined as $\pi_{i+1} = \mathrm{RL}(\mathcal{D}_{\text{label}} \cup \mathcal{D}_{\text{unlabel\_selected}}^{(i)})$.

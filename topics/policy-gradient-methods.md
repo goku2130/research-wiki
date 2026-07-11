@@ -72,7 +72,7 @@ TRPO uses a second-order optimization method involving the Fisher Information Ma
 PPO simplifies TRPO by using a first-order optimization framework. It introduces a **clipped surrogate objective** to discourage the policy from moving too far from $\pi_{\theta_{\text{old}}}$:
 
 $$
-L^{CLIP}(\theta) = \hat{\mathbb{E}}_t \left[ \min \left( r_t(\theta) \hat{A}_t, \operatorname{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right]
+L^{CLIP}(\theta) = \hat{\mathbb{E}}_t \left[ \min \left( r_t(\theta) \hat{A}_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right]
 $$
 
 where $r_t(\theta) = \frac{\pi_\theta(a_t \mid s_t)}{\pi_{\theta_{\text{old}}}(a_t \mid s_t)}$ is the probability ratio [source:arxiv:1707.06347].

@@ -20,21 +20,29 @@ Direct Preference Optimization (DPO) eliminates the explicit reward model and RL
 
 **Key Formulas**
 The derivation begins with the Bradley-Terry preference model, which parameterizes human preferences as:
-\[
+
+$$
 p^*(y_1 \succ y_2 \mid x) = \frac{\exp(r^*(x, y_1))}{\exp(r^*(x, y_1)) + \exp(r^*(x, y_2))}.
-\]
+$$
+
 The authors show that the optimal policy for the KL-constrained reward maximization objective $\max_{\pi_\theta} \mathbb{E}[r(x,y)] - \beta \mathbb{D}_{\mathrm{KL}}[\pi_\theta \parallel \pi_{\text{ref}}]$ admits a closed-form solution:
-\[
+
+$$
 \pi_r(y \mid x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y \mid x) \exp \left( \frac{1}{\beta} r(x, y) \right).
-\]
+$$
+
 By algebraically inverting this relationship, the reward function can be reparameterized as:
-\[
+
+$$
 r(x, y) = \beta \log \frac{\pi_r(y \mid x)}{\pi_{\text{ref}}(y \mid x)} + \beta \log Z(x).
-\]
+$$
+
 Substituting this into the Bradley-Terry model cancels the partition function $Z(x)$, yielding the final DPO objective:
-\[
+
+$$
 \mathcal{L}_{\mathrm{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w \mid x)}{\pi_{\text{ref}}(y_w \mid x)} - \beta \log \frac{\pi_\theta(y_l \mid x)}{\pi_{\text{ref}}(y_l \mid x)} \right) \right].
-\]
+$$
+
 The scaling factor $\beta$ dynamically weights updates based on the implicit reward's confidence, preventing the policy degeneration observed in naive probability-ratio objectives.
 
 **Key Quantitative Results**

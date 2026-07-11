@@ -20,17 +20,23 @@ The study investigates the physical drivers of gas-phase metallicity distributio
 
 **Key Formulas**
 Gas metallicity is quantified via the oxygen abundance indicator:
-\[
+
+$$
 12 + \log(\mathrm{O}/\mathrm{H}) = 8.533 - 0.214 \times \mathrm{O}3\mathrm{N}2,
-\]
+$$
+
 where the O3N2 ratio is defined as:
-\[
+
+$$
 \mathrm{O}3\mathrm{N}2 = \log \left(\frac{[\mathrm{OIII}]\lambda5007}{\mathrm{H}\beta} \times \frac{\mathrm{H}\alpha}{[\mathrm{NII}]\lambda6583}\right).
-\]
+$$
+
 The radius perturbation applied to match $\Sigma_*$ measurement scatter is calculated as:
-\[
+
+$$
 \Delta_R = 0.1\,\mathrm{dex} \times \frac{\sigma_{\log(r)}}{\sigma_{\log(\Sigma)}},
-\]
+$$
+
 utilizing observed dispersions $\sigma_{\log(r)} = 0.149\,\mathrm{dex}$ and $\sigma_{\log(\Sigma)} = 0.409\,\mathrm{dex}$.
 
 **Quantitative Results**

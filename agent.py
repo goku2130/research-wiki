@@ -510,8 +510,12 @@ def strip_preamble(text: str) -> str:
 
 
 def fix_latex(text: str) -> str:
-    """Normalize LaTeX delimiters to what GitHub/KaTeX markdown renders ($ and $$).
-    `\\[ ... \\]` -> `$$...$$`, `\\( ... \\)` -> `$...$`. Leaves \\left[ / \\right] alone."""
+    """Normalize LaTeX to what GitHub's MathJax renders: $ / $$ delimiters, blank
+    lines around display blocks, and only allowed macros."""
+    # GitHub's MathJax rejects some macros -> map to allowed equivalents.
+    text = re.sub(r"\\operatorname\*?", r"\\text", text)          # \operatorname{clip} -> \text{clip}
+    text = re.sub(r"\\tag\*?\s*\{[^}]*\}", "", text)              # \tag{3} -> (removed)
+    text = re.sub(r"\\bm\s*(?=\{)", r"\\mathbf", text)            # \bm{x} -> \mathbf{x}
     text = re.sub(r"\\\[(.+?)\\\]", lambda m: f"\n$$\n{m.group(1).strip()}\n$$\n",
                   text, flags=re.DOTALL)
     text = re.sub(r"\\\((.+?)\\\)", lambda m: f"${m.group(1).strip()}$",
@@ -532,9 +536,15 @@ def fix_latex(text: str) -> str:
 def check_formulas(text: str) -> list[str]:
     """Deterministic formula validator -> list of issues to fix (fed to revise)."""
     issues = []
+    bad = sorted(set(re.findall(r"\\(?:operatorname|tag|bm|def|newcommand|label|require|cssId)\b", text)))
+    if bad:
+        issues.append("GitHub-disallowed macros: " + ", ".join(bad))
     if re.search(r"\\\[|\\\]|\\\(|\\\)", text):
         issues.append("raw \\[ \\] or \\( \\) math delimiters — use $$ or $ (GitHub won't render \\[ \\])")
-    if text.replace("$$", "").count("$") % 2 != 0:
+    t = re.sub(r"```.*?```", "", text, flags=re.DOTALL)   # ignore code fences
+    t = re.sub(r"`[^`\n]*`", "", t)                        # ignore inline code
+    t = t.replace(r"\$", "").replace("$$", "")             # ignore escaped/display $
+    if t.count("$") % 2 != 0:
         issues.append("unbalanced $ (odd count) — an inline-math delimiter is missing")
     for m in re.finditer(r"\$\$?(.+?)\$\$?", text, flags=re.DOTALL):
         f = m.group(1)
@@ -695,7 +705,7 @@ def save(topic: dict, distilled: list[dict], article: str, open_qs: list[str]) -
         meta = {"id": d["id"], "type": "paper" if d["id"].startswith("arxiv") else "web",
                 "title": d["title"], "url": d["url"], "retrieved": today,
                 "maturity": "comprehensive", "topic": topic["slug"]}
-        (SOURCES_DIR / id_to_filename(d["id"])).write_text(fm(meta) + d["summary"] + "\n")
+        (SOURCES_DIR / id_to_filename(d["id"])).write_text(fm(meta) + fix_latex(d["summary"]) + "\n")
 
     front = {"title": topic["title"], "maturity": "developing", "updated": today,
              "sources": [d["id"] for d in distilled]}

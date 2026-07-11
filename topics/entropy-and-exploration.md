@@ -120,7 +120,7 @@ $$
 where $S[\pi_\theta](s_t) = \mathcal{H}(\pi_\theta(\cdot | s_t))$ is the entropy of the policy at state $s_t$, and $c_2$ is a hyperparameter controlling the strength of the entropy bonus. Typical values for $c_2$ range from **0.01 to 0.1** in LLM fine-tuning [source:arxiv:1707.06347]. The PPO clip equation is:
 
 $$
-L^{CLIP}(\theta) = \hat{\mathbb{E}}_t \left[ \min \left( r_t(\theta) \hat{A}_t, \operatorname{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right],
+L^{CLIP}(\theta) = \hat{\mathbb{E}}_t \left[ \min \left( r_t(\theta) \hat{A}_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right],
 $$
 
 where $r_t(\theta) = \pi_\theta(a_t | s_t) / \pi_{\theta_{\text{old}}}(a_t | s_t)$ and $\epsilon$ is typically set to **0.2** in LLM applications.

@@ -101,7 +101,7 @@ $$
 - **PPO Objective**: The policy is optimized using the clipped surrogate objective from [source:arxiv:1707.06347]:
 
 $$
-L^{CLIP}(\phi) = \mathbb{E}_t \left[ \min \left( r_t(\phi) \hat{A}_t, \operatorname{clip}(r_t(\phi), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right],
+L^{CLIP}(\phi) = \mathbb{E}_t \left[ \min \left( r_t(\phi) \hat{A}_t, \text{clip}(r_t(\phi), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right],
 $$
 
   where $r_t(\phi) = \frac{\pi_\phi^{\text{RL}}(a_t \mid s_t)}{\pi_{\phi_{\text{old}}}(a_t \mid s_t)}$ is the probability ratio, $\hat{A}_t$ is the advantage estimate, and $\epsilon$ is the clipping threshold (typically $\epsilon = 0.2$). The full objective combines the clipped surrogate with a value function loss and entropy bonus:
@@ -195,7 +195,7 @@ The RLHF/PPO pipeline is not monolithic, and several key disagreements and open 
 - **Clipped Objective**: Used in InstructGPT [source:arxiv:2203.02155] and the summarization work [source:arxiv:2009.01325]. The clipped objective is defined as:
 
 $$
-L^{CLIP}(\phi) = \mathbb{E}_t \left[ \min \left( r_t(\phi) \hat{A}_t, \operatorname{clip}(r_t(\phi), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right].
+L^{CLIP}(\phi) = \mathbb{E}_t \left[ \min \left( r_t(\phi) \hat{A}_t, \text{clip}(r_t(\phi), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right].
 $$
 
   It is computationally simple and empirically robust but lacks strong theoretical guarantees.

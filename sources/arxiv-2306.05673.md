@@ -20,7 +20,11 @@ The characterization followed a sequential experimental protocol:
 
 **Key Formulas and Quantitative Results**
 The $^{220}$Rn emanation rate is determined via:
-$$R(^{220}\text{Rn}) = \frac{1}{\epsilon(^{220}\text{Rn} \mid ^{212}\text{Po})} \cdot \frac{A_{\text{init}}(^{212}\text{Po})}{f_{\text{eq}}(^{212}\text{Po})}$$
+
+$$
+R(^{220}\text{Rn}) = \frac{1}{\epsilon(^{220}\text{Rn} \mid ^{212}\text{Po})} \cdot \frac{A_{\text{init}}(^{212}\text{Po})}{f_{\text{eq}}(^{212}\text{Po})}
+$$
+
 The characterization yielded a total $^{228}$Th activity of 55 kBq, a $^{220}$Rn emanation rate of $(8.2 \pm 0.8)$ kBq, and a radon emanation efficiency of 15%. The $^{222}$Rn emanation rate was measured at $(3.62 \pm 0.14)$ mBq. The $^{228}$Th release test established an upper limit of $\le 1.7$ mBq at 90% confidence level.
 
 **Stated Limitations**

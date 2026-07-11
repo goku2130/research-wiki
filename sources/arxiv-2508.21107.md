@@ -40,19 +40,34 @@ UTRL iteratively trains two LLMs in an adversarial manner: a unit test generator
 **Key Formulas (in LaTeX):**
 
 1.  **Discrimination Reward ($R_{\text{disc}}$):** Evaluates how effectively a unit test $\mathcal{T}$ discriminates LLM-generated code solutions from ground-truth code solutions.
-    $$R_{\text{disc}}(\mathcal{T}, \mathcal{C}, C^*) = \frac{1}{|\mathcal{C}|} \sum_{C \in \mathcal{C}} \left[ 1 - \prod_{T \in \mathcal{T}} (1 - \text{Pass}(C, T))^{\text{Pass}(C^*, T)} \right]$$
+
+$$
+R_{\text{disc}}(\mathcal{T}, \mathcal{C}, C^*) = \frac{1}{|\mathcal{C}|} \sum_{C \in \mathcal{C}} \left[ 1 - \prod_{T \in \mathcal{T}} (1 - \text{Pass}(C, T))^{\text{Pass}(C^*, T)} \right]
+$$
+
     where $\text{Pass}(C, T)$ is an indicator function (1 if code $C$ passes test case $T$, 0 otherwise). The term $\text{Pass}(C^*, T)$ filters out functionally invalid test cases (those not passed by the ground-truth code).
 
 2.  **Validity Reward ($R_{\text{valid}}$):** Evaluates the functional validity of test cases in $\mathcal{T}$.
-    $$R_{\text{valid}}(\mathcal{T}, C^*, \tau) = \frac{\sum_{T \in \mathcal{T}} \text{Pass}(C^*, T)}{\max(|\mathcal{T}|, \tau)}$$
+
+$$
+R_{\text{valid}}(\mathcal{T}, C^*, \tau) = \frac{\sum_{T \in \mathcal{T}} \text{Pass}(C^*, T)}{\max(|\mathcal{T}|, \tau)}
+$$
+
     where $\tau$ is a hyperparameter for the desired minimum number of test cases, preventing high rewards for unit tests with few trivial cases.
 
 3.  **Unit Test Generator Training Reward ($r_{\text{UT}}$):** A weighted sum of the discrimination and validity rewards.
-    $$r_{\text{UT}} = \lambda R_{\text{disc}}(\mathcal{T}, \mathcal{C}, C^*) + (1 - \lambda) R_{\text{valid}}(\mathcal{T}, C^*, \tau)$$
+
+$$
+r_{\text{UT}} = \lambda R_{\text{disc}}(\mathcal{T}, \mathcal{C}, C^*) + (1 - \lambda) R_{\text{valid}}(\mathcal{T}, C^*, \tau)
+$$
+
     where $\lambda$ is a hyperparameter weighting the discrimination reward.
 
 4.  **Code Generator Training Reward ($R_{\text{code}}$):** Measures the proportion of functionally valid test cases (from $\mathcal{T}$) that are passed by the generated code $C$.
-    $$R_{\mathrm{code}}(C, \mathcal{T}, C^*) = \frac{\sum_{T \in \mathcal{T}} \operatorname{Pass}(C, T) \cdot \operatorname{Pass}(C^*, T)}{\sum_{T \in \mathcal{T}} \operatorname{Pass}(C^*, T)}$$
+
+$$
+R_{\mathrm{code}}(C, \mathcal{T}, C^*) = \frac{\sum_{T \in \mathcal{T}} \text{Pass}(C, T) \cdot \text{Pass}(C^*, T)}{\sum_{T \in \mathcal{T}} \text{Pass}(C^*, T)}
+$$
 
 **Key Quantitative Results and Numbers:**
 

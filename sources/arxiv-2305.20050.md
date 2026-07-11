@@ -21,13 +21,16 @@ The authors implement a sequential training and evaluation pipeline:
 
 **Key Formulas**
 The solution-level score for a PRM is defined as the joint probability of all steps being correct:
-\[
+
+$$
 P(\text{solution}) = \prod_{i} P(\text{step}_i \text{ is correct})
-\]
+$$
+
 For synthetic supervision experiments, a step is classified as incorrect if the large-scale PRM assigns a negative label with probability exceeding a threshold:
-\[
+
+$$
 P(\text{negative}) > 0.2
-\]
+$$
 
 **Quantitative Results**
 On a representative 500-problem subset of the MATH test set, the large-scale PRM achieves a 78.2% solve rate under best-of-1860 search, significantly outperforming the ORM at 72.4% and majority voting at 69.6%. The performance gap widens as the search budget increases. Active learning yields a 2.6× improvement in data efficiency compared to uniform labeling. Out-of-distribution evaluation on recent AP and AMC STEM exams shows the PRM solving 72.9% of problems (aggregate), compared to 63.8% for the ORM and 61.3% for majority voting. The released PRM800K dataset contains 800,000 step-level human feedback labels across 75,000 solutions.

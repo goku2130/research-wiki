@@ -18,7 +18,7 @@ The authors introduce $\chi^2$-Preference Optimization ($\chi_{\text{PO}}$), a d
 2. **Construct the clipped objective:** Substitute $\phi$ into the preference likelihood and apply clipping to bound unbounded density ratios:
 
 $$
-\hat{\pi} \leftarrow \arg\max_{\pi \in \Pi} \sum_{(x, a_+, a_-) \in \mathcal{D}_{\text{pref}}} \log \left[ \sigma \left( \operatorname{clip}_{2R_{\max}} \left[ \beta \phi \left( \frac{\pi(a_+ \mid x)}{\pi_{\text{ref}}(a_+ \mid x)} \right) - \beta \phi \left( \frac{\pi(a_- \mid x)}{\pi_{\text{ref}}(a_- \mid x)} \right) \right] \right) \right].
+\hat{\pi} \leftarrow \arg\max_{\pi \in \Pi} \sum_{(x, a_+, a_-) \in \mathcal{D}_{\text{pref}}} \log \left[ \sigma \left( \text{clip}_{2R_{\max}} \left[ \beta \phi \left( \frac{\pi(a_+ \mid x)}{\pi_{\text{ref}}(a_+ \mid x)} \right) - \beta \phi \left( \frac{\pi(a_- \mid x)}{\pi_{\text{ref}}(a_- \mid x)} \right) \right] \right) \right].
 $$
 
 3. **Optimize and return:** Solve the objective over the policy class $\Pi$ and return $\hat{\pi}$. The $\chi^2$ term penalizes off-manifold behavior more aggressively than KL-divergence, implementing pessimism in the face of partial data coverage.

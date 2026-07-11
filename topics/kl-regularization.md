@@ -37,7 +37,7 @@ KL regularization is the cornerstone of modern Reinforcement Learning from Human
 The standard RLHF objective maximizes an expected reward while constraining the policy $\pi_\phi$ to stay close to a reference model $\pi_{\text{ref}}$ (typically the supervised fine-tuned (SFT) model) via a KL divergence penalty:
 
 $$
-\mathcal{J}(\phi) = \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\phi(\cdot|x)} \left[ r_\theta(x, y) - \beta \cdot \text{KL}(\pi_\phi(\cdot|x) \| \pi_{\text{ref}}(\cdot|x)) \right], \tag{1}
+\mathcal{J}(\phi) = \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\phi(\cdot|x)} \left[ r_\theta(x, y) - \beta \cdot \text{KL}(\pi_\phi(\cdot|x) \| \pi_{\text{ref}}(\cdot|x)) \right],
 $$
 
 where:
@@ -51,7 +51,7 @@ This objective is derived from the constrained optimization framework where the 
 The optimal policy $\pi^*$ that maximizes Eq. (1) can be derived in closed form using variational methods. Introducing a partition function $Z(x) = \sum_y \pi_{\text{ref}}(y|x) \exp(\beta^{-1} r_\theta(x, y))$, the optimal policy is:
 
 $$
-\pi^*(y|x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y|x) \exp\left(\frac{1}{\beta} r_\theta(x, y)\right). \tag{2}
+\pi^*(y|x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y|x) \exp\left(\frac{1}{\beta} r_\theta(x, y)\right).
 $$
 
 This is the *Boltzmann distribution* over completions, where the reward $r_\theta(x, y)$ acts as an energy term. The partition function $Z(x)$ ensures normalization. This result is foundational to both RLHF and Direct Preference Optimization (DPO) [source:arxiv:2305.18290][source:rlhfbook:direct-alignment-algorithms].
@@ -60,13 +60,13 @@ This is the *Boltzmann distribution* over completions, where the reward $r_\thet
 In practice, the KL divergence in Eq. (1) is approximated by sampling a single trajectory $y \sim \pi_\phi(\cdot|x)$ and computing the per-token log-ratio sum:
 
 $$
-\text{KL}_{\text{sampled}} = \sum_{t=1}^T \log \frac{\pi_\phi(y_t|x, y_{<t})}{\pi_{\text{ref}}(y_t|x, y_{<t})}. \tag{3}
+\text{KL}_{\text{sampled}} = \sum_{t=1}^T \log \frac{\pi_\phi(y_t|x, y_{<t})}{\pi_{\text{ref}}(y_t|x, y_{<t})}.
 $$
 
 This per-token penalty is critical for stabilizing training, as it prevents the policy from deviating too far from the reference model at any single step. During implementation, the penalty is scaled by $\beta$ and subtracted from the reward model score to form the adjusted reward [source:iclr-blogposts:the-n-implementation-details-of-rlhf-wit]:
 
 $$
-\tilde{r}(x, y) = r_\theta(x, y) - \beta \cdot \text{KL}_{\text{sampled}}. \tag{4}
+\tilde{r}(x, y) = r_\theta(x, y) - \beta \cdot \text{KL}_{\text{sampled}}.
 $$
 
 ---
@@ -93,7 +93,7 @@ Recent work extends RLHF to incorporate $K$ reference models $\{\pi_{\text{ref},
 The optimal policy under RKL is:
 
 $$
-\pi_{\theta^*}^\gamma(y|x) = \frac{\widehat{\pi}_{\boldsymbol{\alpha},\text{ref}}(y|x)}{Z(x)} \exp(\gamma r_{\theta^*}(x,y)), \tag{5}
+\pi_{\theta^*}^\gamma(y|x) = \frac{\widehat{\pi}_{\boldsymbol{\alpha},\text{ref}}(y|x)}{Z(x)} \exp(\gamma r_{\theta^*}(x,y)),
 $$
 
 where $\gamma$ is the inverse temperature. For FKL, the solution is implicit and requires solving a fixed-point equation.
@@ -110,13 +110,13 @@ The per-token KL penalty is computed as follows during training:
 2. **KL Calculation**: Sum the per-token log-ratio differences:
 
 $$
-\text{KL}_{\text{sampled}} = \sum_{t=1}^T \left( \log \pi_\phi(y_t|x, y_{<t}) - \log \pi_{\text{ref}}(y_t|x, y_{<t}) \right). \tag{6}
+\text{KL}_{\text{sampled}} = \sum_{t=1}^T \left( \log \pi_\phi(y_t|x, y_{<t}) - \log \pi_{\text{ref}}(y_t|x, y_{<t}) \right).
 $$
 
 3. **Reward Adjustment**: Subtract $\beta \cdot \text{KL}_{\text{sampled}}$ from the reward $r_\theta(x, y)$ to form the adjusted reward:
 
 $$
-\tilde{r}(x, y) = r_\theta(x, y) - \beta \cdot \text{KL}_{\text{sampled}}. \tag{7}
+\tilde{r}(x, y) = r_\theta(x, y) - \beta \cdot \text{KL}_{\text{sampled}}.
 $$
 
 This adjusted reward is used in the PPO objective [source:iclr-blogposts:the-n-implementation-details-of-rlhf-wit].
@@ -125,7 +125,7 @@ This adjusted reward is used in the PPO objective [source:iclr-blogposts:the-n-i
 To prevent the policy from drifting too far from the reference model, adaptive KL control dynamically adjusts $\beta$ during training. The update rule is:
 
 $$
-\beta_{t+1} = \beta_t \cdot \left(1 + \text{proportional\_error} \cdot \frac{n_{\text{steps}}}{\text{horizon}}\right), \tag{8}
+\beta_{t+1} = \beta_t \cdot \left(1 + \text{proportional\_error} \cdot \frac{n_{\text{steps}}}{\text{horizon}}\right),
 $$
 
 where:
@@ -144,7 +144,7 @@ This ensures that the KL divergence remains close to a target value (e.g., 6 nat
 Under the Bradley-Terry preference model, the sample complexity of KL-regularized RLHF scales with the *single-policy concentrability coefficient* $\mathcal{C}^{\pi^*}$:
 
 $$
-\mathcal{C}^{\pi^*} = \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi^*(\cdot|x)} \left[ \frac{\pi^*(y|x)}{\pi_{\text{ref}}(y|x)} \right]. \tag{10}
+\mathcal{C}^{\pi^*} = \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi^*(\cdot|x)} \left[ \frac{\pi^*(y|x)}{\pi_{\text{ref}}(y|x)} \right].
 $$
 
 This measures how well the reference model covers the optimal policy. The sub-optimality gap for DPO is bounded by terms involving $\mathcal{C}^{\pi^*}$ and the number of preference pairs [source:rlhfbook:direct-alignment-algorithms].
@@ -159,7 +159,7 @@ KL regularization is provably insufficient to prevent *reward overoptimization*,
 To address this, $\chi_{\text{PO}}$ replaces KL regularization with $\chi^2$-divergence, which penalizes off-manifold behavior more aggressively. The objective is:
 
 $$
-\mathcal{L}_{\chi_{\text{PO}}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \text{clip}_{2R_{\max}} \left[ \beta \phi \left( \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} \right) - \beta \phi \left( \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)} \right) \right] \right) \right], \tag{12}
+\mathcal{L}_{\chi_{\text{PO}}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \text{clip}_{2R_{\max}} \left[ \beta \phi \left( \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} \right) - \beta \phi \left( \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)} \right) \right] \right) \right],
 $$
 
 where $\phi(z) = z + \log z$ and $\text{clip}_{2R_{\max}}$ bounds the density ratios. $\chi_{\text{PO}}$ achieves sample complexity scaling with $\mathcal{C}^{\pi^*}$ and is robust to overoptimization [source:arxiv:2407.13399].

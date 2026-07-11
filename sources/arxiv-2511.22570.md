@@ -18,7 +18,11 @@ The proposed method, DeepSeekMath-V2, aims to achieve self-verifiable mathematic
         *   **Format Reward ($R_{\text{format}}$)**: An indicator function that ensures the output contains specific key phrases ("Here is my evaluation of the solution:" and a score within \boxed{} following "Based on my evaluation, the final overall score should be:").
         *   **Score Reward ($R_{\text{score}}$)**: Rewards based on the proximity between the predicted score $A'_i$ and the annotated score $A_i$: $R_{\text{score}}(A'_i, A_i) = 1 - |A'_i - A_i|$.
         The objective is:
-        $$ \max_{c_{\varphi}} \mathbb{E}_{(X_i, Y_i, A_i) \sim \mathcal{D}_{\nu}, (Z'_i, A'_i) \sim c_{\varphi}(\cdot|X_i, Y_i)} [R_{\text{format}}(Z'_i) \cdot R_{\text{score}}(A'_i, A_i)] $$
+
+$$
+\max_{c_{\varphi}} \mathbb{E}_{(X_i, Y_i, A_i) \sim \mathcal{D}_{\nu}, (Z'_i, A'_i) \sim c_{\varphi}(\cdot|X_i, Y_i)} [R_{\text{format}}(Z'_i) \cdot R_{\text{score}}(A'_i, A_i)]
+$$
+
         where $Z'_i$ is the verifier's final response.
 
 2.  **Meta-Verification**:
@@ -28,15 +32,27 @@ The proposed method, DeepSeekMath-V2, aims to achieve self-verifiable mathematic
         2.  Mathematical experts score the quality of the verifier's responses according to meta-verification rubrics $\mathcal{I}_{m\nu}$, creating dataset $\mathcal{D}_{m\nu} = \{(X_i, Y_i, Z_i, \bar{A}_i)\}$, where $Z_i$ is the verifier's analysis and $\bar{A}_i \in \{0, 0.5, 1\}$ is the expert-annotated quality score.
         3.  A dedicated meta-verifier $c_{\eta}(\cdot|X, Y, Z, \mathcal{I}_{m\nu})$ is trained using an RL objective similar to the verifier training, with format and score rewards.
     *   **Enhanced Verifier Training**: The meta-verifier's feedback is integrated into the verifier's reward function:
-        $$ R_V = R_{\text{format}} \cdot R_{\text{score}} \cdot R_{\text{meta}} $$
+
+$$
+R_V = R_{\text{format}} \cdot R_{\text{score}} \cdot R_{\text{meta}}
+$$
+
         where $R_{\text{meta}}$ is the quality score from the meta-verifier. The enhanced verifier is trained on both $\mathcal{D}_{\nu}$ and $\mathcal{D}_{m\nu}$.
 
 3.  **Proof Generation Training**:
     *   A proof generator $c_{\theta}(\cdot|X)$ is trained with the verifier $c_{\varphi}$ serving as a generative reward model. The objective is:
-        $$ \max_{\pi_{\theta}} \mathbb{E}_{X_i \sim \mathcal{D}_p, Y_i \sim \pi_{\theta}(\cdot|X_i)} [R_Y] $$
+
+$$
+\max_{\pi_{\theta}} \mathbb{E}_{X_i \sim \mathcal{D}_p, Y_i \sim \pi_{\theta}(\cdot|X_i)} [R_Y]
+$$
+
         where $R_Y$ is the reward for the generated proof.
     *   **Self-Verification in Generator**: The generator is prompted to produce a proof $Y$ followed by a self-analysis $Z$ (in the same format as the verifier). The verifier $c_{\varphi}$ assesses both: the proof $Y$ receives score $s = A$, and the self-analysis $Z$ receives a meta-verification score $ms = \bar{A}$. The combined reward function is:
-        $$ R = R_{\text{format}}(Y, Z) \cdot (\alpha \cdot R_Y + \beta \cdot R_Z) $$
+
+$$
+R = R_{\text{format}}(Y, Z) \cdot (\alpha \cdot R_Y + \beta \cdot R_Z)
+$$
+
         where $R_Y = s$ and $R_Z = R_{\text{score}}(s', s) \cdot R_{\text{meta}}(Z)$. Here, $s'$ is the generator's self-predicted score, and $\alpha=0.76$, $\beta=0.24$. This incentivizes faithful self-evaluation and iterative refinement.
 
 4.  **Synergy and Automated Labeling**:

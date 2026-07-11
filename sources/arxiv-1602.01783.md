@@ -16,11 +16,23 @@ The proposed asynchronous framework replaces experience replay with parallel act
 
 **Key Formulas**
 The one-step Q-learning loss is defined as:
-$$L_i(\theta_i) = \mathbb{E} \left( r + \gamma \max_{a'} Q(s', a'; \theta_{i-1}) - Q(s, a; \theta_i) \right)^2$$
+
+$$
+L_i(\theta_i) = \mathbb{E} \left( r + \gamma \max_{a'} Q(s', a'; \theta_{i-1}) - Q(s, a; \theta_i) \right)^2
+$$
+
 The shared RMSProp optimizer updates parameters elementwise using:
-$$g = \alpha g + (1 - \alpha) \Delta \theta^2 \quad \text{and} \quad \theta \leftarrow \theta - \eta \frac{\Delta \theta}{\sqrt{g + \epsilon}}$$
+
+$$
+g = \alpha g + (1 - \alpha) \Delta \theta^2 \quad \text{and} \quad \theta \leftarrow \theta - \eta \frac{\Delta \theta}{\sqrt{g + \epsilon}}
+$$
+
 For A3C, the policy gradient incorporates the advantage function $A(s_t, a_t) = \sum_{i=0}^{k-1} \gamma^i r_{t+i} + \gamma^k V(s_{t+k}; \theta_v) - V(s_t; \theta_v)$, yielding the entropy-regularized update:
-$$\nabla_{\theta'} \log \pi(a_t|s_t; \theta')(R_t - V(s_t; \theta_v)) + \beta \nabla_{\theta'} H(\pi(s_t; \theta'))$$
+
+$$
+\nabla_{\theta'} \log \pi(a_t|s_t; \theta')(R_t - V(s_t; \theta_v)) + \beta \nabla_{\theta'} H(\pi(s_t; \theta'))
+$$
+
 where $\beta$ controls the regularization strength and $H$ denotes policy entropy.
 
 **Key Quantitative Results**

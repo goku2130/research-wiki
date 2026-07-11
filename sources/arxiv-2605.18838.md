@@ -16,13 +16,28 @@ The Capability Coupling Analysis of Phase Emergence (CAPE) framework operational
 
 **Key Formulas**
 The coupling transition follows the logarithmic law:
-$$\gamma_{12}(N, \mathcal{D}) = \gamma_0(\mathcal{D}) \cdot \log_{10}(N/N_c(\mathcal{D}))$$
+
+$$
+\gamma_{12}(N, \mathcal{D}) = \gamma_0(\mathcal{D}) \cdot \log_{10}(N/N_c(\mathcal{D}))
+$$
+
 Benchmark trajectories are modeled by the discovered ODE:
-$$\frac{dB_i}{d\log_{10}N} = \sum_j c_{ij}B_j + \sum_{j \le k} d_{ijk}B_j B_k$$
+
+$$
+\frac{dB_i}{d\log_{10}N} = \sum_j c_{ij}B_j + \sum_{j \le k} d_{ijk}B_j B_k
+$$
+
 Dimensionality collapse is quantified via the participation ratio:
-$$d_{\text{eff}} = \frac{(\sum_{i=1}^{5} \lambda_i)^2}{\sum_{i=1}^{5} \lambda_i^2}$$
+
+$$
+d_{\text{eff}} = \frac{(\sum_{i=1}^{5} \lambda_i)^2}{\sum_{i=1}^{5} \lambda_i^2}
+$$
+
 Width normalization scales scores as:
-$$B_{\text{norm}} = B / (d_{\mathrm{model}}/d_{\mathrm{ref}})$$
+
+$$
+B_{\text{norm}} = B / (d_{\mathrm{model}}/d_{\mathrm{ref}})
+$$
 
 **Key Quantitative Results**
 Below $N_c$, reasoning and truthfulness strongly anticorrelate ($r = -0.989$, $p = 4 \times 10^{-5}$ for Pythia), defining the "alignment tax" phase. Above $N_c$, coupling flips to cooperative ($r > +0.78$). The critical scale varies significantly by architecture: $N_c \approx 0.12\text{B}$ for OPT, $3.5\text{B}$ [2.9B, 13.4B] for Pythia, and $7.0\text{B}$ for Falcon. Width normalization eliminates the anticorrelation across all tested families (e.g., Pythia shifts from $-0.989$ to $+0.963$). Internal analysis reveals 38 of 40 models contain zero competing attention heads (95% CI: 84–99%), indicating the bottleneck resides at the output projection rather than in representational space. A sparse-regression ODE cross-predicts held-out Llama-2 benchmarks at 5.6% MAE. Activation steering at the bottleneck layer corrects 60% of misaligned outputs in the tax phase without retraining. At frontier scales, the cooperative regime persists ($r = +0.72$ across 34 models from 10 labs).

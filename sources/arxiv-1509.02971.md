@@ -22,9 +22,17 @@ Training proceeds by sampling a minibatch, computing bootstrapped targets, minim
 
 **Key Formulas**
 The critic is trained by minimizing the mean squared error:
-$$L = \frac{1}{N} \sum_i \left( y_i - Q(s_i, a_i|\theta^Q) \right)^2$$
+
+$$
+L = \frac{1}{N} \sum_i \left( y_i - Q(s_i, a_i|\theta^Q) \right)^2
+$$
+
 where the target values are computed as $y_i = r_i + \gamma Q'(s_{i+1}, \mu'(s_{i+1}|\theta^{\mu'})|\theta^{Q'})$. The actor parameters are updated using the deterministic policy gradient:
-$$\nabla_{\theta^\mu} J \approx \frac{1}{N} \sum_i \nabla_a Q(s, a|\theta^Q)\big|_{s=s_i, a=\mu(s_i)} \nabla_{\theta^\mu} \mu(s|\theta^\mu)\big|_{s_i}$$
+
+$$
+\nabla_{\theta^\mu} J \approx \frac{1}{N} \sum_i \nabla_a Q(s, a|\theta^Q)\big|_{s=s_i, a=\mu(s_i)} \nabla_{\theta^\mu} \mu(s|\theta^\mu)\big|_{s_i}
+$$
+
 Target network weights are updated softly at each step: $\theta' \leftarrow \tau\theta + (1 - \tau)\theta'$ with $\tau \ll 1$. The exploration policy is defined as $\mu'(s_t) = \mu(s_t|\theta_t^\mu) + \mathcal{N}$.
 
 **Key Quantitative Results and Numbers**

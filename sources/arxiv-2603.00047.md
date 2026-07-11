@@ -21,9 +21,17 @@ The analysis proceeds through a structured geometric recipe:
 
 **Key Formulas & Quantitative Results**
 The single-capability Pareto frontier is tightly characterized by:
-$$\Delta_S = \Delta_C \cos\alpha + \sin\alpha \sqrt{B^2 - \Delta_C^2}, \quad |\Delta_C| \leq B$$
+
+$$
+\Delta_S = \Delta_C \cos\alpha + \sin\alpha \sqrt{B^2 - \Delta_C^2}, \quad |\Delta_C| \leq B
+$$
+
 where $\Delta_S$ is safety gain and $\Delta_C$ is capability change. The frontier interpolates between a linear tradeoff ($\alpha=0$) and independent optimization ($\alpha=\pi/2$). The tax rate $\tau \in [0,1]$ quantifies entanglement, with per-task degradation given by $\tau_i = \langle v^*, c_i \rangle^2$. Under fixed capability targets $\delta_C^*$, maximum safety is:
-$$\Delta_S^{\max} = \langle v^*, \delta_C^* \rangle + \sqrt{B^2 - \|\delta_C^*\|^2} \sqrt{1-\tau}$$
+
+$$
+\Delta_S^{\max} = \langle v^*, \delta_C^* \rangle + \sqrt{B^2 - \|\delta_C^*\|^2} \sqrt{1-\tau}
+$$
+
 yielding tax-free safety $\Delta_S^{\text{free}} = B\sqrt{1-\tau}$. The scaling law decomposes the tax as $\tau = \tau_0 + R(d)$, where $\tau_0 = \sum_{i \in I} \gamma_i^2$ is irreducible and the packing residual satisfies $|R(d)| \leq \frac{\tau_0 m \mu + m' \mu^2 + 2\bar{\gamma}|I|\mu + |I|\mu^2}{1-m\mu}$. Under random packing, $|R(d)| = O(m'/d)$. Quantitatively, for fixed $m$, $\tau \to \tau_0$ at rate $O(\log d/d)$; for linear capability growth ($m = \Theta(d)$), the expected incidental tax remains $\Theta(1)$. For LoRA rank $r=8$ in $d=4096$, isotropic perturbation yields $\sim 0.2\%$ capability degradation. Multi-objective safety tradeoffs under capability preservation follow $s_1 = s_2 \cos\theta + \sin\theta \sqrt{1-s_2^2}$, with effective correlation $\cos\theta = \frac{\rho - a^\top(C^\top C)^{-1}b}{\sqrt{(1-\tau_1)(1-\tau_2)}}$.
 
 **Stated Limitations**

@@ -76,7 +76,7 @@ Diversity loss is quantified via:
 Proximal Policy Optimization (PPO) [source:arxiv:1707.06347] is the dominant RL algorithm for LLM fine-tuning, but its clipped objective can exacerbate mode collapse. The surrogate objective:
 
 $$
-L^{CLIP}(\theta) = \mathbb{E}_t \left[ \min \left( r_t(\theta)\hat{A}_t, \operatorname{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_t \right) \right], \quad \text{where } r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\text{old}}(a_t|s_t)},
+L^{CLIP}(\theta) = \mathbb{E}_t \left[ \min \left( r_t(\theta)\hat{A}_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_t \right) \right], \quad \text{where } r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\text{old}}(a_t|s_t)},
 $$
 
 penalizes large policy updates, but this clipping can *accelerate* collapse when:

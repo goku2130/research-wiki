@@ -50,7 +50,6 @@ The split introduces off-policy bias because actors sample from a stale policy $
 
 $$
 \mathcal{L}^{\text{CLIP}}(\theta) = \mathbb{E}_{(x,y) \sim \pi_{\theta_{\text{old}}}} \left[ \min \left( \frac{\pi_\theta(y|x)}{\pi_{\theta_{\text{old}}}(y|x)} A^{\theta_{\text{old}}}(x,y), \text{clip}\left(\frac{\pi_\theta(y|x)}{\pi_{\theta_{\text{old}}}(y|x)}, 1-\epsilon, 1+\epsilon\right) A^{\theta_{\text{old}}}(x,y) \right) \right].
-\tag{1}
 $$
 
 Here, $A^{\theta_{\text{old}}}$ is computed using rollouts from $\pi_{\theta_{\text{old}}}$, but $\pi_\theta$ may have drifted. To bound the bias, practitioners:
@@ -60,7 +59,6 @@ Here, $A^{\theta_{\text{old}}}$ is computed using rollouts from $\pi_{\theta_{\t
 
 $$
 A^{\text{corrected}}(x,y) = \frac{\pi_\theta(y|x)}{\pi_{\theta_{\text{old}}}(y|x)} A^{\theta_{\text{old}}}(x,y).
-  \tag{2}
 $$
 
 Empirical studies in [source:arxiv:2307.09288] demonstrate that LLaMA-2’s RLHF pipeline maintains performance with synchronization intervals up to 1000 steps, though this tolerance may shrink for larger models or more sensitive tasks.
@@ -119,7 +117,6 @@ The PPO objective combines policy, value, and entropy terms:
 
 $$
 \mathcal{L}(\theta) = \mathbb{E}_{(x,y) \sim \pi_{\theta_{\text{old}}}} \left[ \mathcal{L}^{\text{CLIP}}(\theta) - c_1 \mathcal{L}^{\text{VF}}(\psi) + c_2 \mathcal{H}(\pi_\theta(x)) \right],
-\tag{3}
 $$
 
 where:
@@ -137,7 +134,6 @@ PPO’s advantage estimation uses Generalized Advantage Estimation (GAE):
 
 $$
 A_t^{\text{GAE}} = \sum_{l=0}^{\infty} (\gamma \lambda)^l \delta_{t+l}, \quad \delta_t = r_t + \gamma V_\psi(x,y_{<t+1}) - V_\psi(x,y_{<t}).
-\tag{4}
 $$
 
 **Distributed Implementation**:

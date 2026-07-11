@@ -22,22 +22,40 @@ VIGOR proposes an intrinsic reward signal derived solely from the policy model's
 
 1.  **Sample Completions:** For a given prompt $x$, sample a group of $G$ completions $\{y_i\}_{i=1}^G$ from the current policy $\pi_\theta$.
 2.  **Compute Average Token-Level Negative Log-Likelihood:** For each completion $y = (y_1, \ldots, y_T)$ of non-padding length $T = |y|$, calculate the average token-level negative log-likelihood:
-    $$ \ell_{\text{mean}}(x, y) = \frac{1}{T} \sum_{t=1}^{T} \ell_t(x, y) $$
+
+$$
+\ell_{\text{mean}}(x, y) = \frac{1}{T} \sum_{t=1}^{T} \ell_t(x, y)
+$$
+
     where $\ell_t(x,y) = -\log \pi_\theta (y_t\mid x,y_{< t})$ is the per-token NLL.
 3.  **Compute Gradient Norm:** Calculate the $\ell_2$ norm of the gradient of the average token-level negative log-likelihood with respect to the model parameters $\theta$:
-    $$ ||\mathbf{g}(x,y)||_2 = ||\nabla_{\theta}\ell_{\mathrm{mean}}(x,y)||_2 $$
+
+$$
+||\mathbf{g}(x,y)||_2 = ||\nabla_{\theta}\ell_{\mathrm{mean}}(x,y)||_2
+$$
+
     This gradient norm is detached from the computation graph, treating it as a scalar reward signal.
 4.  **Apply Length Correction:** To counteract a systematic length bias (where $||\mathbf{g}(x,y)||_2$ tends to shrink as $T$ grows, approximately $O(1/\sqrt{T})$), the raw gradient norm is scaled by $\sqrt{T}$:
-    $$ S_{\mathrm{GN}}(x, y) = - \sqrt{T} ||\mathbf{g}(x, y)||_2 $$
+
+$$
+S_{\mathrm{GN}}(x, y) = - \sqrt{T} ||\mathbf{g}(x, y)||_2
+$$
+
     The negative sign converts gradient-norm minimization into a reward maximization objective.
-5.  **Rank-based Normalization:** The raw signals $\{S_{\mathrm{GN}}(x,y_i)\}_{i=1}^G$ for a group of completions are transformed into a normalized rank-based intrinsic reward. Completions are sorted from worst to best (smaller $S_{\mathrm{GN}}$ indicates larger gradient norms and thus worse completions), assigned an integer rank $\operatorname{rank}_i \in \{0,\ldots,G-1\}$. The normalized reward is:
-    $$ R_{\mathrm{GN}}(x, y_i) = 2 \frac{\operatorname{rank}_i}{G - 1} - 1 $$
+5.  **Rank-based Normalization:** The raw signals $\{S_{\mathrm{GN}}(x,y_i)\}_{i=1}^G$ for a group of completions are transformed into a normalized rank-based intrinsic reward. Completions are sorted from worst to best (smaller $S_{\mathrm{GN}}$ indicates larger gradient norms and thus worse completions), assigned an integer rank $\text{rank}_i \in \{0,\ldots,G-1\}$. The normalized reward is:
+
+$$
+R_{\mathrm{GN}}(x, y_i) = 2 \frac{\text{rank}_i}{G - 1} - 1
+$$
+
     This assigns rewards from -1 (worst) to +1 (best).
 6.  **Policy Optimization:** The policy $\pi_\theta$ is updated by maximizing a PPO-style objective, using the group-relative advantage $\hat{A}_i$ computed by mean-std normalizing the $\{R_{\mathrm{GN}}(x,y_j)\}_{j=1}^G$ within each prompt group. The objective is:
-    $$
-    \begin{array}{l} \mathcal {J} (\pi_ {\theta}) = \mathbb {E} \left[ \frac {1}{G} \sum_ {i = 1} ^ {G} \frac {1}{| y _ {i} |} \sum_ {t = 1} ^ {| y _ {i} |} \min \left(r _ {i, t} (\theta) \hat {A} _ {i}, \bar {r} _ {i, t} \hat {A} _ {i}\right) \right. \\ \left. - \beta \mathrm{KL} \left(\pi_ {\theta}, \pi_ {\text {ref}}\right) \right], \end{array}
-    $$
-    where $r_{i,t}(\theta)=\frac{\pi_{\theta}(y_{i,t}|x,y_{i,<t})}{\pi_{\theta_{\mathrm{old}}}(y_{i,t}|x,y_{i,<t})}$ is the token-level probability ratio, $\bar{r}_{i,t}=\operatorname{clip}(r_{i,t}(\theta),1-\epsilon,1+\epsilon)$ is its clipped version, and $\hat{A}_i$ is the group-relative advantage.
+
+$$
+\begin{array}{l} \mathcal {J} (\pi_ {\theta}) = \mathbb {E} \left[ \frac {1}{G} \sum_ {i = 1} ^ {G} \frac {1}{| y _ {i} |} \sum_ {t = 1} ^ {| y _ {i} |} \min \left(r _ {i, t} (\theta) \hat {A} _ {i}, \bar {r} _ {i, t} \hat {A} _ {i}\right) \right. \\ \left. - \beta \mathrm{KL} \left(\pi_ {\theta}, \pi_ {\text {ref}}\right) \right], \end{array}
+$$
+
+    where $r_{i,t}(\theta)=\frac{\pi_{\theta}(y_{i,t}|x,y_{i,<t})}{\pi_{\theta_{\mathrm{old}}}(y_{i,t}|x,y_{i,<t})}$ is the token-level probability ratio, $\bar{r}_{i,t}=\text{clip}(r_{i,t}(\theta),1-\epsilon,1+\epsilon)$ is its clipped version, and $\hat{A}_i$ is the group-relative advantage.
 
 ### Key Quantitative Results and Numbers
 
