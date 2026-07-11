@@ -79,7 +79,7 @@ topics:
 - slug: entropy-and-exploration
   title: Entropy and exploration in RL fine-tuning
   notes: Entropy collapse, exploration bonuses, diversity
-  status: empty
+  status: done
 - slug: length-and-format-bias
   title: Length and format bias
   notes: Verbosity reward hacking, length-controlled evals
