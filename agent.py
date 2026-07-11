@@ -396,6 +396,21 @@ def normalize_citations(text: str) -> str:
     return re.sub(r"\[(source:[^\]]+)\]", split, text)
 
 
+def strip_preamble(text: str) -> str:
+    """Remove the reviser's conversational wrapper that leaks into articles, e.g.
+    'Here is the revised wiki article ...' + a change-list, before the real content."""
+    text = text.strip()
+    if re.match(r"(here is|below is|sure|certainly|i have|i've|the following|here'?s)\b"
+                r".{0,90}?\b(article|wiki|revised|version|updated|deep dive)\b",
+                text[:180], flags=re.I):
+        m = re.search(r"^#{1,4} ", text, flags=re.M)   # cut to the first markdown heading
+        if m:
+            text = text[m.start():]
+    text = re.sub(r"\n+\s*(let me know|i hope this|feel free|note:)\b[^\n]*$", "",
+                  text, flags=re.I)
+    return text.strip()
+
+
 def fix_latex(text: str) -> str:
     """Normalize LaTeX delimiters to what GitHub/KaTeX markdown renders ($ and $$).
     `\\[ ... \\]` -> `$$...$$`, `\\( ... \\)` -> `$...$`. Leaves \\left[ / \\right] alone."""
@@ -454,7 +469,7 @@ def write_article(topic: dict, distilled: list[dict], tax: dict) -> tuple[str, l
         messages=[{"role": "system", "content": WRITE_SYS},
                   {"role": "user", "content": prompt}])
     body = strip_thoughts(content_text(resp.choices[0].message))
-    return _split_open_qs(fix_latex(normalize_citations(body)))
+    return _split_open_qs(strip_preamble(fix_latex(normalize_citations(body))))
 
 
 # ----------------------------------------------------------------- review gate
@@ -548,6 +563,8 @@ def revise(topic: dict, article: str, issues: list[str], distilled: list[dict],
               f"output the FULL improved article (same format: [source:<id>] citations, "
               f"'## Current status and trajectory', '## Key takeaways', '## Related "
               f"topics', then an 'OPEN_QUESTIONS:' trailer).\n"
+              f"Output ONLY the article itself — start directly with the content. Do NOT "
+              f"add any preamble, greeting, or list of changes you made.\n"
               f"For any issue marked [grounding], the claim is NOT supported by its cited "
               f"source: correct it to match the source, or REMOVE it — never keep a "
               f"fabricated number, equation, or misattribution.\n\n"
@@ -558,7 +575,7 @@ def revise(topic: dict, article: str, issues: list[str], distilled: list[dict],
         messages=[{"role": "system", "content": WRITE_SYS},
                   {"role": "user", "content": prompt}])
     body = strip_thoughts(content_text(resp.choices[0].message))
-    return _split_open_qs(fix_latex(normalize_citations(body)))
+    return _split_open_qs(strip_preamble(fix_latex(normalize_citations(body))))
 
 
 # ----------------------------------------------------------------- persistence

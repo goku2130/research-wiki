@@ -119,7 +119,7 @@ topics:
 - slug: rollout-generation-infra
   title: Rollout generation infrastructure
   notes: vLLM/SGLang rollouts, KV reuse, throughput
-  status: empty
+  status: done
 - slug: rl-for-math-and-code
   title: RL for math and code
   notes: Verifier design, unit-test rewards, DeepSeekMath
