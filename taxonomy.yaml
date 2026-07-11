@@ -87,7 +87,7 @@ topics:
 - slug: alignment-tax
   title: The alignment tax
   notes: Capability regressions from alignment; mitigation
-  status: empty
+  status: done
 - slug: overoptimization-and-mode-collapse
   title: Over-optimization and mode collapse
   notes: Diversity loss, distributional collapse under RL

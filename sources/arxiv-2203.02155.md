@@ -5,35 +5,24 @@ title: Training language models to follow instructions with human feedback
 url: https://arxiv.org/abs/2203.02155
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: distributed-rl-training
+topic: alignment-tax
 ---
 
 **Core Problem**
-Large language models (LMs) optimized for next-token prediction are fundamentally misaligned with user intent. Scaling model size does not inherently improve instruction-following, truthfulness, or safety. Instead, these models frequently generate untruthful, toxic, biased, or unhelpful outputs, and often ignore explicit user constraints. The standard autoregressive objective diverges from the desired deployment goal of producing helpful, honest, and harmless responses.
+Large language models (LMs) trained on next-token prediction are misaligned with user intent, frequently producing untruthful, toxic, or unhelpful outputs. Scaling model parameters does not inherently improve this alignment. The authors address this by developing a fine-tuning pipeline that aligns LMs with human preferences, explicitly targeting helpfulness, honesty, and harmlessness.
 
 **Methodology**
-The authors align GPT-3 architectures through a three-stage fine-tuning pipeline:
-1. **Supervised Fine-Tuning (SFT):** Contractors curate prompts and provide demonstration outputs. The base GPT-3 model is fine-tuned on this dataset via supervised learning to internalize instruction-following behavior.
-2. **Reward Modeling (RM):** For each prompt, multiple model outputs are sampled and ranked by contractors. A reward model is trained on these pairwise comparisons to predict human preference.
-3. **Reinforcement Learning from Human Feedback (RLHF):** The trained RM serves as a scalar reward signal. The SFT policy is optimized using Proximal Policy Optimization (PPO). A KL penalty relative to the SFT model prevents reward over-optimization. To mitigate performance regressions on standard NLP benchmarks, the authors introduce a pretraining data mix (PPO-ptx), which blends RL gradients with standard next-token prediction gradients from the original pretraining distribution.
+The training procedure, named InstructGPT, follows a three-step recipe. First, **Supervised Fine-Tuning (SFT)**: Contractors provide human demonstrations of desired outputs for a diverse prompt distribution (sourced from API usage and labeler-written prompts). A pretrained GPT-3 model is fine-tuned on this demonstration data via supervised learning. Second, **Reward Modeling (RM)**: The SFT model generates multiple outputs per prompt, which contractors rank from best to worst. A reward model is trained on these pairwise comparisons to predict human-preferred outputs. Third, **Reinforcement Learning from Human Feedback (RLHF)**: The trained RM serves as a reward signal. The SFT policy is fine-tuned using Proximal Policy Optimization (PPO) to maximize the RM's reward, incorporating a KL penalty relative to the SFT model to prevent reward over-optimization. To mitigate performance regressions on standard NLP benchmarks, a variant (PPO-ptx) mixes pretraining data gradients into the RL objective.
 
 **Key Formulas**
-The reward model is trained using a cross-entropy loss over all pairwise comparisons within a batch of $K$ responses:
-
-$$
-\text{loss}(\theta) = -\frac{1}{\binom{K}{2}} \mathbb{E}_{(x,y_w,y_l)\sim D} [\log(\sigma(r_\theta(x,y_w) - r_\theta(x,y_l)))]
-$$
-
-where $r_\theta(x,y)$ is the scalar reward, $y_w$ and $y_l$ are the winning and losing completions, and $D$ is the comparison dataset. The RLHF objective combines the reward signal, a KL penalty, and the pretraining loss:
-
-$$
-\text{objective} (\phi) = \mathbb{E}_{(x, y) \sim D_{\pi_{\phi}^{\mathrm{RL}}}} \left[ r_{\theta} (x, y) - \beta \log \left(\pi_{\phi}^{\mathrm{RL}} (y \mid x) / \pi^{\mathrm{SFT}} (y \mid x)\right) \right] + \gamma \mathbb{E}_{x \sim D_{\text{pretrain}}} \left[ \log \left(\pi_{\phi}^{\mathrm{RL}} (x)\right) \right]
-$$
-
-Here, $\beta$ controls the KL penalty strength and $\gamma$ weights the pretraining gradient contribution.
+The reward model is trained using a pairwise comparison loss over $K$ ranked outputs:
+$$\text{loss}(\theta) = -\frac{1}{\binom{K}{2}} E_{(x,y_w,y_l)\sim D} [\log(\sigma(r_\theta(x,y_w) - r_\theta(x,y_l)))]$$
+where $r_\theta(x,y)$ is the scalar reward for prompt $x$ and completion $y$, $y_w$ and $y_l$ denote the preferred and less preferred completions, and $D$ is the comparison dataset. The RLHF objective for the PPO-ptx variant combines the reward signal, a KL divergence penalty, and pretraining log-likelihood:
+$$\text{objective} (\phi) = E _ {(x, y) \sim D _ {\pi_ {\phi} ^ {\mathrm{RL}}}} \left[ r _ {\theta} (x, y) - \beta \log \left(\pi_ {\phi} ^ {\mathrm{RL}} (y \mid x) / \pi^ {\mathrm{SFT}} (y \mid x)\right) \right] + \gamma E _ {x \sim D _ {\text {pretrain}}} \left[ \log \left(\pi_ {\phi} ^ {\mathrm{RL}} (x)\right) \right]$$
+Here, $\beta$ and $\gamma$ control the KL penalty and pretraining gradient strength, respectively.
 
 **Quantitative Results**
-Human evaluations on held-out API prompts show that outputs from the 1.3B InstructGPT model are preferred over the 175B GPT-3 baseline, despite using 100× fewer parameters. The 175B InstructGPT model is preferred over standard 175B GPT-3 $85 \pm 3\%$ of the time and over few-shot 175B GPT-3 $71 \pm 4\%$ of the time. InstructGPT models significantly improve truthfulness, generating truthful and informative answers on TruthfulQA approximately twice as often as GPT-3. On closed-domain tasks, hallucination rates drop from 41% to 21%. When prompted to be respectful, InstructGPT generates roughly 25% fewer toxic outputs than GPT-3, though bias metrics on Winogender and CrowS-Pairs show no significant improvement. The PPO-ptx modification successfully mitigates most performance regressions on public NLP datasets like SQuAD and HellaSwag, though some degradation persists on DROP and translation tasks. Inter-annotator agreement for preference rankings reached $72.6 \pm 1.5\%$ for training labelers and $77.3 \pm 1.3\%$ for held-out labelers.
+Human evaluations demonstrate significant alignment gains. Outputs from the 1.3B parameter InstructGPT model are preferred over the 175B GPT-3 baseline despite having 100× fewer parameters. The 175B InstructGPT model is preferred over standard 175B GPT-3 $85 \pm 3\%$ of the time and over few-shot 175B GPT-3 $71 \pm 4\%$ of the time. InstructGPT improves truthfulness, generating truthful and informative answers on TruthfulQA approximately twice as often as GPT-3, while reducing hallucination rates on closed-domain tasks from 41% to 21%. Toxicity decreases by roughly 25% on the RealToxicityPrompts dataset when models are instructed to be respectful. Inter-annotator agreement for preference rankings is $72.6 \pm 1.5\%$ for training labelers and $77.3 \pm 1.3\%$ for held-out labelers. The PPO-ptx modification successfully mitigates most performance regressions on public NLP datasets, though gaps remain on SQuAD, DROP, and translation tasks.
 
 **Stated Limitations**
-The authors explicitly note that alignment is strictly bounded by the preferences of a specific, non-representative group of contractors (primarily English-speaking individuals in the US and Southeast Asia) and the researchers designing the labeling instructions. The models remain imperfect: they still generate toxic or biased content when explicitly instructed to do so, frequently assume false premises in prompts, overly hedge simple questions, and struggle with complex multi-constraint instructions. Furthermore, the alignment procedure introduces an "alignment tax," causing performance drops on certain public NLP benchmarks that are only partially mitigated by mixing pretraining data. The approach also does not generalize perfectly to out-of-distribution contexts, and the authors caution that aligning to a narrow reference group may not capture broader human values or account for stakeholder disagreements.
+The authors acknowledge several constraints. InstructGPT models still exhibit simple failures, including hallucination, over-hedging, failure to detect false premises, and difficulty with multiple explicit constraints. Alignment is strictly bounded to the preferences of a specific, non-representative cohort of contractors, researchers, and API customers, rather than broad human values. The models can still generate toxic or biased outputs, particularly when explicitly prompted to do so, and show no significant bias reduction on Winogender or CrowS-Pairs. Furthermore, the reliance on human preference data introduces value judgments influenced by contractor demographics, and the alignment procedure incurs an "alignment tax" that, while mitigated by PPO-ptx, does not fully eliminate performance drops on certain benchmarks.
