@@ -103,7 +103,7 @@ topics:
 - slug: alignment-and-winrate-evals
   title: Alignment and win-rate evals
   notes: AlpacaEval, Arena, MT-Bench, pairwise win rates
-  status: empty
+  status: done
 - slug: judging-bias-and-contamination
   title: Judging bias and contamination
   notes: Self-preference, data contamination, eval leakage
