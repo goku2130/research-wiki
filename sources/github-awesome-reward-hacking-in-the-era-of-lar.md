@@ -5,7 +5,7 @@ title: Awesome Reward Hacking in the Era of Large Models
 url: https://github.com/xhwang22/Awesome-Reward-Hacking
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: length-and-format-bias
+topic: reward-hacking
 ---
 
 # Summary: Reward Hacking in the Era of Large Models

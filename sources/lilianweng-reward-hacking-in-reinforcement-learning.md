@@ -5,7 +5,7 @@ title: Reward Hacking in Reinforcement Learning (Lil'Log)
 url: https://lilianweng.github.io/posts/2024-11-28-reward-hacking/
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: reward-modeling
+topic: reward-hacking
 ---
 
 # Reward Hacking in Reinforcement Learning
