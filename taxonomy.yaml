@@ -95,7 +95,7 @@ topics:
 - slug: sycophancy-and-misgeneralization
   title: Sycophancy and misgeneralization
   notes: Reward-induced sycophancy, goal misgeneralization
-  status: empty
+  status: done
 - slug: llm-as-judge
   title: LLM-as-judge
   notes: Judge models, biases, position/verbosity effects
