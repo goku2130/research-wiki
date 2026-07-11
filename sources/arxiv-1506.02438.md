@@ -1,35 +1,19 @@
 ---
 id: arxiv:1506.02438
 type: paper
-title: High-Dimensional Continuous Control Using Generalized Advantage Estimation
+title: High-dimensional continuous control using generalized advantage estimation
 url: https://arxiv.org/abs/1506.02438
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: policy-gradient-methods
+topic: async-and-off-policy-rl
 ---
 
-Policy gradient methods directly optimize cumulative reward but suffer from high sample complexity due to gradient variance that scales with the time horizon. While value functions reduce variance, they introduce bias that can prevent convergence to optimal policies. The core challenge is balancing this bias-variance tradeoff in high-dimensional, continuous control tasks with long credit assignment horizons. The authors propose Generalized Advantage Estimation (GAE), a parameterized estimator that interpolates between low-bias/high-variance and high-bias/low-variance advantage estimates. GAE is combined with Trust Region Policy Optimization (TRPO) for stable policy updates and a trust-region-based regression method for value function training. The algorithm iterates as follows: simulate trajectories using the current policy until a batch of $N$ timesteps is collected; compute TD residuals using the current value function; compute GAE advantages via an exponentially weighted sum of future residuals; update policy parameters using TRPO to maximize a surrogate objective under a KL-divergence constraint; update value function parameters by solving a constrained least-squares regression problem that limits the average squared deviation from the previous value function. The policy update uses the value function from the current iteration, not the updated one, to avoid compounding bias.
+Policy gradient methods directly optimize cumulative reward but suffer from high sample complexity due to high variance in gradient estimates, and instability from non-stationary data. The credit assignment problem is exacerbated by long delays between actions and rewards. While value functions reduce variance, they introduce bias, which can prevent convergence to optimal solutions.
 
-The policy gradient takes the form $g = \mathbb{E} \left[ \sum_{t=0}^{\infty} \Psi_t \nabla_\theta \log \pi_\theta(a_t \mid s_t) \right]$, where $\Psi_t$ is replaced by the GAE estimator. The core advantage estimator is defined as:
+The authors propose Generalized Advantage Estimation (GAE) combined with trust region optimization for both policy and value functions. The iterative algorithm proceeds as follows: (1) Simulate the current policy to collect a batch of $N$ timesteps. (2) Compute one-step TD residuals $\delta_t^V = r_t + \gamma V(s_{t+1}) - V(s_t)$ using an approximate state-value function $V$. (3) Estimate the advantage function via GAE, which exponentially weights these residuals: $\hat{A}_t^{\text{GAE}(\gamma,\lambda)} = \sum_{l=0}^{\infty} (\gamma\lambda)^l \delta_{t+l}^V$. (4) Update policy parameters $\theta$ using Trust Region Policy Optimization (TRPO), maximizing a surrogate objective subject to a KL-divergence constraint. (5) Update value function parameters $\phi$ using a trust region method solved via conjugate gradients, constraining the average squared deviation from the previous value function to prevent overfitting. (6) Repeat until convergence.
 
-$$
-\hat{A}_{t}^{\mathrm{GAE}(\gamma,\lambda)} = \sum_{l=0}^{\infty}(\gamma\lambda)^{l}\delta_{t+l}^{V}
-$$
+The policy gradient takes the form $g = \mathbb{E} \left[ \sum_{t=0}^{\infty} \Psi_t \nabla_\theta \log \pi_\theta(a_t \mid s_t) \right]$, where $\Psi_t$ is replaced by the GAE advantage estimate. The discounted advantage function is $A^{\pi,\gamma}(s_t, a_t) := Q^{\pi,\gamma}(s_t, a_t) - V^{\pi,\gamma}(s_t)$. The core GAE estimator simplifies to $\hat{A}_{t}^{\mathrm{GAE}(\gamma,\lambda)} := \sum_{l=0}^{\infty}(\gamma\lambda)^{l}\delta_{t+l}^{V}$. TRPO optimizes $L_{\theta_{old}}(\theta) = \frac{1}{N} \sum_{n=1}^{N} \frac{\pi_{\theta}(a_n \mid s_n)}{\pi_{\theta_{old}}(a_n \mid s_n)} \hat{A}_n$ subject to $\overline{D}_{\text{KL}}^{\theta_{old}}(\pi_{\theta_{old}}, \pi_{\theta}) \leq \epsilon$. Value function updates solve $\underset {\phi} {\text { minimize }} \sum_ {n = 1} ^ {N} \| V _ {\phi} (s _ {n}) - \hat {V} _ {n} \| ^ {2}$ subject to $\frac {1}{N} \sum_ {n = 1} ^ {N} \frac {\left\| V _ {\phi} (s _ {n}) - V _ {\phi_ {\mathrm{old}}} (s _ {n}) \right\| ^ {2}}{2 \sigma^ {2}} \leq \epsilon$.
 
-where $\gamma$ acts as a variance-reduction discount and $\lambda$ controls the interpolation between one-step and infinite-step returns. The TRPO policy update solves:
+The method was evaluated on high-dimensional continuous control tasks using neural networks with over $10^4$ parameters (three hidden layers: 100, 50, 25 tanh units). For cart-pole, optimal performance occurred at $\gamma \in [0.96, 0.99]$ and $\lambda \in [0.92, 0.99]$. For 3D bipedal locomotion (33 state dimensions, 10 actuators), the algorithm used 50,000 timesteps per batch over 1,000 iterations, requiring approximately 5.8 days of real-time simulation. Best performance was achieved with $\gamma \in [0.99, 0.995]$ and $\lambda \in [0.96, 0.99]$. Quadrupedal locomotion (29 state dimensions, 8 actuators) used 200,000 timesteps per batch. The learned policies achieved fast, stable gaits and successfully learned to stand up from a prone position.
 
-$$
-\underset{\theta}{\text{minimize}} \frac{1}{N} \sum_{n=1}^{N} \frac{\pi_{\theta}(a_n \mid s_n)}{\pi_{\theta_{\text{old}}}(a_n \mid s_n)} \hat{A}_n \quad \text{subject to } \overline{D}_{\text{KL}}^{\theta_{\text{old}}}(\pi_{\theta_{\text{old}}}, \pi_{\theta}) \leq \epsilon
-$$
-
-The value function is optimized via:
-
-$$
-\underset{\phi}{\text{minimize}} \sum_{n=1}^{N} \| V_{\phi}(s_n) - \hat{V}_n \|^2 \quad \text{subject to } \frac{1}{N} \sum_{n=1}^{N} \frac{\| V_{\phi}(s_n) - V_{\phi_{\text{old}}}(s_n) \|^2}{2\sigma^2} \leq \epsilon
-$$
-
-This constrained regression is solved approximately using conjugate gradients with a Gauss-Newton Hessian approximation.
-
-Experiments were conducted on cart-pole balancing and 3D simulated locomotion tasks using the MuJoCo physics engine. Neural network policies and value functions used three hidden layers (100, 50, 25 tanh units), exceeding $10^4$ parameters each. For the 3D biped (33 state dimensions, 10 actuators), learning required 50,000 timesteps per batch over 1,000 batches, consuming approximately 5.8 days of real-time simulation. The quadruped task (29 states, 8 actuators) used 200,000 timesteps per batch. Optimal performance consistently occurred at intermediate parameter ranges: $\gamma \in [0.96, 0.995]$ and $\lambda \in [0.92, 0.99]$. Setting $\lambda = 0$ introduced excessive bias and degraded performance, while $\lambda = 1$ yielded high variance. The trained policies achieved fast, stable gaits and successfully learned to stand from a prone position.
-
-The approach requires careful manual tuning of $\gamma$ and $\lambda$, with no automatic adaptation mechanism provided. The theoretical relationship between value function approximation error and policy gradient estimation error remains uncharacterized, limiting principled value function training objectives. The method is computationally intensive, relying on parallelized simulation and conjugate gradient optimization. Furthermore, the experiments are entirely model-free and simulator-based; real-world deployment would require robust state-resetting mechanisms to prevent hardware damage during exploration.
+The approach requires manual tuning of $\gamma$ and $\lambda$ to balance bias and variance, with no automatic adaptation proposed. The relationship between value function estimation error and policy gradient error remains uncharacterized, complicating the selection of appropriate value function fitting metrics. Additionally, using a shared function approximation architecture for the policy and value function poses unresolved challenges for numerical optimization and convergence guarantees. The method is computationally intensive, requiring substantial parallelized CPU resources and extended simulation time to converge on complex 3D robots. Finally, the authors note that one-step advantage estimates ($\lambda=0$) induce excessive bias and poor performance in these high-dimensional domains.

@@ -30,7 +30,7 @@ _Auto-generated 2026-07-11._
 - ✅ [Alignment and win-rate evals](topics/alignment-and-winrate-evals.md)
 - ⬜ Judging bias and contamination
 - ✅ [Distributed RL training for LLMs](topics/distributed-rl-training.md)
-- ⬜ Async and off-policy RL
+- ✅ [Async and off-policy RL](topics/async-and-off-policy-rl.md)
 - ✅ [Rollout generation infrastructure](topics/rollout-generation-infra.md)
 - ✅ [RL for math and code](topics/rl-for-math-and-code.md)
 - ✅ [Agentic and tool-use RL](topics/agentic-and-tool-use-rl.md)

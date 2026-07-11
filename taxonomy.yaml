@@ -115,7 +115,7 @@ topics:
 - slug: async-and-off-policy-rl
   title: Async and off-policy RL
   notes: Importance sampling, staleness, async rollouts
-  status: empty
+  status: done
 - slug: rollout-generation-infra
   title: Rollout generation infrastructure
   notes: vLLM/SGLang rollouts, KV reuse, throughput
