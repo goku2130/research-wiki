@@ -366,6 +366,74 @@ def search_web(query: str, max_results: int = 6) -> list[dict]:
         return []
 
 
+def arxiv_search(query: str, n: int = 8) -> list[dict]:
+    """Query the arXiv API directly, recency-sorted — primary literature, incl. the
+    newest papers that general web search under-indexes. Returns [{title,url,snippet}]."""
+    from urllib.parse import quote
+    url = (f"http://export.arxiv.org/api/query?search_query=all:{quote(query)}"
+           f"&sortBy=submittedDate&sortOrder=descending&max_results={n}")
+    try:
+        r = requests.get(url, timeout=30, headers={"User-Agent": "research-wiki/1.0"})
+        r.raise_for_status()
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    for entry in re.findall(r"<entry>(.*?)</entry>", r.text, re.DOTALL):
+        tid = re.search(r"<id>([^<]+)</id>", entry)
+        title = re.search(r"<title>(.*?)</title>", entry, re.DOTALL)
+        summ = re.search(r"<summary>(.*?)</summary>", entry, re.DOTALL)
+        aid = arxiv_id(tid.group(1)) if tid else None
+        if not (aid and title):
+            continue
+        out.append({"title": re.sub(r"\s+", " ", title.group(1)).strip(),
+                    "url": f"https://arxiv.org/abs/{aid}",
+                    "snippet": re.sub(r"\s+", " ", summ.group(1) if summ else "")[:300]})
+    return out
+
+
+def arxiv_related(aid: str, n: int = 6) -> list[dict]:
+    """Papers that CITE a seed arXiv paper (Semantic Scholar) — walks the citation
+    graph to reach follow-up work / variants the seed spawned. arXiv-only, best-effort."""
+    try:
+        r = requests.get(
+            f"https://api.semanticscholar.org/graph/v1/paper/arXiv:{aid}/citations",
+            params={"fields": "title,externalIds", "limit": n * 4}, timeout=30)
+        r.raise_for_status()
+        data = r.json().get("data", [])
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    for c in data:
+        p = c.get("citingPaper") or {}
+        aid2 = (p.get("externalIds") or {}).get("ArXiv")
+        if aid2 and p.get("title"):
+            out.append({"title": p["title"].strip(),
+                        "url": f"https://arxiv.org/abs/{aid2}", "snippet": ""})
+        if len(out) >= n:
+            break
+    return out
+
+
+def arxiv_seed(topic: dict) -> list[dict]:
+    """arXiv-native candidate set: recency-sorted search on the topic + a variant-hunting
+    expansion, then citation-traversal from the top hits to catch descendant variants."""
+    seeds: list[dict] = []
+    seen: set[str] = set()
+    queries = [topic["title"], f"{topic['title']} variants improvements"]
+    if topic.get("notes"):
+        queries.append(topic["notes"])
+    for q in queries:
+        for s in arxiv_search(q, 6):
+            if s["url"] not in seen:
+                seen.add(s["url"]); seeds.append(s)
+    for s in list(seeds[:3]):                       # follow citations from the top hits
+        aid = arxiv_id(s["url"])
+        for c in (arxiv_related(aid, 4) if aid else []):
+            if c["url"] not in seen:
+                seen.add(c["url"]); seeds.append(c)
+    return seeds[:20]
+
+
 def read_url(url: str) -> str:
     return (firecrawl_scrape(url, SCAN_CHARS) or _extract(url, SCAN_CHARS)
             or "[no extractable text]")
@@ -378,6 +446,14 @@ TOOLS = [
         "parameters": {"type": "object", "properties": {
             "query": {"type": "string"},
             "max_results": {"type": "integer", "default": 6}},
+            "required": ["query"]}}},
+    {"type": "function", "function": {
+        "name": "arxiv_search",
+        "description": "Search arXiv directly, newest-first. Best for primary papers and "
+                       "recent variants/follow-ups. Use variant-hunting queries too.",
+        "parameters": {"type": "object", "properties": {
+            "query": {"type": "string"},
+            "n": {"type": "integer", "default": 8}},
             "required": ["query"]}}},
     {"type": "function", "function": {
         "name": "read_url",
@@ -394,7 +470,7 @@ TOOLS = [
                 "required": ["title", "url"]}}},
             "required": ["sources"]}}},
 ]
-DISPATCH = {"search_web": search_web, "read_url": read_url}
+DISPATCH = {"search_web": search_web, "arxiv_search": arxiv_search, "read_url": read_url}
 SUBMIT_TOOL = TOOLS[-1]
 
 
@@ -411,7 +487,8 @@ def _candidate_urls(messages: list) -> list[str]:
                         urls.append(u)
                 except Exception:  # noqa: BLE001
                     pass
-        if m.get("role") == "tool" and isinstance(m.get("content"), str):
+        # scan any string content (tool results AND the injected arXiv seed list)
+        if isinstance(m.get("content"), str):
             for u in re.findall(r"https?://arxiv\.org/(?:abs|pdf|html)/[0-9.]+\w*", m["content"]):
                 u = u.rstrip('.",\')')
                 if u not in urls:
@@ -442,16 +519,24 @@ def force_submit(messages: list) -> list[dict]:
 def gather_sources(topic: dict) -> list[dict]:
     sys_msg = (
         "You are a research agent for an expert, citation-backed wiki. Find the PRIMARY "
-        "sources on the topic — prefer original papers (arXiv) over blogs, include the "
-        "seminal ones plus recent work that agrees or DISAGREES.\n"
-        "Be efficient: run at most 2-3 searches, then READ candidate pages with read_url "
-        "to confirm them. Never repeat a search. Once you have identified "
-        f"{TARGET_SOURCES} good sources (you do NOT need to read all of them), call "
+        "sources on the topic — STRONGLY prefer original arXiv papers over blogs/videos, "
+        "include the seminal ones PLUS recent variants/follow-ups that agree or DISAGREE.\n"
+        "A pre-fetched arXiv candidate list (recency-sorted + citation-linked) is provided "
+        "below — favor those. Use arxiv_search for more primary papers (and variant-hunting "
+        "queries like '<topic> variants/improvements'); use search_web only to fill gaps.\n"
+        "Be efficient: a couple of searches, optionally READ a few candidates with read_url "
+        "to confirm. Never repeat a search. Once you have "
+        f"{TARGET_SOURCES} good sources (mostly arXiv; you need NOT read them all), call "
         "submit_sources immediately with their titles and URLs."
     )
+    seeds = arxiv_seed(topic)
+    seed_block = ("\n".join(f"- {s['title']} — {s['url']}" for s in seeds)
+                  or "(none — use arxiv_search)")
+    log(topic["slug"], f"arxiv seed: {len(seeds)} candidate papers")
     messages = [{"role": "system", "content": sys_msg},
                 {"role": "user",
-                 "content": f"Topic: {topic['title']}\nScope: {topic.get('notes','')}"}]
+                 "content": f"Topic: {topic['title']}\nScope: {topic.get('notes','')}\n\n"
+                            f"Pre-fetched arXiv candidates (prefer these):\n{seed_block}"}]
     for step in range(MAX_TOOL_STEPS):
         resp = _chat(route(ORCH_MODEL),
             model=ORCH_MODEL, messages=messages, tools=TOOLS, temperature=0.6)
