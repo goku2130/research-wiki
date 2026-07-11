@@ -1,45 +1,47 @@
 ---
 id: arxiv:2212.08073
 type: paper
-title: 'Constitutional AI: Harmlessness from AI Feedback (Related Self-Improvement)'
+title: 'Constitutional AI: Harmlessness from AI Feedback (RLAIF)'
 url: https://arxiv.org/abs/2212.08073
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: self-improvement-and-self-play
+topic: rl-for-llms-overview
 ---
 
-# Constitutional AI: Harmlessness from AI Feedback
+# Constitutional AI: Harmlessness from AI Feedback (RLAIF)
 
 ### Core Problem
-The primary challenge addressed is the reliance on massive amounts of human-labeled data to train AI assistants to be "helpful, honest, and harmless" (HHH). Previous Reinforcement Learning from Human Feedback (RLHF) methods often created a tension between helpfulness and harmlessness, frequently resulting in "evasive" models that refused to engage with sensitive or controversial topics even when a harmless response was possible. The authors seek a method to scale supervision by using AI to supervise other AIs, guided by a transparent set of natural language principles (a "constitution"), to create a harmless but non-evasive assistant.
+The authors address the challenge of training AI assistants to be both helpful and harmless without relying on massive datasets of human labels for harmlessness. A primary issue identified in prior Reinforcement Learning from Human Feedback (RLHF) is the tension between helpfulness and harmlessness: models trained for harmlessness often become "evasive," refusing to engage with sensitive but non-harmful queries. The goal of Constitutional AI (CAI) is to produce a harmless, non-evasive assistant that explains its objections to harmful requests, using a small set of human-written principles (a "constitution") to steer behavior.
 
-### Method: The Constitutional AI (CAI) Recipe
-The CAI process consists of two distinct stages: a supervised learning (SL) phase to establish a baseline distribution and a reinforcement learning (RL) phase to refine performance.
+### Method
+The CAI process consists of two primary stages: a supervised learning phase and a reinforcement learning phase.
 
-#### Stage 1: Supervised Learning (Critique $\rightarrow$ Revision $\rightarrow$ SL)
-1. **Initial Sampling:** A helpful-only RLHF model generates initial responses to prompts designed to elicit harmful behavior (red-teaming prompts).
+#### Stage 1: Supervised Learning (SL)
+This stage aims to move the model "on-distribution" to reduce exploration needs during RL.
+1. **Initial Sampling:** A helpful-only RLHF model generates responses to "red teaming" prompts designed to elicit harmful behavior.
 2. **Critique:** The model is prompted to critique its own response based on a randomly sampled principle from the constitution (e.g., "Identify specific ways in which the assistant's last response is harmful...").
-3. **Revision:** The model rewrites the response to remove the identified harms based on the critique.
+3. **Revision:** The model rewrites the response to remove the identified harmful content.
 4. **Iteration:** This critique-revision cycle is repeated multiple times.
 5. **Finetuning:** A pretrained language model is finetuned via supervised learning on the final revised responses, mixed with responses to helpfulness prompts to maintain utility.
 
 #### Stage 2: Reinforcement Learning from AI Feedback (RLAIF)
-1. **Preference Dataset Generation:** The SL-CAI model generates pairs of responses to harmful prompts.
-2. **AI Evaluation:** A separate "feedback model" (a pretrained LM) evaluates the pairs as a multiple-choice question, choosing the better response based on a constitutional principle.
-3. **Preference Model (PM) Training:** A PM is trained on these AI-generated harmlessness labels, combined with human-generated helpfulness labels.
-4. **RL Finetuning:** The SL-CAI model is finetuned using RL, using the PM as the reward signal.
+This stage refines the model using a preference model (PM) derived from AI evaluations.
+1. **AI Comparison:** The SL-CAI model generates pairs of responses to prompts. A separate "feedback model" (a pretrained LM) evaluates these pairs as a multiple-choice question based on constitutional principles.
+2. **Label Generation:** The feedback model's preference is captured via the log probabilities of the options (A) and (B).
+3. **Chain-of-Thought (CoT):** To improve accuracy, the feedback model can be prompted to "think step-by-step" before choosing the better response.
+4. **Preference Model Training:** A PM is trained on a dataset combining human labels for helpfulness and AI-generated labels for harmlessness.
+5. **RL Finetuning:** The SL-CAI model is finetuned via RL using the PM as the reward signal.
 
-**Chain-of-Thought (CoT) Enhancement:** In the RL stage, the feedback model can be prompted to "think step-by-step" before choosing a preference. To prevent the model from becoming over-confident (probabilities near 0 or 1), the authors clamped CoT probabilities to a range of $40\% \text{--} 60\%$.
+### Key Technical Details
+The feedback model's preference is determined by the normalized log probabilities of the multiple-choice answers. For CoT-based feedback, the authors found that probabilities were often over-confident (near 0 or 1); to mitigate this, they clamped the probabilities to a range of $40\%–60\%$ to produce more robust behavior.
 
-### Key Quantitative Results
-*   **Model Scale:** Experiments primarily utilized models up to 52B parameters.
-*   **Data Volume:** The SL stage used 182,831 harmful prompts (42,496 human-written, 140,335 model-generated) and 135,296 human-written helpfulness prompts.
-*   **Performance:** RL-CAI models were preferred by crowdworkers over previous human-feedback-trained models. They achieved higher harmlessness Elo scores while remaining significantly less evasive.
-*   **Supervision Accuracy:** The authors found that as model capabilities increase, AI identification of harms improves. Models larger than 52B are projected to be competitive with preference models trained on human feedback.
-*   **Absolute Harmfulness:** On a 0–4 scale (where 4 is most harmful), RL-CAI and RL-CAI CoT models showed a progressive decrease in absolute harmfulness during training.
+### Quantitative Results
+* **Performance:** RL-CAI models were preferred by crowdworkers over previous RLHF models for harmlessness. They achieved higher harmlessness Elo scores while remaining more helpful than the SL-CAI baseline.
+* **AI Supervision Capability:** Pretrained models using CoT reasoning showed significant improvements in binary accuracy when identifying the more harmless response, suggesting that models larger than 52B parameters can be competitive with human-trained preference models.
+* **Data Scale:** The SL phase utilized 182,831 red teaming prompts and 135,296 helpfulness prompts. The RL phase used 182,831 AI-generated harmlessness comparisons and 135,296 human helpfulness comparisons.
+* **Absolute Harmfulness:** On a 0–4 scale (where 0 is least harmful), RL-CAI and RL-CAI CoT models showed a progressive decrease in absolute harmfulness during training.
 
-### Stated Limitations
-*   **Goodharting:** Over-training the RL phase can lead to "Goodharting" behavior, where the model becomes overly harsh or produces repetitive boilerplate language (e.g., "You are valid, valued, and cared for").
-*   **Critique Accuracy:** The authors noted that model-generated critiques were sometimes inaccurate or overstated the harms in the original response.
-*   **Calibration:** Absolute harmfulness scores may not be perfectly calibrated due to individual human worker biases.
-*   **Dual Use:** The authors acknowledge that by lowering the barrier to training aligned models without massive human datasets, the method could potentially be used to train pernicious systems.
+### Limitations
+* **Goodharting:** Over-training can lead to "Goodharting" behavior, where the model becomes overly harsh or generates repetitive boilerplate language (e.g., "You are valid, valued, and cared for").
+* **Critique Accuracy:** The authors noted that model-generated critiques were sometimes inaccurate or overstated, although the resulting revisions were still generally more harmless.
+* **Human Dependency:** While harmlessness labels were automated, the system still relied on human feedback labels for helpfulness and instruction-following.
