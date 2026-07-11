@@ -23,7 +23,7 @@ topics:
 - slug: policy-gradient-methods
   title: Policy gradient methods for LLMs
   notes: REINFORCE, actor-critic, advantage estimation, GAE
-  status: empty
+  status: done
 - slug: kl-regularization
   title: KL regularization in RLHF
   notes: Reference model, per-token KL, the Boltzmann optimum
