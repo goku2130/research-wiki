@@ -1,0 +1,21 @@
+---
+id: arxiv:2305.11747
+type: paper
+title: 'SelfCheck: Using LLMs to Check the Consistency of Their Own Outputs'
+url: https://arxiv.org/abs/2305.11747
+retrieved: '2026-07-11'
+maturity: comprehensive
+topic: llm-as-judge
+---
+
+**Core Problem**
+Large language models (LLMs) are highly susceptible to generating hallucinations, defined as outputs that contradict source material or cannot be verified by existing factual knowledge. Despite their rapid adoption, the specific content categories and prevalence of hallucinations across different LLMs remain poorly characterized. Existing evaluation efforts are typically confined to single tasks or smaller models, leaving a critical gap in standardized, large-scale benchmarks capable of diagnosing hallucination patterns and measuring LLMs' capacity to recognize their own errors.
+
+**Methodology & Recipe**
+To systematically evaluate hallucination generation and recognition, the authors construct HaluEval, a 35,000-sample benchmark combining automatic generation and human annotation. The automatic pipeline follows a strict two-stage sampling-then-filtering recipe. First, diverse hallucination sampling employs ChatGPT under two instruction-following schemas: a direct one-pass approach and an iterative conversational approach. Prompts are engineered with three components: an intention description, task-specific hallucination patterns (e.g., comprehension, factualness, specificity, and inference for question answering; extrinsic-soft/hard/grouped for dialogue; factual/non-factual/intrinsic for summarization), and few-shot demonstrations. This yields plausible but factually incorrect outputs for question answering, knowledge-grounded dialogue, and text summarization. Second, high-quality filtering uses ChatGPT as a judge, guided by ground-truth enhanced instructions, to compare two hallucinated candidates and select the most semantically plausible and difficult sample. For general user queries, the pipeline pre-selects prompts by generating three ChatGPT responses per query and retaining the 5,000 with the lowest average semantic similarity, computed via BERTScore. Human annotators then label these responses for hallucination presence and span boundaries across three dimensions: unverifiable, non-factual, and irrelevant. Labeler reliability is quantified using Fleiss’s Kappa, yielding $\kappa = 0.811$ ($0.80 \leq \kappa \leq 1.00$).
+
+**Key Quantitative Results**
+Empirical analysis reveals that ChatGPT produces hallucinated content in approximately 19.5% of general responses (977 out of 5,000 annotated samples). When tasked with recognizing hallucinations, LLMs perform poorly. ChatGPT achieves 62.59% accuracy on question answering, 72.40% on dialogue, 58.53% on summarization, and 79.44% on general queries. Earlier or smaller models (e.g., GPT-3, Alpaca, Vicuna) perform at or below random chance. To improve recognition, the authors test three interventions. Supplying retrieved external knowledge significantly boosts performance, raising ChatGPT’s QA accuracy to 76.83%, dialogue to 73.80%, and general queries to 90.73%. Chain-of-thought (CoT) reasoning yields inconsistent gains, improving summarization to 61.21% but degrading QA to 59.58%. Conversely, contrasting hallucinated samples against ground-truth examples confuses the models, resulting in the lowest accuracy (e.g., QA drops to 49.19%). Failure analysis shows hallucinations are topic-sensitive, with ChatGPT struggling most in technology, climate, and language domains. Furthermore, over half of recognition failures originate from hallucinations that are factually correct but contextually contradictory.
+
+**Stated Limitations**
+The authors acknowledge that the quality of automatically generated samples is inherently bounded by ChatGPT’s capacity to follow complex instruction sets. Additionally, the benchmark is explicitly designed to evaluate hallucination recognition rather than investigating the underlying causal mechanisms of hallucination generation. Finally, because the generated hallucinated samples exhibit high semantic similarity to ground-truth outputs, the authors caution against potential misuse and emphasize the necessity of ongoing monitoring and regulation of the benchmark’s distribution.

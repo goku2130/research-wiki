@@ -99,7 +99,7 @@ topics:
 - slug: llm-as-judge
   title: LLM-as-judge
   notes: Judge models, biases, position/verbosity effects
-  status: empty
+  status: done
 - slug: alignment-and-winrate-evals
   title: Alignment and win-rate evals
   notes: AlpacaEval, Arena, MT-Bench, pairwise win rates
