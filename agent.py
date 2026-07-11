@@ -331,7 +331,9 @@ DISPATCH = {"search_web": search_web, "read_url": read_url}
 SUBMIT_TOOL = TOOLS[-1]
 
 
-def _read_urls(messages: list) -> list[str]:
+def _candidate_urls(messages: list) -> list[str]:
+    """Every arXiv URL seen so far — from read_url calls AND search results —
+    so we can still submit sources even if the orchestrator only searched."""
     urls = []
     for m in messages:
         for tc in (m.get("tool_calls") or []):
@@ -342,15 +344,20 @@ def _read_urls(messages: list) -> list[str]:
                         urls.append(u)
                 except Exception:  # noqa: BLE001
                     pass
-    return urls
+        if m.get("role") == "tool" and isinstance(m.get("content"), str):
+            for u in re.findall(r"https?://arxiv\.org/(?:abs|pdf|html)/[0-9.]+\w*", m["content"]):
+                u = u.rstrip('.",\')')
+                if u not in urls:
+                    urls.append(u)
+    return urls[:15]
 
 
 def force_submit(messages: list) -> list[dict]:
-    read = _read_urls(messages)
-    msg = ("Stop searching. You read these pages:\n" +
-           ("\n".join(f"- {u}" for u in read) or "(none)") +
-           f"\nCall submit_sources now with the {TARGET_SOURCES} most authoritative "
-           "(prefer arXiv papers over blogs).")
+    cands = _candidate_urls(messages)
+    msg = ("Stop searching. arXiv sources seen so far (from your searches/reads):\n" +
+           ("\n".join(f"- {u}" for u in cands) or "(none)") +
+           f"\nCall submit_sources now with the {TARGET_SOURCES} most authoritative of "
+           "these (prefer arXiv papers). Pick from the list above.")
     try:
         resp = qwen_client().chat.completions.create(
             model="local", messages=messages + [{"role": "user", "content": msg}],

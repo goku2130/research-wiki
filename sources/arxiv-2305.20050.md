@@ -3,23 +3,34 @@ id: arxiv:2305.20050
 type: paper
 title: Let's Verify Step by Step
 url: https://arxiv.org/abs/2305.20050
-retrieved: '2026-07-10'
+retrieved: '2026-07-11'
 maturity: comprehensive
-topic: reward-modeling
+topic: alignment-tax
 ---
 
-Large language models frequently commit logical errors during multi-step reasoning, necessitating reliable reward models to guide search or reinforcement learning. The field relies on two primary training paradigms: outcome supervision (ORM), which evaluates only the final answer, and process supervision (PRM), which evaluates each intermediate reasoning step. Given the high cost of human feedback, rigorously comparing these methods and optimizing data collection is critical for advancing reasoning reliability.
+**Core Problem**
+Large language models frequently exhibit logical errors and hallucinations during multi-step reasoning, undermining reliability. Training robust reward models is essential for mitigating these failures, yet the optimal supervision paradigm remains debated. This work investigates whether outcome supervision (ORM), which evaluates only final answers, or process supervision (PRM), which evaluates intermediate reasoning steps, yields more reliable models for complex mathematical reasoning, while addressing the high cost of human feedback.
 
-The authors conduct a two-tiered investigation using a fixed generator model finetuned to output newline-delimited, step-by-step solutions to MATH dataset problems. The training recipe proceeds as follows: (1) A generator model is finetuned on filtered, correct MATH solutions to enforce a structured step-by-step format. (2) For process supervision, human annotators label each step as positive, negative, or neutral, yielding PRM800K (800,000 step-level labels across 75,000 solutions and 12,000 problems). To maximize annotation value, an active learning strategy surfaces "convincing wrong-answer" solutions—those achieving an incorrect final answer but receiving high scores from the current PRM. (3) For outcome supervision, models are trained on uniformly sampled solutions graded automatically by final-answer correctness. (4) To isolate confounding factors like dataset bias and false-positive grading, small-scale ablations use the large-scale PRM as a synthetic oracle to supervise smaller models trained on identical datasets. (5) Evaluation employs best-of-N search, where the reward model selects the highest-ranked solution from N uniformly sampled candidates, which is then auto-graded.
+**Methodology**
+The authors implement a sequential training and evaluation pipeline:
+1. **Generator Preparation:** A generator model is trained to output newline-delimited, step-by-step solutions by few-shot generating MATH problems, filtering for correct final answers, and finetuning the base model on the resulting dataset.
+2. **Mathematical Pretraining:** All base models undergo an additional pretraining phase on approximately 1.5B math-relevant tokens (MathMix) to enhance reasoning capabilities.
+3. **Active Data Collection:** Human labelers assign positive, negative, or neutral labels to each reasoning step. To maximize feedback value, the pipeline employs active learning: a lightweight selector PRM scores 1,000 candidate solutions per problem, and the top-K most "convincing wrong-answer" solutions are surfaced to labelers. The PRM is iteratively updated during collection.
+4. **Reward Model Training:** ORMs are trained on uniformly sampled solutions using automatic final-answer grading. PRMs are trained via next-token prediction to maximize the log-likelihood of step-level correctness labels.
+5. **Inference & Evaluation:** At test time, the PRM computes a solution score as the product of step-level correctness probabilities. Models are evaluated via best-of-N search over uniformly sampled generator solutions, selecting the highest-ranked output for automatic grading.
 
-The PRM predicts step correctness via a single-token output, trained by maximizing log-likelihood. At inference, the aggregate score for a complete solution is computed as the product of individual step correctness probabilities:
+**Key Formulas**
+The solution-level score for a PRM is defined as the joint probability of all steps being correct:
+\[
+P(\text{solution}) = \prod_{i} P(\text{step}_i \text{ is correct})
+\]
+For synthetic supervision experiments, a step is classified as incorrect if the large-scale PRM assigns a negative label with probability exceeding a threshold:
+\[
+P(\text{negative}) > 0.2
+\]
 
-$$
-P(\text{solution}) = \prod_{i=1}^{K} P(\text{step}_i \text{ is correct})
-$$
+**Quantitative Results**
+On a representative 500-problem subset of the MATH test set, the large-scale PRM achieves a 78.2% solve rate under best-of-1860 search, significantly outperforming the ORM at 72.4% and majority voting at 69.6%. The performance gap widens as the search budget increases. Active learning yields a 2.6× improvement in data efficiency compared to uniform labeling. Out-of-distribution evaluation on recent AP and AMC STEM exams shows the PRM solving 72.9% of problems (aggregate), compared to 63.8% for the ORM and 61.3% for majority voting. The released PRM800K dataset contains 800,000 step-level human feedback labels across 75,000 solutions.
 
-where $K$ is the number of steps. This formulation ensures that any single incorrect step drastically reduces the overall solution score.
-
-The process-supervised model achieves a 78% solve rate on a representative subset of the MATH test set using best-of-1860 search, significantly outperforming both the outcome-supervised baseline and majority voting across all N values. The performance gap widens as N increases, indicating superior search capabilities. Active learning improves data efficiency by approximately 2.6$\times$ compared to uniform labeling. Out-of-distribution evaluation on held-out AP and AMC exams demonstrates robust generalization, with the PRM achieving 45% on AP Calculus, 60% on AP Chemistry, 45% on AP Physics, and 84% on AMC10/12.
-
-The large-scale comparison suffers from non-comparable training sets: the ORM is trained on 100 uniformly sampled solutions per problem, while the PRM relies on an actively learned, answer-incorrect-biased dataset. Automatic final-answer grading introduces false positives for ORMs, where models reach correct answers via flawed reasoning. Iterative retraining of the PRM during active learning caused unexplained instability. The study intentionally excludes reinforcement learning fine-tuning of the generator, focusing solely on reward model training. Furthermore, the negative alignment tax observed in mathematics may not generalize to other domains, and potential test set contamination from online sources remains a concern.
+**Stated Limitations**
+The large-scale ORM and PRM training sets are not directly comparable; the ORM uses 100 uniform samples per problem while the PRM relies on an actively learned, answer-incorrect-biased dataset. Automatic grading introduces false positives for ORMs when models reach correct answers via flawed reasoning. Test set contamination remains possible due to online MATH problem postings, though decontamination heuristics and OOD results mitigate this concern. The PRM scoring function inherently penalizes longer solutions due to the multiplicative reduction. Additionally, iterative retraining of the active learning selector PRM introduced instability, and the authors note that findings may not generalize beyond mathematical domains.
