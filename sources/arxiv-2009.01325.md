@@ -1,45 +1,36 @@
 ---
 id: arxiv:2009.01325
 type: paper
-title: Learning to summarize with human feedback
+title: Simple, Scalable, and Effective Reinforcement Learning from Human Feedback
 url: https://arxiv.org/abs/2009.01325
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: ppo-for-llms
+topic: kl-regularization
 ---
 
-This paper introduces a method to significantly improve summary quality by training language models with human feedback, addressing the limitations of traditional supervised learning and ROUGE metrics.
+The authors address the problem of training and evaluating summarization models, noting that traditional methods like training on human reference summaries and evaluating with ROUGE are imperfect proxies for actual summary quality. They propose a method to significantly improve summary quality by training a model to optimize for human preferences.
 
 **Core Problem:**
-Traditional summarization models are trained to predict human reference summaries and evaluated using ROUGE, which are often poor proxies for actual summary quality. This leads to a misalignment between the training objective (maximizing likelihood of human-written text) and the desired outcome (generating high-quality summaries as judged by humans). Issues include:
-1.  Lack of distinction between important and unimportant errors.
-2.  Models incentivized to reproduce low-quality human demonstrations.
-3.  Performance degradation due to distributional shift during sampling.
-4.  ROUGE's poor correlation with human judgments.
+The core problem is the misalignment between standard fine-tuning objectives (e.g., maximizing log probability of human-written text) and the desired outcome of generating high-quality outputs as determined by humans. This misalignment leads to issues such as models making important errors (e.g., fabricating facts) or producing undesirable artifacts (e.g., repetition) when optimizing for metrics like ROUGE, which often correlate poorly with human judgment.
 
 **Method/Recipe Step by Step:**
-
 The method, adapted to a batch setting, involves three iterative steps:
 
-1.  **Collect Samples and Human Comparisons (Step 1):**
-    *   Summaries are sampled from various sources (current policy, initial policy, reference summaries, baselines) for a given Reddit post.
+1.  **Collect samples and human comparisons:**
+    *   Summaries are sampled from various sources, including the current policy, an initial supervised policy, original human reference summaries, and other baselines for a given Reddit post.
     *   Human evaluators are presented with pairs of these summaries and asked to select the preferred one.
-    *   Labelers provide "naive interpretations" of summaries before seeing the original post to identify ambiguities.
-    *   Labelers indicate their confidence in preference on a 9-point scale.
-    *   Quality control measures include detailed instructions, immediate feedback for labelers, continuous monitoring of labeler-researcher agreement, and researcher comparison calibrations.
+    *   The authors transitioned to an offline setting for collecting large batches of comparison data.
+    *   They maintained a hands-on relationship with labelers, providing detailed instructions, answering questions, and offering regular feedback to ensure high agreement with researcher judgments.
 
-2.  **Learn a Reward Model (RM) from Human Comparisons (Step 2):**
-    *   A reward model is trained using supervised learning to predict the human-preferred summary.
-    *   The RM is initialized from a supervised baseline model, with a randomly initialized linear head outputting a scalar value.
-    *   The model is trained to predict the log odds that one summary is better than another, given a post and two candidate summaries.
-    *   After training, RM outputs are normalized so that reference summaries have a mean score of 0.
+2.  **Learn a reward model (RM) from human comparisons:**
+    *   A Transformer decoder model, initialized from a supervised baseline, is trained with a randomly initialized linear head to output a scalar value.
+    *   This reward model is trained to predict the log odds that one summary ($y_i$) is preferred over another ($y_{1-i}$) given a post ($x$) and a dataset of human judgments ($D$).
+    *   The RM's output is normalized such that reference summaries achieve a mean score of 0.
 
-3.  **Optimize a Policy Against the Reward Model (Step 3):**
-    *   The logit output of the reward model is treated as a reward signal.
-    *   A summarization policy is fine-tuned using reinforcement learning (RL), specifically the Proximal Policy Optimization (PPO) algorithm.
-    *   Each time step in PPO corresponds to generating a BPE token, and the reward is given for the entire generated summary.
-    *   The policy is initialized from a supervised model fine-tuned on the Reddit TL;DR dataset.
-    *   A KL divergence penalty term is added to the reward function to encourage exploration and prevent the policy from deviating too much from the initial supervised model.
+3.  **Optimize a policy against the reward model:**
+    *   A policy, also a Transformer decoder initialized from a supervised model, is fine-tuned using reinforcement learning (specifically, the PPO algorithm).
+    *   The scalar output of the reward model ($r_\theta(x, y)$) is used as the reward for the entire generated summary.
+    *   A KL divergence penalty term is included in the reward function to prevent the policy from deviating too far from the initial supervised model and to encourage exploration.
     *   A separate Transformer network is used for the PPO value function, initialized with the reward model's parameters.
 
 **Key Formulas in LaTeX:**
@@ -52,50 +43,45 @@ $$
 
     where $r_\theta(x, y)$ is the scalar output of the reward model for post $x$ and summary $y$ with parameters $\theta$, and $D$ is the dataset of human judgments.
 
-2.  **Full Reward Function for Policy Optimization:**
+2.  **Reinforcement Learning Reward Function:**
 
 $$
 R(x, y) = r_\theta(x, y) - \beta \log[\pi_\phi^{\text{RL}}(y|x)/\pi^{\text{SFT}}(y|x)]
 $$
 
-    where $r_\theta(x, y)$ is the reward model output, $\pi_\phi^{\text{RL}}$ is the learned RL policy with parameters $\phi$, $\pi^{\text{SFT}}$ is the initial supervised model, and $\beta$ is the KL coefficient.
+    where $r_\theta(x, y)$ is the reward model's output, $\beta$ is a KL coefficient, $\pi_\phi^{\text{RL}}(y|x)$ is the learned RL policy with parameters $\phi$, and $\pi^{\text{SFT}}(y|x)$ is the original supervised model.
 
 **Key Quantitative Results and Numbers:**
 
-*   **TL;DR Dataset Performance:**
+*   **Human Preference Scores (TL;DR dataset):**
+    *   1.3B human feedback model: 61% preference over human reference summaries.
+    *   6.7B human feedback model: Significantly outperforms the 1.3B model and human reference summaries.
     *   1.3B human feedback model significantly outperforms a 6.7B supervised model (61% vs. 43% raw preference score against reference summaries).
-    *   6.7B human feedback model further outperforms the 1.3B model.
-    *   Both human feedback models are preferred over the original human demonstrations in the dataset.
-    *   After controlling for length, the preference of 6.7B human feedback model summaries over reference summaries drops by ~5%, but still preferred ~65% of the time.
-    *   6.7B PPO model summaries achieve a 7/7 overall quality score 45% of the time (compared to 20% for 6.7B supervised baseline and 23% for reference summaries).
-*   **Transfer to CNN/DM:**
-    *   Reddit-trained human feedback models generate high-quality summaries of CNN/DM news articles without news-specific fine-tuning.
-    *   The 6.7B human feedback model performs almost as well as a 6.7B model fine-tuned on CNN/DM reference summaries, despite generating much shorter summaries.
-*   **Human Agreement Rates:**
-    *   Labelers agree with researchers $77\% \pm 2\%$ of the time.
-    *   Researchers agree with each other $73\% \pm 4\%$ of the time.
-    *   Labelers agree with each other 72% of the time in the training corpus.
+*   **Summary Length Control:** After controlling for length, the preference of human feedback models vs. reference summaries drops by ~5%, but the 6.7B model summaries are still preferred ~65% of the time.
+*   **Summary Quality Axes (TL;DR dataset):** Human feedback models outperform supervised baselines across coverage, accuracy, coherence, and overall quality, particularly in coverage. The 6.7B PPO model achieves a 7/7 overall score 45% of the time (compared to 20% for 6.7B supervised baseline and 23% for reference summaries).
+*   **Transfer to CNN/DM:** The 6.7B human feedback model, trained on TL;DR, performs almost as well as a 6.7B model fine-tuned on CNN/DM reference summaries, despite generating much shorter summaries (about half as many tokens on average).
 *   **Reward Model Scaling:**
-    *   Doubling training data leads to a ~1.1% increase in RM validation accuracy.
-    *   Doubling model size leads to a ~1.8% increase in RM validation accuracy.
-    *   The 6.7B reward model nearly matches the inter-labeler agreement value of 66.9% on CNN/DM.
-    *   RMs prefer human-edited summaries over original ones 79.4% (1.3B) and 82.8% (6.7B) of the time, compared to 84.1% for human evaluators.
-    *   RMs reliably select original summaries over role-reversed perturbed summaries (92.9% for 1.3B, 97.2% for 6.7B).
-    *   RMs show a bias towards longer summaries: 6.7B RM prefers improving edits that make summaries shorter only 62.6% of the time (vs. 76.4% for humans).
+    *   Doubling training data leads to ~1.1% increase in reward model validation accuracy.
+    *   Doubling model size leads to ~1.8% increase in reward model validation accuracy.
+    *   The 6.7B reward model nearly matches the inter-labeler agreement value of 66.9% on CNN/DM, agreeing with labeler preferences 66.5% of the time.
+*   **Reward Model Sensitivity:**
+    *   RMs prefer human-edited summaries (minimal edits for improvement) 79.4% (1.3B) and 82.8% (6.7B) of the time, compared to 84.1% for human evaluators.
+    *   RMs reliably select original summaries over perturbed ones with reversed participant roles (92.9% for 1.3B, 97.2% for 6.7B).
+    *   RMs are biased towards longer summaries: 6.7B RM prefers improving edits that make summaries shorter only 62.6% of the time (vs. 76.4% for humans).
 *   **Automatic Metrics Comparison:**
-    *   Learned reward models consistently outperform ROUGE, summary length, copying amount, and log probability as predictors of human preferences.
-    *   ROUGE agreement with labelers drops from ~57% (supervised baseline samples) to ~50% (human feedback model samples).
-    *   Log probability agreement with humans drops to $\le$50% for human feedback model comparisons.
-    *   Optimizing ROUGE peaks sooner and at a substantially lower quality rate than optimizing reward models.
-*   **Training Costs:** Fine-tuning the 6.7B model with RL required approximately 320 GPU-days.
+    *   Learned reward models consistently outperform ROUGE, summary length, amount of copying, and log probability in predicting human preferences.
+    *   ROUGE agreement with labelers drops from ~57% (supervised baselines) to ~50% (human feedback models).
+    *   Log probability agreement with humans drops to ≤50% on comparisons between human feedback model samples.
+*   **Human Data Quality:**
+    *   Labelers agree with researchers 77% ± 2% of the time.
+    *   Researchers agree with each other 73% ± 4% of the time.
+    *   Labelers agree with each other 72% of the time in the training corpus. Taking the modal label from 3 labelers increases agreement with researchers from 72% to 77%.
 
 **Stated Limitations:**
 
-*   **Time and Cost:** Producing the final models is expensive, requiring thousands of labeler hours and significant researcher time.
-*   **Lack of Baselines:** Due to cost, an equivalent amount of high-quality human demonstrations for supervised baselines was not collected.
-*   **Labeler Drift:** Potential for labeler criteria to shift over time, though monitoring indicated relative stability.
+*   **Cost and Time:** The method is expensive and time-consuming. Fine-tuning the 6.7B model with RL required approximately 320 GPU-days. Data collection involved thousands of labeler hours and significant researcher time. This prevented collecting an equivalent amount of high-quality human demonstrations for supervised baselines.
 *   **Over-optimization:** Optimizing too strongly against the reward model can lead to overfitting, where the reward model becomes anti-correlated with true human preferences.
-*   **Domain Specificity:** The TL;DR dataset is heavily skewed towards relationship advice (two-thirds of posts), raising concerns about generality, though transfer to CNN/DM suggests some generalization.
-*   **Bias and Harmful Content:** The Reddit TL;DR dataset contains offensive or biased content, meaning models trained on it can generate biased or offensive summaries. Thorough study of potential harms is recommended before deployment.
-*   **Societal Impact:** Improved automation capabilities could lead to job displacement.
-*   **Defining "Good" Behavior:** For complex tasks, defining "good" model behavior where humans might disagree requires careful consideration and inclusion of diverse perspectives.
+*   **Labeler Drift:** The criteria used by human labelers to evaluate summaries might gradually shift over time, potentially leading to a regression in labeler-researcher agreement.
+*   **Dataset Specificity:** The TL;DR dataset is heavily skewed towards relationship advice (about two-thirds of the dataset), raising concerns about the generality of models trained solely on this data, although transfer performance to CNN/DM was strong.
+*   **Bias and Harmful Content:** The TL;DR dataset, being user-submitted with minimal moderation, often contains offensive content or harmful social biases. This means models trained on it can generate biased or offensive summaries.
+*   **Job Automation:** Improving ML algorithms to perform tasks previously done by humans could lead to significant job loss.

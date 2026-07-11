@@ -27,7 +27,7 @@ topics:
 - slug: kl-regularization
   title: KL regularization in RLHF
   notes: Reference model, per-token KL, the Boltzmann optimum
-  status: empty
+  status: done
 - slug: mdp-formulation
   title: MDP formulation of LLM generation
   notes: Token-level MDP vs sequence bandit, terminal rewards
