@@ -112,11 +112,27 @@ elif WRITER_MODEL.startswith(("gemma", "gemini")) and _GKEY:
     WRITER = google_client()
 else:
     WRITER, WRITER_MODEL = GEMMA, "local"
-REVIEWER, REVIEWER_MODEL = QWEN, "local"
+
+
+def route(model: str) -> OpenAI:
+    """Backend client for a model id — used by every LLM role. '/' => OpenRouter,
+    mistral*/magistral* => Mistral, gemma*/gemini* => Google, else local Qwen GPU."""
+    if "/" in model and _ORK:
+        return openrouter_client()
+    if model.startswith(("mistral", "magistral")) and _MKEYS:
+        return mistral_client()
+    if model.startswith(("gemma", "gemini")) and _GKEY:
+        return google_client()
+    return qwen_client()
+
+
+# LLM role models — CLOUD by default now (env-overridable; set any to "local" for GPU).
+ORCH_MODEL = os.getenv("ORCH_MODEL", "google/gemini-2.5-flash")
+DISTILL_MODEL = os.getenv("DISTILL_MODEL", "google/gemini-2.5-flash")
+REVIEWER, REVIEWER_MODEL = QWEN, os.getenv("REVIEWER_MODEL", "google/gemini-2.5-flash")
 
 
 def writer_client() -> OpenAI:
-    """Writer client for a single call — rotates Mistral keys; routes OpenRouter models."""
     if "/" in WRITER_MODEL and _ORK:
         return openrouter_client()
     if WRITER_MODEL.startswith(("mistral", "magistral")) and _MKEYS:
@@ -125,8 +141,7 @@ def writer_client() -> OpenAI:
 
 
 def reviewer_client() -> OpenAI:
-    """Reviewer client — round-robins the local Qwen GPUs, else the override backend."""
-    return qwen_client() if REVIEWER_MODEL == "local" else REVIEWER
+    return route(REVIEWER_MODEL)
 
 
 def _chat(client: OpenAI, **kw):
@@ -359,8 +374,8 @@ def force_submit(messages: list) -> list[dict]:
            f"\nCall submit_sources now with the {TARGET_SOURCES} most authoritative of "
            "these (prefer arXiv papers). Pick from the list above.")
     try:
-        resp = qwen_client().chat.completions.create(
-            model="local", messages=messages + [{"role": "user", "content": msg}],
+        resp = _chat(route(ORCH_MODEL),
+            model=ORCH_MODEL, messages=messages + [{"role": "user", "content": msg}],
             tools=[SUBMIT_TOOL],
             tool_choice={"type": "function", "function": {"name": "submit_sources"}},
             temperature=0.4)
@@ -386,8 +401,8 @@ def gather_sources(topic: dict) -> list[dict]:
                 {"role": "user",
                  "content": f"Topic: {topic['title']}\nScope: {topic.get('notes','')}"}]
     for step in range(MAX_TOOL_STEPS):
-        resp = qwen_client().chat.completions.create(
-            model="local", messages=messages, tools=TOOLS, temperature=0.6)
+        resp = _chat(route(ORCH_MODEL),
+            model=ORCH_MODEL, messages=messages, tools=TOOLS, temperature=0.6)
         m = resp.choices[0].message
         if not m.tool_calls:
             messages.append({"role": "user", "content": "Continue, then submit_sources."})
@@ -427,8 +442,8 @@ def distill(topic: dict, src: dict) -> dict | None:
         return None
     sid = source_id(src["url"], src["title"])
     try:
-        resp = qwen_client().chat.completions.create(
-            model="local", temperature=0.3,
+        resp = _chat(route(DISTILL_MODEL),
+            model=DISTILL_MODEL, temperature=0.3,
             messages=[{"role": "system", "content": DISTILL_SYS},
                       {"role": "user", "content":
                        f"Source: {src['title']}\nURL: {src['url']}\n\nTEXT:\n{text}"}])
@@ -576,7 +591,7 @@ def review(topic: dict, article: str, open_qs: list[str], distilled: list[dict])
     content = (f"Topic: {topic['title']}\nValid source ids: {ids}\n"
                f"Open questions present: {len(open_qs)}\n\nARTICLE:\n{article}")
     try:
-        resp = reviewer_client().chat.completions.create(
+        resp = _chat(reviewer_client(),
             model=REVIEWER_MODEL, temperature=0.2, max_tokens=4000,
             messages=[{"role": "system", "content": REVIEW_SYS},
                       {"role": "user", "content": content}])
@@ -615,7 +630,7 @@ def fact_check(topic: dict, article: str, distilled: list[dict]) -> list[str]:
                          for d in distilled)
     content = f"ARTICLE:\n{article}\n\nSOURCE SUMMARIES:\n{corpus}"
     try:
-        resp = reviewer_client().chat.completions.create(
+        resp = _chat(reviewer_client(),
             model=REVIEWER_MODEL, temperature=0.1, max_tokens=8000,
             messages=[{"role": "system", "content": FACTCHECK_SYS},
                       {"role": "user", "content": content}])
