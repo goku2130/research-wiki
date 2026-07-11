@@ -1,18 +1,25 @@
 ---
 title: Reward model over-optimization
-maturity: developing
+maturity: comprehensive
 updated: '2026-07-11'
 sources:
 - arxiv:2210.10760
+- arxiv:2406.02900
+- arxiv:2501.03264
+- arxiv:2406.01013
+- arxiv:2606.09073
 open_questions:
-- Do the quadratic/logarithmic scaling laws hold when the gold standard is human preferences
-  rather than a fixed RM?
-- How do RM ensembles (multiple independently trained RMs) alter the $\alpha,\beta$
-  scaling and the overoptimization frontier?
-- At what policy capability level does *adversarial* goodharting (deliberate RM exploitation)
-  emerge, and how does it deform the scaling laws?
-- Can the ~2k comparison threshold be reduced with better RM architectures or pretraining,
-  and does it scale with task complexity?
+- Do the DAA scaling laws $R(d)=d(\alpha-\beta\log d)$ hold at frontier model scales
+  (70B+), or do they break under adversarial goodharting?
+- Can the rank-deficiency / OOD bootstrapping theory for DAAs be mitigated by *architectural*
+  changes (e.g., constrained policy classes) rather than just early stopping or $\beta$
+  tuning?
+- How does the multi-head RM minimum reward $\min_i H_i(F(x))$ relate to the KL-DRO
+  Gaussian truncation $\hat{\mu} - \hat{\sigma}^2/(2\beta)$? Are they approximating
+  the same pessimistic principle?
+- What is the optimal ensemble size $K$ for the Gaussian-truncated estimator given
+  the ~71% relative error on $\hat{\sigma}^2$ at $K=5$? Does the multi-head approach
+  change this calculus?
 ---
 
 Reward model over-optimization describes the phenomenon where a policy optimized against a learned proxy reward model (RM) achieves high proxy scores but lower ground-truth (gold) reward, a manifestation of Goodhart’s Law in RLHF. Gao et al. (2022) quantify this effect using a synthetic setup where a fixed 6B RM serves as gold standard, proxy RMs of varying sizes are trained on synthetic comparisons, and policies are optimized via Best-of-$n$ (BoN) or PPO, measuring gold reward as a function of KL distance from the initial policy [source:arxiv:2210.10760].
@@ -87,9 +94,102 @@ The authors highlight several caveats [source:arxiv:2210.10760]:
 - **Adversarial Goodhart**: Models were not capable of *active* adversarial manipulation (e.g., reward tampering); scaling laws may break if policies learn to exploit RM vulnerabilities strategically.
 - **Hyperparameter sensitivity**: KL penalty equivalence to early stopping may not hold for all PPO configurations.
 
+## Overoptimization in Direct Alignment Algorithms (DAAs)
+
+Gao et al. (2022) study over-optimization in the classic RLHF pipeline (explicit RM + PPO/BoN). Subsequent work extends this analysis to **Direct Alignment Algorithms (DAAs)**—DPO, IPO, SLiC-HF—which bypass explicit reward modeling by optimizing a preference loss directly on the policy [source:arxiv:2406.02900].
+
+### Unified DAA Objective and Empirical Scaling Laws
+
+The authors unify DPO, IPO, and SLiC-HF under a general DAA objective:
+
+$$
+\mathcal{L}_{\text{DAA}}(\pi_{\theta}; \pi_{\text{ref}}) = \mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}}\left[g\left(\beta \log \frac{\pi_{\theta}(y_w \mid x)}{\pi_{\text{ref}}(y_w \mid x)} - \beta \log \frac{\pi_{\theta}(y_l \mid x)}{\pi_{\text{ref}}(y_l \mid x)}\right)\right]
+$$
+
+where $g$ is a convex loss function ($-\log \sigma(x)$ for DPO, $(x-1)^2$ for IPO, $\max(0, 1-x)$ for SLiC) and $\beta$ controls the KL budget [source:arxiv:2406.02900].
+
+Experiments on Reddit TL;DR with Pythia models (1B, 2.8B, 6.9B) reveal:
+
+- **Hump-shaped performance curves**: All objectives exhibit a peak in GPT-4-judged win-rate vs. human answers as KL budget increases, followed by degradation—mirroring the RLHF pattern [source:arxiv:2406.02900].
+- **Intra-epoch dynamics**: Under wider KL budgets (smaller $\beta$), peak performance is often reached within the first 25% of a single epoch; continued training increases KL and *decreases* win-rate [source:arxiv:2406.02900].
+- **Model scaling**: Larger models (6.9B) are less prone to over-optimization and achieve better win-rate/KL trade-offs than smaller models (1B) [source:arxiv:2406.02900].
+- **Objective comparison**: IPO is less prone to over-optimization and maintains lower KL values under the same constraints compared to DPO and SLiC [source:arxiv:2406.02900].
+- **Scaling law fit**: The reward scaling law $R(d) = d(\alpha - \beta \log d)$ (with $d = \sqrt{D_{\mathrm{KL}}(\pi\|\pi_{\text{ref}})}$) accurately relates KL divergence to win-rates, halving RMSE compared to a quadratic fit—matching the PPO form from Gao et al. (2022) rather than the BoN quadratic [source:arxiv:2406.02900].
+- **Length exploitation**: Smaller models and models with smaller KL budgets extrapolate more strongly on simple features like response length (higher $R^2$ in linear regression of implicit reward on length) [source:arxiv:2406.02900].
+
+### Theoretical Cause: OOD Bootstrapping and Rank Deficiency
+
+The authors argue that DAAs suffer from **"OOD bootstrapping"**. The DAA objective is not strictly convex and the data matrix is rank-deficient (prompt-response space exponentially larger than preference dataset), yielding infinitely many minima. This allows the policy to place significant probability mass on out-of-distribution (OOD) responses not in the preference data while still minimizing the loss. In a token-level MDP interpretation, the Q-value estimate becomes overly optimistic for unseen tokens, particularly when $\beta$ is small [source:arxiv:2406.02900].
+
+**Disagreement with Gao et al. (2022) framing**: Gao et al. attribute over-optimization to the *proxy RM's approximation error* relative to a gold RM. The DAA work shows the *same functional form* $R(d)=d(\alpha-\beta\log d)$ emerges *without any explicit reward model*, implying the pathology is more fundamental: it arises from **optimizing an under-constrained objective on finite preference data**, whether that objective is an explicit RM or a direct preference loss. The "proxy" in DAAs is the *implicit reward* defined by the policy's log-ratio against the reference, and its over-optimization stems from the same rank deficiency / OOD extrapolation mechanism.
+
+## Mitigation Strategies
+
+### Multi-Head Reward Model Ensembling
+
+To mitigate over-optimization without the compute cost of full RM ensembles, Liu et al. (2024) propose a **multi-head reward model**: a shared encoder (backbone) with multiple independent linear heads [source:arxiv:2406.01013].
+
+**Recipe**:
+1. SFT a base model on instructions (e.g., Alpaca 52k).
+2. Freeze the SFT model as feature extractor $F$.
+3. Initialize $K$ linear heads $H_i$ and fine-tune them with Bradley-Terry loss on pairwise preferences.
+4. During PPO, use the **minimum** reward across heads as the pessimistic reward signal:
+
+$$
+\hat{r}(x) = \min_i H_i(F(x))
+$$
+
+**Results** (AlpacaFarm, OPT 1.3B policy / 6.7B gold):
+- 3-head multi-head RM matches full 3-model ensemble gold-reward performance, while standard PPO shows concave-down degradation [source:arxiv:2406.01013].
+- Multi-head requires only **1 epoch** of reward training vs. **3+ epochs** for full ensemble to prevent over-optimization [source:arxiv:2406.01013].
+- PPO run for 15 epochs to stress-test over-optimization [source:arxiv:2406.01013].
+
+**Limitations**: Beyond ~3 heads, noise may outweigh diversity; the minimum is "technically miscalibrated" but acts as regularization preventing over-optimized local minima [source:arxiv:2406.01013].
+
+### Distributional Reward Models and KL-DRO (Unifying Pessimism)
+
+Chen et al. (2024) replace the scalar RM $r(x,y)$ with a **distributional reward model** $p(r|x,y)$ (e.g., from deep ensembles or Bayesian last-layer) and derive a closed-form "effective reward" via **KL-Distributionally Robust Optimization (KL-DRO)** [source:arxiv:2606.09073].
+
+**Derivation**: An adversary chooses $Q$ to minimize expected reward penalized by KL from the posterior $p$:
+
+$$
+\tilde{r}_{\text{rob}}(x,y) = \inf_{Q} \left\{ \mathbb{E}_{Q}[r] + \beta D_{\text{KL}}(Q \| p(r|x,y)) \right\}
+= -\beta \log \mathbb{E}_{p(r|x,y)} \left[ e^{-r/\beta} \right]
+$$
+
+For an ensemble $\{r_i\}_{i=1}^K$, two estimators:
+- **Log-MGF**: $\hat{\tilde{r}}_{\text{rob}}^{\text{(logMGF)}} = -\beta \log \left( \frac{1}{K} \sum_{i=1}^{K} e^{-r_i/\beta} \right)$
+- **Gaussian-truncated** (more stable for small $K$): $\hat{\tilde{r}}_{\text{rob}}^{\text{(Gauss)}} = \hat{\mu} - \frac{\hat{\sigma}^2}{2\beta}$
+
+**Unification of heuristics** as limits/truncations of $\tilde{r}_{\text{rob}}$:
+| Method | Formula | Recovery Condition |
+|--------|---------|-------------------|
+| Mean | $\hat{\mu}$ | $\beta \to \infty$ (risk-neutral) |
+| WCO (Worst-Case) | $\min_i r_i$ | $\beta \to 0$ (unbounded adversary) |
+| UWO (Uncertainty-Weighted) | $\hat{\mu} - \lambda \hat{\sigma}^2$ | Gaussian truncation with $\lambda = 1/2\beta$ |
+
+**Cumulant expansion** (general posterior):
+
+$$
+\tilde{r}_{\text{rob}} = \mu - \frac{\sigma^2}{2\beta} + \frac{\kappa_3}{6\beta^2} - \frac{\kappa_4}{24\beta^3} + \dots
+$$
+
+**Limitations**: Requires distributional RMs (standard Bradley-Terry insufficient); variance must track epistemic uncertainty (calibration via proper scoring rules or AI feedback soft labels); log-MGF estimator biased at finite $K$ due to log concavity [source:arxiv:2606.09073].
+
+### Neural Process Approach (Note: Source Discrepancy)
+
+One provided source [source:arxiv:2501.03264] is titled "Mitigating Reward Over-Optimization in RLHF via Behavior-Supported Regularization" but its summary describes **Self-normalized Importance weighted Neural Process (SI-NP)**—a variational EM method for improving Neural Process meta-learning on synthetic/image regression tasks (RBF, Matern, Periodic kernels; MNIST, FMNIST, SVHN, CIFAR10 log-likelihoods). The connection to RLHF reward over-optimization is not explained in the summary. This appears to be a **mismatch between the provided title and the actual paper content**. If the intent is to apply NP-style uncertainty quantification to RM ensembles, that link remains to be established in the literature.
+
 ## Current status and trajectory
 
 The Gao et al. (2022) scaling laws remain the *primary quantitative framework* for predicting overoptimization in KL space, widely cited in subsequent RLHF literature. However, the synthetic setup (fixed gold RM, no human feedback loop) limits direct applicability to production systems where the gold standard is human judgment and RMs are updated iteratively. The finding that KL penalty ≈ early stopping has influenced practical PPO implementations (e.g., using KL controllers as budget enforcement rather than shaping). The ~2k comparison threshold for RM data is often referenced as a rough minimum for viable preference modeling. No large-scale replication with human gold labels or adversarial policies has been reported; the field has not abandoned the framework but treats it as a *necessary but insufficient* characterization. Ensembles of RMs (not studied in this work) are a common practical mitigation whose scaling laws remain unquantified in this source.
+
+**New developments since 2022**:
+- **DAAs exhibit the same scaling law** $R(d)=d(\alpha-\beta\log d)$ and hump-shaped curves, with over-optimization traced to rank deficiency / OOD bootstrapping rather than explicit RM approximation error [source:arxiv:2406.02900].
+- **Multi-head RM ensembling** achieves full-ensemble mitigation at fraction of compute (1 vs 3+ reward training epochs) [source:arxiv:2406.01013].
+- **Distributional RMs + KL-DRO** provide a *principled unification* of mean/WCO/UWO heuristics, with Gaussian-truncated estimator $\hat{\mu} - \hat{\sigma}^2/(2\beta)$ recommended for small ensembles [source:arxiv:2606.09073].
+- **Intra-epoch dynamics** in DAAs show peak performance at ~25% of first epoch under wide KL budgets, suggesting early stopping is even more critical than in PPO [source:arxiv:2406.02900].
+- **Model scaling** reduces over-optimization in DAAs (6.9B > 1B), and IPO is more robust than DPO/SLiC [source:arxiv:2406.02900].
 
 ## Key takeaways
 
@@ -100,6 +200,11 @@ The Gao et al. (2022) scaling laws remain the *primary quantitative framework* f
 - Policy size (1.2B vs 6B) does not change the KL distance at which overoptimization occurs [source:arxiv:2210.10760].
 - Critical RM data threshold ~2k comparisons; below this, overoptimization is severe [source:arxiv:2210.10760].
 - Synthetic gold RM and non-adversarial policies limit generality; adversarial goodharting may invalidate these scaling laws at higher capabilities [source:arxiv:2210.10760].
+- **DAAs (DPO/IPO/SLiC) follow the same $R(d)=d(\alpha-\beta\log d)$ law** and hump-shaped curves; over-optimization stems from rank deficiency / OOD bootstrapping in the under-constrained direct preference objective [source:arxiv:2406.02900].
+- **IPO is more robust to over-optimization than DPO/SLiC**; larger models over-optimize less [source:arxiv:2406.02900].
+- **Multi-head RM (shared backbone, min-over-heads reward) matches full ensemble mitigation at ~1/3 training cost** [source:arxiv:2406.01013].
+- **KL-DRO on distributional RMs yields closed-form pessimistic reward** $\tilde{r}_{\text{rob}} = -\beta \log \mathbb{E}_p[e^{-r/\beta}]$, unifying Mean/WCO/UWO as limits; Gaussian truncation $\hat{\mu} - \hat{\sigma}^2/(2\beta)$ is stable default for small ensembles [source:arxiv:2606.09073].
+- **Intra-epoch peak at ~25% in DAAs** implies aggressive early stopping needed under wide KL budgets [source:arxiv:2406.02900].
 
 ## Related topics
 
@@ -111,6 +216,14 @@ The Gao et al. (2022) scaling laws remain the *primary quantitative framework* f
 - [Rejection sampling and Best-of-N](rejection-sampling-and-bon.md)
 - [RLHF/PPO pipeline](rlhf-ppo-pipeline.md)
 - [Alignment and win-rate evals](alignment-and-winrate-evals.md)
+- [Direct Preference Optimization and variants](dpo-and-preference-optimization.md)
+- [IPO (Identity Preference Optimization)](dpo-variants.md)
+- [Ensemble methods in RLHF](reward-modeling.md)
+- [Distributional reinforcement learning](rl-for-llms-overview.md)
 
 ## References
 - [source:arxiv:2210.10760] [Scaling Laws for Reward Model Overoptimization (arXiv:2210.10760)](https://arxiv.org/abs/2210.10760)
+- [source:arxiv:2406.02900] [Scaling Laws for Reward Model Overoptimization in Direct Preference Optimization](https://arxiv.org/abs/2406.02900)
+- [source:arxiv:2501.03264] [Mitigating Reward Over-Optimization in RLHF via Behavior-Supported Regularization](https://arxiv.org/abs/2501.03264)
+- [source:arxiv:2406.01013] [Scalable Ensembling For Mitigating Reward Overoptimisation](https://arxiv.org/abs/2406.01013)
+- [source:arxiv:2606.09073] [A Unifying Lens on Reward Uncertainty in RLHF](https://arxiv.org/abs/2606.09073)
