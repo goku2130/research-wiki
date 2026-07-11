@@ -31,7 +31,7 @@ topics:
 - slug: mdp-formulation
   title: MDP formulation of LLM generation
   notes: Token-level MDP vs sequence bandit, terminal rewards
-  status: empty
+  status: done
 - slug: rl-for-llms-overview
   title: RL for LLMs — overview
   notes: 'The landscape: RLHF, RLAIF, RLVR, offline PO'
