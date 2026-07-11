@@ -75,7 +75,7 @@ topics:
 - slug: verifiable-rewards
   title: Verifiable rewards (RLVR)
   notes: Rule-based rewards, code/math verifiers, the RLVR tax
-  status: empty
+  status: done
 - slug: entropy-and-exploration
   title: Entropy and exploration in RL fine-tuning
   notes: Entropy collapse, exploration bonuses, diversity
