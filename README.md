@@ -8,7 +8,7 @@ _Auto-generated 2026-07-11._
 - ✅ [Reward modeling for LLMs](topics/reward-modeling.md)
 - ✅ [RL for reasoning models](topics/rl-for-reasoning.md)
 - ✅ [Policy gradient methods for LLMs](topics/policy-gradient-methods.md)
-- ⬜ KL regularization in RLHF
+- ✅ [KL regularization in RLHF](topics/kl-regularization.md)
 - ⬜ MDP formulation of LLM generation
 - ⬜ RL for LLMs — overview
 - ⬜ The RLHF/PPO pipeline

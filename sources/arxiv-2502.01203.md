@@ -1,0 +1,20 @@
+---
+id: arxiv:2502.01203
+type: paper
+title: 'KL-Regularized RLHF with Multiple Reference Models: Exact Solutions and Sample
+  Complexity'
+url: https://arxiv.org/abs/2502.01203
+retrieved: '2026-07-11'
+maturity: comprehensive
+topic: kl-regularization
+---
+
+Standard RLHF frameworks predominantly rely on a single reference model, which restricts linguistic diversity, risks inheriting specific model biases, and underutilizes the ecosystem of available pre-trained LLMs. Integrating multiple reference models into RLHF introduces significant theoretical challenges, most notably the absence of an exact closed-form solution for reverse KL-regularized RLHF and a lack of rigorous sample complexity guarantees for both reverse and forward KL-regularized settings.
+
+The authors address this gap by formulating RLHF with $K$ reference policies $\{\pi_{\text{ref},i}\}_{i=1}^K$ and deriving exact solutions through functional differentiation and KL divergence convexity. The procedure proceeds as follows: (1) Construct a composite reference policy using a weighted geometric mean for reverse KL regularization or a weighted arithmetic mean for forward KL regularization. (2) Solve the regularized optimization objective to obtain the optimal policy in closed form (RKL) or implicit form (FKL). (3) Establish theoretical guarantees under three core assumptions: bounded reward functions ($R_{\max}$), a finite reward class ($|\mathcal{R}| < \infty$), and local KL-ball coverage conditions. (4) Extend the analytical framework to Direct Preference Optimization (DPO) by substituting the composite reference into the preference likelihood objective. (5) Validate the approach empirically via online policy gradient optimization (GRPO) on GSM8K and offline RLHF (DPO) on UltraFeedback, benchmarking against single-reference models and prior multi-reference approximations (MRPO).
+
+The reverse KL-regularized objective is $\max_{\pi} \mathbb{E}_{Y \sim \pi(\cdot|x)}[r_{\theta^*}(x,Y)] - \frac{1}{\gamma} \sum_{i=1}^K \alpha_i \mathrm{KL}(\pi(\cdot|x) \| \pi_{\text{ref},i}(\cdot|x))$. The exact optimal policy is $\pi_{\theta^*}^\gamma(y|x) = \frac{\widehat{\pi}_{\boldsymbol{\alpha},\text{ref}}(y|x)}{\widehat{Z}(x)} \exp(\gamma r_{\theta^*}(x,y))$, where the generalized escort reference is $\widehat{\pi}_{\boldsymbol{\alpha},\text{ref}}(y|x) = \frac{\prod_{i=1}^K \pi_{\text{ref},i}^{\alpha_i}(y|x)}{F_{\boldsymbol{\alpha}}(x)}$. For forward KL regularization, the objective $\max_{\pi} \mathbb{E}_{Y \sim \pi(\cdot|x)}[r_{\theta^*}(x,Y)] - \frac{1}{\gamma} \sum_{i=1}^K \beta_i \mathrm{KL}(\pi_{\text{ref},i}(\cdot|x) \| \pi(\cdot|x))$ yields the implicit solution $\tilde{\pi}_{\theta^*}^\gamma(y|x) = \frac{\bar{\pi}_{\boldsymbol{\beta},\text{ref}}(y|x)}{\gamma(\tilde{Z}(x) - r_{\theta^*}(x,y))}$, with $\bar{\pi}_{\boldsymbol{\beta},\text{ref}} = \sum_{i=1}^K \beta_i \pi_{\text{ref},i}$.
+
+The theoretical analysis yields explicit sample complexity bounds for sub-optimality and optimality gaps. Under RKL, the sub-optimality gap converges at $O(1/n)$, while the optimality gap converges at $O(1/\sqrt{n})$. FKL regularization exhibits $O(1/\sqrt{n})$ complexity for both gaps. The sub-optimality bounds scale proportionally to $\gamma C_{\boldsymbol{\alpha},\varepsilon_{\text{rkl}}} 128 e^{4R_{\max}} R_{\max}^2 \frac{\log(|\mathcal{R}|/\delta)}{n}$ for RKL and $16 C_{\boldsymbol{\beta},\varepsilon_{\text{rkl}}} e^{2R_{\max}} R_{\max} \sqrt{\frac{\log(|\mathcal{R}|/\delta)}{n}}$ for FKL. Empirically, aligning Qwen 2.5 7B on UltraFeedback produces win rates of 8.6% (base), 43.4% (SFT), 56.4% and 59.8% (single-reference DPO), and 66.1% (multi-reference DPO), confirming that exact multi-reference optimization substantially outperforms single-reference and approximate baselines.
+
+The framework strictly assumes bounded reward functions and a finite reward class, which may not hold in all practical alignment scenarios. The authors explicitly note that extending the analysis to unbounded or sub-Gaussian rewards,
