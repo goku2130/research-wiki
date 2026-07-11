@@ -1,63 +1,59 @@
 ---
 id: arxiv:2310.12036
 type: paper
-title: A General Theoretical Paradigm to Understand Learning from Human Preferences
+title: Identity Preference Optimization (IPO)
 url: https://arxiv.org/abs/2310.12036
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: dpo-variants
+topic: dpo-and-preference-optimization
 ---
 
-# Summary: A General Theoretical Paradigm to Understand Learning from Human Preferences
+# Identity Preference Optimization (IPO)
 
 ### Core Problem
-The authors address theoretical and practical instabilities in Learning from Human Preferences (LHP), specifically within Reinforcement Learning from Human Feedback (RLHF) and Direct Preference Optimization (DPO). Both methods rely on the approximation that pairwise preferences can be substituted with pointwise rewards via the Bradley-Terry (BT) model. This assumption is problematic when preferences are deterministic or nearly deterministic, as it can lead to overfitting. In such cases, the optimal policy may ignore the KL-regularization term—which is intended to prevent model drift—and converge to degenerate, "greedy" solutions (e.g., pushing action probabilities to 0 or 1) regardless of the regularization strength $\tau$.
+The authors address a theoretical and practical vulnerability in Reinforcement Learning from Human Feedback (RLHF) and Direct Preference Optimization (DPO). Both methods rely on the **Bradley-Terry (BT) model**, which assumes that pairwise preferences can be substituted with pointwise rewards (Elo scores). 
 
-### The $\Psi$PO Framework
-To unify and analyze these methods, the authors propose the $\Psi$-preference optimization ($\Psi$PO) objective. This general objective balances the maximization of a non-linear function of preference probabilities with a KL-divergence penalty:
+The core issue is that the BT model is unbounded; when preferences are deterministic (probability of 1 or 0), the required reward difference becomes infinite. In practice, this causes the KL-regularization term—intended to keep the learned policy $\pi$ close to a reference policy $\pi_{\text{ref}}$—to be ignored. Consequently, DPO is prone to overfitting, often converging to "greedy" deterministic policies regardless of the regularization parameter $\tau$, especially in finite data regimes where empirical preferences may appear deterministic even if the true preferences are not.
+
+### The $\Psi$PO Paradigm and IPO Method
+To resolve this, the authors propose $\Psi$-Preference Optimization ($\Psi$PO), a general theoretical framework that expresses the objective in terms of pairwise preferences rather than pointwise rewards. The general objective is defined as:
 
 $$
 \max_{\pi}\mathop{\mathbb{E}}_{\substack{x\sim \rho \\ y\sim \pi (\cdot |x)\\ y^{\prime}\sim \mu (\cdot |x)}}\left[\Psi (p^{*}(y\succ y^{\prime}|x))\right] - \tau D_{\mathrm{KL}}(\pi \mid \mid \pi_{\mathrm{ref}})
 $$
 
-where $\Psi$ is an arbitrary non-decreasing mapping, $\pi_{\text{ref}}$ is the reference policy, and $\tau$ is the regularization parameter. 
+where $\Psi$ is an arbitrary non-decreasing mapping. The authors demonstrate that RLHF and DPO are special cases of $\Psi$PO where $\Psi(q) = \log(q/(1 - q))$.
 
-*   **RLHF/DPO Connection:** When $\Psi(q) = \log(q/(1 - q))$, the $\Psi$PO objective recovers the optimal policies of RLHF and DPO, provided the BT model holds.
-*   **IPO (Identity Preference Optimization):** By setting $\Psi$ to the identity mapping, the authors derive IPO, which directly optimizes total preferences and bypasses the BT assumption.
-
-### IPO Method and Recipe
-IPO is designed to be computationally efficient and avoid the need for an explicit reward model or RL. The optimization process follows these steps:
-
-1.  **Objective Definition:** Maximize the total preference of policy $\pi$ over $\mu$ minus the KL divergence:
+**Identity Preference Optimization (IPO)** is a specific instance of $\Psi$PO where $\Psi$ is the **identity mapping**. By using a bounded mapping, IPO ensures that KL-regularization remains effective even with deterministic preferences. The IPO objective is:
 
 $$
 \max _ {\pi} p _ {\rho} ^ {*} (\pi \succ \mu) - \tau D _ {\mathrm{KL}} (\pi | | \pi_{\mathrm{ref}})
 $$
 
-2.  **Root-Finding Formulation:** The optimal policy is characterized by the gap between log-likelihood ratios. Define the log-ratio $h_\pi$ as:
+### Implementation Recipe
+To avoid the costs of RL and reward modeling, the authors derive a computationally efficient offline sampled loss function:
+
+1. **Define the log-likelihood ratio gap** $h_\pi$ for a context $x$ and actions $y, y'$:
 
 $$
-h _ {\pi} (y, y ^ {\prime}, x) = \log \left(\frac {\pi (y | x) \pi_{\mathrm{ref}} (y ^ {\prime} | x)}{\pi (y ^ {\prime} | x) \pi_{\mathrm{ref}} (y | x)}\right)
+h _ {\pi} (y, y ^ {\prime}, x) = \log \left(\frac {\pi (y | x) \pi_ {\mathrm{ref}} (y ^ {\prime} | x)}{\pi (y ^ {\prime} | x) \pi_ {\mathrm{ref}} (y | x)}\right)
 $$
 
-3.  **Sampled Loss Implementation:** To learn from a dataset $\mathcal{D}$ of preferred ($y_w$) and dispreferred ($y_l$) generations, IPO minimizes the following squared loss:
+2. **Initialize** the policy $\pi$ as the reference policy $\pi_{\text{ref}}$.
+3. **Minimize the sampled loss** over the preference dataset $\mathcal{D}$ (consisting of preferred $y_w$ and dispreferred $y_l$ actions):
 
 $$
-\underset {(y _ {w}, y _ {l}, x) \sim D} {\mathbb {E}} \left[ \left(h _ {\pi} (y _ {w}, y _ {l}, x) - \frac{\tau^{-1}}{2}\right)^2 \right]
+\underset {(y _ {w}, y _ {l}, x) \sim D} {\mathbb {E}} \left(h _ {\pi} (y _ {w}, y _ {l}, x) - \frac {\tau^ {- 1}}{2}\right) ^ {2}
 $$
 
-    This regresses the difference in log-likelihood ratios to a constant $\frac{\tau^{-1}}{2}$, ensuring the policy remains regularized toward $\pi_{\text{ref}}$.
+   This effectively regresses the gap between the policy's log-likelihood ratios and the reference policy's ratios to a constant $\frac{\tau^{-1}}{2}$.
 
 ### Key Quantitative Results
-The authors demonstrate IPO's superiority over DPO through illustrative bandit examples:
+The authors tested IPO and DPO in a bandit setting with three actions $\{y_a, y_b, y_c\}$ using the Adam optimizer (learning rate 0.01, mini-batch size 9, 18,000 steps).
 
-*   **Asymptotic Deterministic Setting:** With two actions where $p^*(y_1 \succ y_2) = 1$, DPO converges to a deterministic policy $\pi^*(y_1) = 1$ regardless of $\tau$. In contrast, IPO converges to $\pi^*(y_1) = \sigma(0.5\tau^{-1})$, meaning $\tau$ effectively controls the distance from $\pi_{\text{ref}}$.
-*   **Sampled Preferences:** In a 3-action space using the Adam optimizer (LR 0.01, mini-batch 9, 18,000 steps), DPO was found to:
-    *   Push the probability of a dominating action to 1 regardless of $\tau$.
-    *   Push the probability of an action that never wins to 0 regardless of $\tau$.
-    *   Ignore $\pi_{\text{ref}}$ entirely when certain action pairs are unobserved.
-*   **IPO Performance:** In all the above scenarios, IPO avoided degenerate solutions and remained close to $\pi_{\text{ref}}$ proportional to the strength of $\tau$.
+*   **Avoidance of Greedy Policies:** In a total ordering dataset $\mathcal{D}_1 = \{(y_a, y_b), (y_b, y_c), (y_a, y_c)\}$, DPO converged to a deterministic policy ($\pi(y_a)=1$) for all values of $\tau$, ignoring $\pi_{\text{ref}}$. IPO remained close to $\pi_{\text{ref}}$ when $\tau$ was large and only became greedy as $\tau \to 0$.
+*   **Action Preservation:** In scenarios where an action never wins in the dataset, DPO pushed that action's probability to 0 regardless of $\tau$. IPO maintained the action's probability relative to the strength of $\tau$.
+*   **Unobserved Pairs:** With a dataset $\mathcal{D}_3 = \{(y_a, y_b), (y_b, y_a)\}$ where the pair $(y_a, y_c)$ was unobserved, DPO ignored $\pi_{\text{ref}}$ entirely, while IPO's solution scaled gradually with $\tau$.
 
 ### Stated Limitations
-*   **Support Requirements:** The uniqueness of the global minimum for the IPO loss $L(\pi)$ is guaranteed only if the support of the behavior policy $\mu$ coincides with the support of the reference policy $\pi_{\text{ref}}$. If $\text{Supp}(\mu) \neq \text{Supp}(\pi_{\mathrm{ref}})$, multiple solutions may exist.
-*   **Experimental Scale:** The empirical results are provided via "minimal" illustrative bandit examples; the authors note that scaling these results to complex generative language models is a subject for future work.
+The authors note that their empirical evaluations were conducted on "simple bandit examples" and "minimal experiments." They state that future work is required to scale these findings to more complex settings, specifically the training of large language models on human preference data.
