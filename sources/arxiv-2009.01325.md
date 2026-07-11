@@ -5,7 +5,7 @@ title: Simple, Scalable, and Effective Reinforcement Learning from Human Feedbac
 url: https://arxiv.org/abs/2009.01325
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: ppo-for-llms
+topic: kl-regularization
 ---
 
 The authors address the problem of training and evaluating summarization models, noting that traditional methods like training on human reference summaries and evaluating with ROUGE are imperfect proxies for actual summary quality. They propose a method to significantly improve summary quality by training a model to optimize for human preferences.

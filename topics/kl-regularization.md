@@ -1,27 +1,27 @@
 ---
 title: KL regularization in RLHF
-maturity: developing
+maturity: comprehensive
 updated: '2026-07-11'
 sources:
-- arxiv:2510.01555
-- arxiv:2502.01203
-- arxiv:2411.04625
 - arxiv:2508.17000
-- arxiv:2503.18130
-- huggingface:topic-objectives-and-regularization-refe
 - arxiv:2009.01325
 - arxiv:2305.18290
+- arxiv:2502.01203
+- arxiv:2503.18130
+- huggingface:topic-objectives-and-regularization-refe
+- arxiv:2510.01555
+- arxiv:2411.04625
+- rlhfbook:rlhf-and-post-training-book-regularizati
+- mbrenndoerfer:kl-divergence-penalty-in-rlhf-theory-imp
+- arxiv:2203.02155
+- huggingface:rl-llm-wiki-kl-regularization-knowledge-
+- arxiv:1909.08593
+- openrlhf:openrlhf-kl-penalty-documentation
 open_questions:
-- What is the practical impact of off-policy gradient bias in KL-as-loss methods (GRPO
-  $k_3$, $k_2$) when run with standard multi-epoch replay, and does the IS correction
-  from Liu et al. [source:arxiv:2510.01555] close the gap?
-- Can multi-reference RLHF (geometric mixture for reverse KL) be scaled to 70B+ models
-  efficiently, and what weighting strategies $\alpha_i$ work best for heterogeneous
-  reference ensembles?
-- Is there a principled criterion for choosing reverse vs. forward KL (or a mixture)
-  based on desired diversity/coverage trade-offs, validated at scale?
-- How sensitive is behavior-supported regularization (BSPO) to errors in the learned
-  behavior policy $\beta$, and can it be hybridized with KL regularization for robustness?
+- Off-policy KL gradient bias magnitude in production GRPO/PPO pipelines?
+- Multi-reference RLHF compute/memory tradeoffs at 70B+ scale?
+- Forward vs reverse KL empirical diversity comparison at scale?
+- BSPO robustness to behavior policy estimation errors?
 ---
 
 KL regularization is the central mechanism preventing reward over-optimization in RLHF, anchoring the policy to a frozen reference model (typically the SFT checkpoint) via a reverse-KL penalty. This article synthesizes the theoretical foundations—Boltzmann optimal policy, per-token versus sequence-level formulations, and gradient-equivalent estimator families—with recent advances in multi-reference objectives, sample-complexity guarantees, and the critical distinction between KL-as-reward and KL-as-loss implementations.
@@ -42,7 +42,9 @@ $$
 \pi^{*}(y | x) = \frac{1}{Z(x)} \, \pi_{\text{ref}}(y | x) \, \exp \left( \frac{1}{\beta} r(x, y) \right), \quad Z(x) = \sum_{y} \pi_{\text{ref}}(y | x) \exp \left( \frac{1}{\beta} r(x, y) \right)
 $$
 
-This closed-form solution underpins both online RL (where the policy is trained to approach $\pi^{*}$) and offline methods like DPO, which reparameterizes the reward as $r(x,y) = \beta \log \frac{\pi_{\theta}(y|x)}{\pi_{\text{ref}}(y|x)} + \beta \log Z(x)$ and substitutes into the Bradley–Terry preference likelihood, yielding a pure classification loss that implicitly enforces the KL constraint [source:arxiv:2305.18290].
+This closed-form solution underpins both online RL (where the policy is trained to approach $\pi^{*}$) and offline methods like DPO, which reparameterizes the reward as $r(x,y) = \beta \log \frac{\pi_{\theta}(y|x)}{\pi_{\text{ref}}(y|x)} + \beta \log Z(x)$ and substitutes into the Bradley–Terry preference likelihood, yielding a pure classification loss that implicitly enforces the KL constraint [source:arxiv:2305.18290]. The Boltzmann form also appears in early preference learning work [source:arxiv:1909.08593], where the KL penalty coefficient $\beta$ acts as an inverse temperature controlling the sharpness of the policy relative to the reference.
+
+**Core problem — over-optimization.** In RLHF, powerful optimization tools can cause a model to drift too far from the strong, general "reference model" used in previous training stages, leading to **over-optimization** where the model maximizes reward at the expense of out-of-distribution performance [source:rlhfbook:rlhf-and-post-training-book-regularizati]. Manifestations include generation of nonsensical text: repeated tokens, language switching, excessive special characters, or mathematically followable reasoning that leads to incorrect answers [source:rlhfbook:rlhf-and-post-training-book-regularizati]. The KL penalty acts as a "safety tether" keeping the fine-tuned policy close to the reference, preventing the policy from performing an "adversarial search" for high-reward but qualitatively poor outputs [source:mbrenndoerfer:kl-divergence-penalty-in-rlhf-theory-imp].
 
 ### Per-token versus sequence-level KL
 
@@ -65,6 +67,17 @@ $$
 $$
 
 Per-token placement has become the de facto standard in PPO and GRPO because it provides denser gradient signals and integrates naturally with GAE [source:huggingface:topic-objectives-and-regularization-refe]. However, the **gradient equivalence** between KL-in-reward and KL-as-loss holds only under on-policy sampling; off-policy updates require importance-sampling corrections [source:arxiv:2510.01555].
+
+**Practical implementation recipe** [source:rlhfbook:rlhf-and-post-training-book-regularizati; mbrenndoerfer:kl-divergence-penalty-in-rlhf-theory-imp]:
+1. **Generate**: Autoregressively sample a full sequence of tokens using the RL model.
+2. **Forward Pass**: Run a single pass over the sequence for both the RL model and the reference model to obtain per-token logits.
+3. **Log-Probabilities**: Convert logits to log-probabilities using `log_softmax`.
+4. **Gather**: Extract the log-probabilities assigned to the tokens that were actually generated.
+5. **Approximate KL**: Sum the token log-probabilities to get sequence-level log-probs; the difference between the RL and reference sequence log-probs approximates the KL divergence.
+
+This expectation-based formulation is computationally efficient for large vocabularies (50k–100k tokens) because it only requires evaluating log probabilities for tokens actually generated, rather than summing over the entire vocabulary [source:mbrenndoerfer:kl-divergence-penalty-in-rlhf-theory-imp]. The per-token KL contribution is $\text{KL}_t = \log \pi_\theta(y_t | x, y_{<t}) - \log \pi_{\text{ref}}(y_t | x, y_{<t})$, and the sequence penalty is the sum over $t$ [source:mbrenndoerfer:kl-divergence-penalty-in-rlhf-theory-imp].
+
+**Adaptive control.** Ziegler et al. [source:arxiv:1909.08593] used a log-space proportional controller to vary $\beta$ dynamically, targeting a specific KL value (6–10 nats). This adaptive approach adjusts the tether tightness during training—increasing $\beta$ if the policy drifts dangerously, decreasing it if progress stalls [source:mbrenndoerfer:kl-divergence-penalty-in-rlhf-theory-imp].
 
 ## The KL Estimator Zoo: $k_1$, $k_2$, $k_3$ and Gradient Equivalence
 
@@ -106,7 +119,18 @@ Moreover, $\mathrm{Var}[1-\delta] = \chi^2(\pi_{\text{ref}} \parallel \pi_\theta
 - $k_3$-as-loss: weaker constraints, larger probability gaps, reduced entropy, greater drift/instability despite transient reward gains.  
 - $k_1$-as-loss: no regularization; policy drifts further than no-KL baseline at later stages.
 
-**Off-policy correction [source:arxiv:2510.01555]:** For any $k_n$-as-loss, compute its gradient-equivalent coefficient $k_{n'} = \frac{\partial k_n}{\partial \log \pi_\theta}$ and apply standard PPO importance sampling/clipping to $k_{n'}$ (either merged with reward or as a separate clipped head). This restores unbiasedness for $k_2$ and $k_3$ under off-policy data.
+**Estimator properties** [source:huggingface:rl-llm-wiki-kl-regularization-knowledge-]:
+- $k_1$: Unbiased but high variance; can be negative per token.
+- $k_2$: Biased but low variance; always non-negative.
+- $k_3$: Unbiased, low variance, always non-negative; recommended default in GRPO.
+
+**Implementation variants** [source:huggingface:rl-llm-wiki-kl-regularization-knowledge-; openrlhf:openrlhf-kl-penalty-documentation]:
+- **Placement**: KL can be folded into the **per-token reward** (e.g., PPO, using $k_1$), where it flows through the value function, or added directly to the **loss function** (e.g., GRPO, using $k_2$ or $k_3$), keeping the advantage signal "clean."
+- **Accumulation**: Per-token penalties couple regularization to response length, potentially introducing length bias.
+- **$\beta$ Control**: $\beta$ can be **fixed** or **adaptive**. Adaptive controllers adjust $\beta$ to maintain a target KL (e.g., 6–10 nats) using a proportional controller [source:arxiv:1909.08593].
+- **Reference Management**: While $\pi_{\text{ref}}$ is usually frozen, some recipes (e.g., R1-Zero) refresh the reference model every 400 steps to relax constraints [source:huggingface:rl-llm-wiki-kl-regularization-knowledge-].
+
+**Off-policy correction [source:arxiv:2510.01555; openrlhf:openrlhf-kl-penalty-documentation]:** For any $k_n$-as-loss, compute its gradient-equivalent coefficient $k_{n'} = \frac{\partial k_n}{\partial \log \pi_\theta}$ and apply standard PPO importance sampling/clipping to $k_{n'}$ (either merged with reward or as a separate clipped head). This restores unbiasedness for $k_2$ and $k_3$ under off-policy data. OpenRLHF implements ICEPOP as a hard mask: $\text{vllm\_is} = \exp(\text{old\_log\_probs} - \text{rollout\_log\_probs})$ with clamping thresholds [0.5, 5.0] [source:openrlhf:openrlhf-kl-penalty-documentation].
 
 ## Multiple Reference Models
 
@@ -163,6 +187,14 @@ Reverse KL enjoys **faster sub-optimality convergence** but both require bounded
 - DPO (SFT ref): 56.4%
 - DPO (14B ref): 59.8%
 - **DPO (both refs): 66.1%** — substantial gain from multi-reference.
+
+**Alternative regularization: pretraining gradients.** To prevent performance regressions on general NLP tasks, an additional reward can be added to maintain higher probabilities on the pretraining corpus [source:rlhfbook:rlhf-and-post-training-book-regularizati]:
+
+$$
+J(\theta) = \mathbb{E}_{(x,y) \sim D\pi_{RL,\theta}} [r_\theta(y|x) - \lambda r_{reg}] + \gamma \mathbb{E}_{x \sim D_{pretrain}} [\log(\pi_{RL,\theta}(x))]
+$$
+
+This PPO-ptx approach [source:arxiv:2203.02155] mixes PPO updates with updates that increase the log likelihood of the original pretraining distribution, mitigating the "alignment tax" [source:arxiv:2203.02155].
 
 ## Sharp Sample-Complexity Analysis for KL-Regularized Bandits/RLHF
 
@@ -269,15 +301,30 @@ Behavior-supported V-values are predicted via a modified Bellman V-operator, and
 - BSPO maintains low unsupported-token count; KL penalty fails at smaller KL distances.
 - Limitations: synthetic gold reward; assumes well-trained RM; OOD prompts and multi-objective settings unaddressed.
 
+## Implicit Regularization: RL vs. SFT
+
+Research indicates that RL provides implicit regularization—a resistance to catastrophic forgetting—that Supervised Fine-Tuning (SFT) lacks [source:rlhfbook:rlhf-and-post-training-book-regularizati].
+
+**Generalization Results:** In a study using the **V-IRL** visual navigation task (shifting from absolute to relative directions), RL improved OOD per-step accuracy from **80.8% to 91.8%**, while SFT caused the accuracy to collapse from **80.8% to 1.3%** [source:rlhfbook:rlhf-and-post-training-book-regularizati].
+
+**Theoretical Mechanism (Forward vs. Reverse KL):** The difference in behavior is attributed to the direction of KL divergence optimized [source:rlhfbook:rlhf-and-post-training-book-regularizati]:
+- **SFT (Forward KL):** Minimizes $KL(\pi^* \| \pi_\theta)$. This is **mode-covering**, meaning it penalizes the model for failing to assign probability to regions where the target has mass. In multimodal distributions, this forces the policy to redistribute mass away from "old" modes (prior knowledge) to cover the new target, causing forgetting.
+- **RL (Reverse KL):** Minimizes $KL(\pi_\theta \| \pi^*)$. This is **mode-seeking**, meaning it only penalizes the model in regions where it actually places mass. RL can shift a new mode toward the target without disturbing existing modes, preserving prior knowledge.
+
+**RL's Razor:** This thesis postulates that on-policy methods are inherently biased toward solutions closest to the original policy in KL divergence. Empirical data shows that forgetting is directly proportional to the KL divergence between the trained and initial policies, with a correlation of $R^2 = 0.96$ [source:rlhfbook:rlhf-and-post-training-book-regularizati].
+
 ## Historical $\beta$ Values and Placement Conventions
 
 | Method / Paper | $\beta$ | Placement | Notes |
 |----------------|---------|-----------|-------|
 | Ziegler et al. 2019 [source:arxiv:1909.08593] | adaptive (target 6–10 nats) | sequence-level in reward | Log-space PI controller |
-| InstructGPT [source:arxiv:2203.02155] | 0.02 | per-token in reward | Fixed $\beta$ |
+| InstructGPT [source:arxiv:2203.02155] | 0.02 | per-token in reward | Fixed $\beta$; PPO-ptx with pretraining gradients |
 | DPO [source:arxiv:2305.18290] | 0.1 (0.5 for TL;DR) | implicit in loss | $\beta$ = inverse temperature |
 | GRPO (DeepSeekMath) [source:arxiv:2402.03300] | 0.04 | KL-as-loss ($k_3$) | Unbiased, always-positive estimator |
 | DeepSeek-R1 [source:arxiv:2501.12948] | 0.001 | in loss | Verifier reward → much smaller $\beta$ |
+| OpenRLHF defaults [source:openrlhf:openrlhf-kl-penalty-documentation] | 0.01 (initial) | reward penalty ($k_1$) or loss ($k_2$, $k_3$) | Clip range $\epsilon=0.2$; IS correction thresholds [0.5, 5.0] |
+| Preference RLHF (general) [source:huggingface:rl-llm-wiki-kl-regularization-knowledge-] | 0.02–0.04 | per-token reward or loss | Higher $\beta$ to prevent drift |
+| Verifiable-Reward RL (RLVR) [source:huggingface:rl-llm-wiki-kl-regularization-knowledge-] | 0.001 or 0 | in loss | $\beta=0$ in DAPO, Open-Reasoner-Zero |
 
 **Open question [source:huggingface:topic-objectives-and-regularization-refe]:** The cross-recipe trend (verifier rewards → smaller $\beta$) is an inference, not a proven result. Whether reverse KL is the optimal divergence (vs. forward KL, $f$-divergences) remains open.
 
@@ -287,20 +334,23 @@ Behavior-supported V-values are predicted via a modified Bellman V-operator, and
 - **Gradient-aware KL implementation** ($k_2$-as-loss, off-policy corrected $k_3$) is gaining traction as the community recognizes that "unbiased value estimation $\neq$ good gradients" [source:arxiv:2510.01555]. GRPO's $k_3$-as-loss is being re-evaluated; $k_2$-as-loss shows superior stability/regularization in controlled experiments.  
 - **Multi-reference RLHF** moves from theory to practice: exact closed-form solutions for reverse/forward KL [source:arxiv:2502.01203] enable principled ensembling of diverse priors (SFT + base models), with demonstrated win-rate gains.  
 - **Token-level action-value methods** (KLQ [source:arxiv:2508.17000]) provide a theoretically grounded alternative to PPO, matching performance with cleaner foundations and better judge win-rates.  
-- **Sharp sample-complexity theory** [source:arxiv:2411.04625] establishes $O(1/\epsilon)$ rates under coverage conditions, validating the empirical benefit of KL regularization.
+- **Sharp sample-complexity theory** [source:arxiv:2411.04625] establishes $O(1/\epsilon)$ rates under coverage conditions, validating the empirical benefit of KL regularization.  
+- **Behavior-supported regularization** (BSPO [source:arxiv:2503.18130]) challenges the universality of KL by targeting only actions outside the reward-model training distribution, showing promise in synthetic settings.
 
 **Default:**  
 - Per-token KL-in-reward (PPO) and KL-as-loss $k_3$ (GRPO) remain workhorses in production pipelines.  
 - DPO's implicit KL (fixed $\beta$) dominates offline preference optimization.  
-- Adaptive $\beta$ controllers (Ziegler-style) are less common; fixed $\beta$ tuned per reward type is standard.
+- Adaptive $\beta$ controllers (Ziegler-style) are less common; fixed $\beta$ tuned per reward type is standard.  
+- OpenRLHF provides a unified framework supporting PPO, REINFORCE++, RLOO, GRPO/Dr.GRPO with flexible KL placement (reward penalty via $k_1$ or loss term via $k_2$/$k_3$) and off-policy corrections (TIS, ICEPOP, Seq-Mask-TIS) [source:openrlhf:openrlhf-kl-penalty-documentation].
 
 **Fading / Unresolved:**  
 - Sequence-level KL penalty (superseded by per-token).  
 - Naïve $k_1$-as-loss (proven vacuous [source:arxiv:2510.01555]).  
 - Reference-free variants (SimPO/ORPO) — not yet processed in the corpus; open question how much anchor benefit survives without $\pi_{\text{ref}}$ [source:huggingface:topic-objectives-and-regularization-refe].  
-- Forward KL and general $f$-divergences — theoretical solutions exist [source:arxiv:2502.01203] but empirical adoption is minimal.
+- Forward KL and general $f$-divergences — theoretical solutions exist [source:arxiv:2502.01203] but empirical adoption is minimal.  
+- Many regularization techniques emerge in literature to stabilize experimental setups but often disappear in subsequent model iterations as setups are simplified; the core KL distance remains the most stable and popular variant [source:rlhfbook:rlhf-and-post-training-book-regularizati].
 
-**Hedge:** The shift from $k_3$ to $k_2$ in GRPO-style pipelines is **not widely reported** in large-scale deployments; most public GRPO implementations still use $k_3$. Multi-reference RLHF has **not been demonstrated at frontier-model scale** (experiments at 7B). KLQ's advantage over PPO on reasoning tasks is **untested**.
+**Hedge:** The shift from $k_3$ to $k_2$ in GRPO-style pipelines is **not widely reported** in large-scale deployments; most public GRPO implementations still use $k_3$. Multi-reference RLHF has **not been demonstrated at frontier-model scale** (experiments at 7B). KLQ's advantage over PPO on reasoning tasks is **untested**. BSPO assumes the behavior policy $\beta$ is perfectly estimated from RM training data; in practice $\beta$ is learned (ScoreLM) and errors could misclassify ID/OOD actions [source:arxiv:2503.18130].
 
 ## Disagreements and Open Tensions
 
@@ -311,6 +361,8 @@ Behavior-supported V-values are predicted via a modified Bellman V-operator, and
 | **Reverse vs. forward KL** | Reverse KL (mode-seeking) is standard; exact multi-ref solution exists [source:arxiv:2502.01203] | Forward KL (mean-seeking) has implicit multi-ref solution; sample complexity $O(1/\sqrt{n})$ for both gaps | Reverse KL converges faster in sub-optimality ($O(1/n)$) but is **mode-seeking** — may collapse diversity. Forward KL covers more modes but slower. **No empirical comparison at scale.** |
 | **$\beta$ scaling with reward trustworthiness** | InstructGPT: $\beta=0.02$ (preference RM) [source:arxiv:2203.02155] | DeepSeek-R1: $\beta=0.001$ (verifier reward) [source:arxiv:2501.12948] | **Cross-recipe inference**, not controlled experiment. Verifier rewards are sparser but accurate; preference RMs are dense but noisy. Optimal $\beta$ likely depends on reward noise structure, not just "trustworthiness." |
 | **Per-token vs. sequence KL gradient equivalence** | Per-token KL-in-reward is standard [source:huggingface:topic-objectives-and-regularization-refe] | Liu et al. [source:arxiv:2510.01555]: equivalence to KL-as-loss holds **only on-policy**; off-policy requires IS correction | Most PPO/GRPO pipelines are **effectively off-policy** (replay buffers, multiple epochs). The practical impact of ignoring IS for KL term is **not quantified**. |
+| **Alignment tax recovery** | Increasing $\beta$ (even up to 2.0) does not recover capability loss; only mixing pretraining gradients (PPO-ptx) addresses this [source:huggingface:rl-llm-wiki-kl-regularization-knowledge-] | InstructGPT [source:arxiv:2203.02155] uses PPO-ptx with pretraining gradients to mitigate alignment tax on public NLP benchmarks | Consistent: KL penalty alone cannot recover base capabilities; pretraining gradient mixing is necessary. |
+| **Reasoning interference** | Reference-KL can be counterproductive in verifiable-reward reasoning; may suppress exploration necessary for long-CoT discovery [source:huggingface:rl-llm-wiki-kl-regularization-knowledge-] | DeepSeek-R1 uses $\beta=0.001$ with verifier rewards [source:arxiv:2501.12948]; some recipes drop $\beta$ entirely | Low $\beta$ or no KL is viable for verifiable rewards (hard to hack), but dangerous for learned reward models [source:huggingface:rl-llm-wiki-kl-regularization-knowledge-]. |
 
 ## Key Takeaways
 
@@ -323,6 +375,8 @@ Behavior-supported V-values are predicted via a modified Bellman V-operator, and
 - **KLQ** provides a token-level action-value alternative to PPO with theoretical grounding, matching performance and exceeding judge win-rates.
 - **Behavior-supported regularization** (BSPO) challenges the universality of KL by targeting only actions outside the reward-model training distribution, showing promise in synthetic settings.
 - **$\beta$ values vary widely** (0.001–0.5) across recipes; the relationship to reward type (verifier vs. preference) is observed but not rigorously established.
+- **RL provides implicit regularization** (resistance to catastrophic forgetting) that SFT lacks, due to reverse KL's mode-seeking vs. forward KL's mode-covering behavior [source:rlhfbook:rlhf-and-post-training-book-regularizati].
+- **Pretraining gradient mixing (PPO-ptx)** is necessary to mitigate the alignment tax on general NLP benchmarks; KL penalty alone cannot recover capability loss [source:arxiv:2203.02155; huggingface:rl-llm-wiki-kl-regularization-knowledge-].
 
 ## Related Topics
 
@@ -366,13 +420,21 @@ Behavior-supported V-values are predicted via a modified Bellman V-operator, and
 - **Behavior-supported regularization with learned $\beta$:** BSPO [source:arxiv:2503.18130] assumes the behavior policy $\beta$ is perfectly estimated from RM training data. In practice, $\beta$ is learned (ScoreLM) and **errors in $\beta$ could misclassify ID/OOD actions**. How robust is BSPO to $\beta$ estimation error, and can it be combined with KL (hybrid anchor)?
 - **$\beta$ scheduling for verifiable rewards:** DeepSeek-R1 uses $\beta=0.001$ with verifier rewards [source:arxiv:2501.12948], but **no systematic study** exists on how $\beta$ should scale with reward sparsity, noise, and verifiability. Is there a theoretical principle linking $\beta$ to reward signal-to-noise ratio?
 - **Reference-free regularization limits:** SimPO/ORPO drop $\pi_{\text{ref}}$ entirely [source:huggingface:topic-objectives-and-regularization-refe]. **How much of KL's anti-collapse benefit comes from the reference anchor vs. the entropy bonus?** Can entropy regularization alone suffice when the reward is verifiable?
+- **Implicit regularization in RL vs SFT:** The $R^2=0.96$ correlation between forgetting and KL divergence [source:rlhfbook:rlhf-and-post-training-book-regularizati] suggests a strong theoretical link. Can this be formalized into a generalization bound for RLHF?
+- **KL penalty vs. pretraining gradients for alignment tax:** PPO-ptx adds pretraining gradients to recover base capabilities [source:arxiv:2203.02155]. Is there a unified framework that interpolates between KL regularization and pretraining gradient mixing?
 
 ## References
-- [source:arxiv:2510.01555] [Rethinking KL Regularization in RLHF: From Value Estimation to Gradient Optimization](https://arxiv.org/abs/2510.01555)
-- [source:arxiv:2502.01203] [KL-Regularized RLHF with Multiple Reference Models: Exact Solutions and Sample Complexity](https://arxiv.org/abs/2502.01203)
-- [source:arxiv:2411.04625] [Sharp Analysis for KL-Regularized Contextual Bandits and RLHF](https://arxiv.org/abs/2411.04625)
 - [source:arxiv:2508.17000] [KL-Regularised Q-Learning: A Token-level Action-Value perspective on Online RLHF](https://arxiv.org/html/2508.17000v1)
-- [source:arxiv:2503.18130] [Mitigating Reward Over-Optimization in RLHF via Behavior-Supported Regularization](https://arxiv.org/html/2503.18130v1)
-- [source:huggingface:topic-objectives-and-regularization-refe] [topic: objectives-and-regularization/reference-model-and-kl](https://huggingface.co/datasets/rl-llm-wiki/knowledge-base/commit/a03840159b93b042b5460ac2233c7acf82ca7842)
 - [source:arxiv:2009.01325] [Simple, Scalable, and Effective Reinforcement Learning from Human Feedback](https://arxiv.org/abs/2009.01325)
 - [source:arxiv:2305.18290] [Direct Preference Optimization: Your Language Model is Secretly a Reward Model](https://arxiv.org/abs/2305.18290)
+- [source:arxiv:2502.01203] [KL-Regularized RLHF with Multiple Reference Models: Exact Solutions and Sample Complexity](https://arxiv.org/abs/2502.01203)
+- [source:arxiv:2503.18130] [Mitigating Reward Over-Optimization in RLHF via Behavior-Supported Regularization](https://arxiv.org/html/2503.18130v1)
+- [source:huggingface:topic-objectives-and-regularization-refe] [topic: objectives-and-regularization/reference-model-and-kl](https://huggingface.co/datasets/rl-llm-wiki/knowledge-base/commit/a03840159b93b042b5460ac2233c7acf82ca7842)
+- [source:arxiv:2510.01555] [Rethinking KL Regularization in RLHF: From Value Estimation to Gradient Optimization](https://arxiv.org/abs/2510.01555)
+- [source:arxiv:2411.04625] [Sharp Analysis for KL-Regularized Contextual Bandits and RLHF](https://arxiv.org/abs/2411.04625)
+- [source:rlhfbook:rlhf-and-post-training-book-regularizati] [RLHF and Post-Training Book: Regularization](https://rlhfbook.com/c/15-regularization)
+- [source:mbrenndoerfer:kl-divergence-penalty-in-rlhf-theory-imp] [KL Divergence Penalty in RLHF: Theory & Implementation](https://mbrenndoerfer.com/writing/kl-divergence-penalty-rlhf-training)
+- [source:arxiv:2203.02155] [InstructGPT: Training language models to follow instructions with human feedback (Ouyang et al. 2022)](https://arxiv.org/abs/2203.02155)
+- [source:huggingface:rl-llm-wiki-kl-regularization-knowledge-] [RL-LLM Wiki: KL Regularization Knowledge Base](https://huggingface.co/datasets/rl-llm-wiki/knowledge-base/blob/main/topics/foundations/kl-regularization.md)
+- [source:arxiv:1909.08593] [The Boltzmann Optimum in RLHF (Ziegler et al. 2019)](https://arxiv.org/abs/1909.08593)
+- [source:openrlhf:openrlhf-kl-penalty-documentation] [OpenRLHF: KL Penalty Documentation](https://openrlhf.readthedocs.io/en/latest/agent_training.html)
