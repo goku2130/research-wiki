@@ -1,28 +1,31 @@
 ---
 title: Distributed RL training for LLMs
-maturity: developing
+maturity: comprehensive
 updated: '2026-07-11'
 sources:
+- github:verl-hybridflow-a-flexible-and-efficient
+- github:openrlhf-an-easy-fast-and-scalable-rlhf-
+- arxiv:2308.01320
 - arxiv:2507.13833
 - arxiv:2505.24034
-- github:verl-hybridflow-a-flexible-and-efficient
-- arxiv:1802.01561
-- arxiv:2308.01320
-- github:openrlhf-an-easy-fast-and-scalable-rlhf-
-- arxiv:2402.03300
 - arxiv:1707.06347
+- arxiv:1802.01561
+- arxiv:2402.03300
+- arxiv:2012.00839
+- arxiv:1909.08053
+- arxiv:1910.02054
+- arxiv:2001.08361
+- arxiv:2604.01597
 open_questions:
-- How does AIPO's per-token importance sampling with clipping $\rho\in[2,10]$ compare
-  to V-trace's dual truncation $(\bar\rho,\bar c)$ in terms of bias-variance tradeoff
-  for LLM policy optimization?
-- Does GRPO's group-based advantage estimation interact adversely with DistFlow's
-  constrained LPT load balancing (which equalizes item counts but not sequence lengths
-  per worker)?
-- What is the optimal DP/TP/PP/precision configuration for the generator vs trainer
-  in co-located offloading when using GRPO (no critic) vs PPO (with critic)?
-- Can DDMA-style zero-copy weight sync be combined with DistFlow's Data Coordinator
-  for DP-size transitions, or does the zero-copy requirement constrain parallelism
-  flexibility?
+- How does AIPO's per-token importance clipping compare to V-trace's per-timestep
+  $\bar\rho, \bar c$ truncation in bias-variance tradeoff for LLM policy optimization?
+  No direct comparison exists.
+- Does GRPO's i.i.d. group sampling assumption interact harmfully with DistFlow's
+  constrained LPT load balancing (which correlates sequence lengths within workers)?
+- Can Megatron-LM's intra-layer tensor parallelism be combined with ZeRO-3 parameter
+  partitioning for further memory reduction at 100B+ scale?
+- How do Kaplan et al. scaling laws ($N \propto C^{0.73}$) interact with the parallelism
+  composition choices (DP/TP/PP) in distributed RLHF systems?
 ---
 
 Distributed RL training for LLMs has evolved from centralized parameter-server architectures into fully decoupled control/data planes that sustain near-linear scaling to hundreds of GPUs. The central tension remains balancing synchronous algorithmic correctness against the throughput gains of asynchronous, off-policy execution.
@@ -78,6 +81,26 @@ LlamaRL **decouples parallelism per executor**: generator uses (DP_g, TP_g, PP_g
 
 DistFlow's Data Coordinator handles **DP-size transitions** between stages via the Distributed Databuffer: when stage i has DP_i and stage i+1 has DP_{i+1}, tensors are redistributed across the new DP groups [source:arxiv:2507.13833]. Local caching avoids this when DP_i = DP_{i+1}.
 
+**Megatron-LM intra-layer model parallelism** provides a foundational tensor-parallel approach that partitions transformer layers across GPUs without custom compilers [source:arxiv:1909.08053]. The method exploits the structure of MLP and self-attention blocks:
+- **MLP block**: First GEMM uses column parallelism (split weight matrix along columns), allowing GeLU to be applied independently per GPU; second GEMM uses row parallelism. A single all-reduce in forward pass and conjugate all-reduce in backward pass.
+- **Self-attention**: Q, K, V projections use column parallelism so each attention head's computation stays local; output projection uses row parallelism.
+- **Embeddings**: Input embeddings split column-wise along vocabulary (all-reduce after lookup); output embeddings fused with cross-entropy loss to avoid communicating massive logits, reducing communication to scalar losses.
+- **Hybrid parallelism**: Combines intra-layer model parallelism with data parallelism; duplicates LayerNorm, dropout, and residual computation across model-parallel GPUs to minimize communication.
+
+Megatron-LM demonstrated 76% scaling efficiency on 512 V100 GPUs (15.1 PetaFLOPs sustained), with 8.3B GPT-2 achieving 10.8 perplexity on WikiText103 and 3.9B BERT reaching 90.9% on RACE [source:arxiv:1909.08053].
+
+**ZeRO (Zero Redundancy Optimizer)** eliminates memory redundancies in data parallelism while maintaining high computational granularity [source:arxiv:1910.02054]. ZeRO-DP partitions model states across data-parallel processes in three cumulative stages:
+1. **Optimizer State Partitioning ($P_{os}$)**: Optimizer states divided into $N_d$ partitions; each process updates its partition and all-gathers updated parameters.
+2. **Gradient Partitioning ($P_{os+g}$)**: Gradients reduced only on the process responsible for the corresponding parameter partition (Reduce-Scatter).
+3. **Parameter Partitioning ($P_{os+g+p}$)**: Parameters partitioned; required parameters broadcast during forward/backward and discarded after use.
+
+ZeRO-R targets residual states:
+- **Partitioned Activation Checkpointing ($P_a$)**: Partitions activation checkpoints across GPUs, all-gather to reconstruct; can offload to CPU ($P_{a+cpu}$).
+- **Constant Size Buffers ($C_B$)**: Replaces model-size-dependent fused buffers with constant-size buffers.
+- **Memory Defragmentation ($M_D$)**: Pre-allocates contiguous memory chunks for gradients and activations.
+
+For mixed-precision Adam ($\Psi$ parameters), baseline memory is $16\Psi$ bytes. ZeRO reduces this to $\frac{16\Psi}{N_d}$ at stage 3 (linear in DP degree). Communication volume: $P_{os+g}$ matches baseline DP ($2\Psi$); $P_{os+g+p}$ is $3\Psi$ (1.5× baseline). ZeRO enabled training 170B parameters on 400 V100 GPUs (15 Petaflops, ~38 TFlops/GPU), 10× speedup over SOTA, and powered Turing-NLG (17B) to 10.21 perplexity on WebText-103 [source:arxiv:1910.02054].
+
 ### Weight synchronization at scale
 LlamaRL's **Distributed Direct Memory Access (DDMA)** enables zero-copy GPU→GPU weight sync via NVLink/InfiniBand, bypassing CPU memory [source:arxiv:2505.24034]. For 70B model: 1.15s sync vs 111.65s in OpenRLHF (parameter-server style). For 405B across thousands of GPUs: ~2s for terabyte-scale weights. DeepSpeed-Chat does not report dedicated weight-sync benchmarks; its Hybrid Engine updates weights in-place during mode switch.
 
@@ -118,6 +141,15 @@ DistFlow benchmarks GRPO vs PPO: GRPO speedup up to 2.62× over verl baseline (v
 
 **Disagreement**: GRPO's group-based advantage assumes i.i.d. sampling from π_old; DistFlow's constrained LPT load balancing enforces equal item counts per worker, which may correlate sequence lengths within groups. No source analyzes this interaction. DeepSeekMath reports GRPO matches PPO on math reasoning (51.7% MATH vs proprietary baselines) [source:arxiv:2402.03300], but no large-scale distributed GRPO vs PPO ablation exists in sources.
 
+### Influence-guided data filtering for PPO
+I-PPO (Influence-guided PPO) integrates local data attribution into the RL loop to identify and eliminate episodes that are anti-aligned with a high-quality validation set [source:arxiv:2604.01597]. The method computes an influence score for each episode $z_i$ as the dot product between the episode's PPO loss gradient and the average validation gradient from an SFT loss on a validation set $\mathcal{D}_{val}$:
+
+$$
+\text{Score}(z_i) = g_{train} \cdot \bar{g}_{val}, \quad \bar{g}_{val} = \nabla_\theta \mathcal{L}_{SFT}(\mathcal{D}_{val}, \theta_\tau)
+$$
+
+Episodes with $\text{Score}(z_i) \leq 0$ are discarded; remaining episodes are reweighted by normalized scores to maintain learning rate stability. Evaluated on Rho-1B, Gemma-2-2B, Qwen2.5-3B, Phi-3-4B, LLaMA-3-8B across GSM8K, CollegeMath, MATH, OlympiadBench, ECQA: I-PPO consistently outperformed SFT and traditional PPO (e.g., Rho-1B on GSM8K: 51.93% MV vs 50.05% PPO vs 43.52% SFT; on MATH: 23.80% vs 21.40% vs 12.20%). I-PPO acts as intrinsic early stopping—negative-influence episodes increase as model converges, shrinking the rollout buffer and reducing compute in later training. Qualitative analysis shows it filters "unfaithful" reasoning (correct answer via flawed logic, nonsensical reasoning, shortcuts). Limitation: sensitive to validation set quality [source:arxiv:2604.01597].
+
 ## Scaling laws and system efficiency
 
 ### Throughput scaling
@@ -128,6 +160,8 @@ DistFlow benchmarks GRPO vs PPO: GRPO speedup up to 2.62× over verl baseline (v
 | LlamaRL | 8B/70B/405B | thousands | 2.52× / 3.98× / 10.7× | — |
 | DeepSpeed-Chat | OPT-13B/66B/175B | 8–64 | 6–19× vs Colossal-AI | — |
 | IMPALA | — | — | 250k fps (30× A3C) | — |
+| Megatron-LM | GPT-2 8.3B / BERT 3.9B | 512 V100 | 76% scaling efficiency | 15.1 PetaFLOPs sustained |
+| ZeRO | 170B (Turing-NLG 17B) | 400 V100 | 10× vs SOTA | 15 Petaflops (38 TFlops/GPU) |
 
 DistFlow's scaling efficiency formula:
 
@@ -139,11 +173,21 @@ where $T$ = throughput, $N$ = GPU count [source:arxiv:2507.13833]. Near-linear s
 
 LlamaRL's super-linear speedup (10.7× at 405B) comes from async pipelining eliminating "idle bubbles" [source:arxiv:2505.24034]. DeepSpeed-Chat's 7.5× scale increase on single node (50B vs 6.7B) comes from ZeRO-3 + Hybrid Engine [source:arxiv:2308.01320].
 
+Megatron-LM achieved 76% scaling efficiency compared to a strong single-GPU baseline (39 TeraFLOPs, 30% of theoretical peak) on 512 V100 GPUs, with weak scaling of 77% (model only) and 74% (model + data parallel) for 8.3B model with 8-way model parallelism [source:arxiv:1909.08053].
+
+ZeRO demonstrated super-linear speedup between 64 and 400 GPUs, and enabled training models up to 13B parameters using only DP (without MP/PP), whereas standard DP OOMs at 1.4B parameters. Theoretical analysis indicates ZeRO can fit a 1 Trillion parameter model on 1,024 GPUs [source:arxiv:1910.02054].
+
+**Scaling laws for compute allocation** (Kaplan et al.) show that for a fixed compute budget $C_{min}$, optimal parameters scale as: $N \propto C_{min}^{0.73}$, $B \propto C_{min}^{0.24}$, $D \propto C_{min}^{0.27}$, $S_{min} \propto C_{min}^{0.03}$ — most compute increase should go to model size, with modest increases in data and batch size, and negligible increase in serial steps [source:arxiv:2001.08361]. The overfitting boundary requires $D \propto N^{0.74}$. Critical batch size scales as $B_{crit} \propto L^{-1/\alpha_B}$ with $\alpha_B \approx 0.21$. These laws inform distributed system design: prioritize model-parallel scaling for large models, data-parallel scaling for batch size, and pipeline depth for step count.
+
 ### Long-context scaling
 DistFlow shows speedup increasing with context: 7B model, 1.48× (8k) → 2.03× (64k) vs baseline [source:arxiv:2507.13833]. Baseline (verl) OOMs at 72B/32k; DistFlow succeeds. LlamaRL's generator offloading allows independent context-length scaling on inference cluster.
 
 ### Memory and OOM robustness
 DistFlow's DAG Planner inserts sequential dependencies for same-depth nodes to prevent colocated OOM [source:arxiv:2507.13833]. Local caching avoids Ray object-store memory pressure. LlamaRL's DDMA avoids CPU staging memory for weight sync. DeepSpeed-Chat notes 175B efficiency limited by per-GPU memory restricting batch size [source:arxiv:2308.01320]. OpenRLHF's ZeRO-3 leaf-module fix (disabling hybrid detection) recovered gradients for ~390/417 inner params in Qwen3.5-9B [source:github:openrlhf-an-easy-fast-and-scalable-rlhf-].
+
+ZeRO's memory analysis: for $\Psi$ parameters with mixed-precision Adam, total model state memory = $2\Psi$ (fp16 params) + $2\Psi$ (fp16 grads) + $12\Psi$ (fp32 optimizer states) = $16\Psi$ bytes. Stage 3 ($P_{os+g+p}$) reduces this to $\frac{16\Psi}{N_d}$ [source:arxiv:1910.02054]. CPU offloading ($P_{a+cpu}$) trades performance for capacity: necessary for 170B to avoid OOM, but can decrease performance for 60B due to data movement overhead [source:arxiv:1910.02054].
+
+Megatron-LM notes that training models exceeding 16B parameters would require more memory than a single DGX-2H box (16 GPUs), necessitating hybrid intra-layer + inter-layer (pipeline) model parallelism [source:arxiv:1909.08053].
 
 ## Communication optimization
 
@@ -151,13 +195,17 @@ DistFlow's DAG Planner inserts sequential dependencies for same-depth nodes to p
 - **Weight broadcast/sync**: LlamaRL DDMA (GPU→GPU, zero-copy) [source:arxiv:2505.24034]; DeepSpeed-Chat in-place (Hybrid Engine) [source:arxiv:2308.01320]; OpenRLHF parameter server via DeepSpeed [source:github:openrlhf-an-easy-fast-and-scalable-rlhf-]; DistFlow Data Coordinator redistribution [source:arxiv:2507.13833].
 - **Experience collection**: DistFlow constrained LPT + async double buffer [source:arxiv:2507.13833]; LlamaRL async channels with Scatter/Gather [source:arxiv:2505.24034]; IMPALA actor→learner queues [source:arxiv:1802.01561].
 - **Gradient/all-reduce**: All use NCCL/DeepSpeed ZeRO collectives; no source details topology-aware scheduling beyond DP-group alignment.
+- **Megatron-LM tensor-parallel collectives**: Single all-reduce in forward pass (after first MLP GEMM) and conjugate all-reduce in backward pass; attention output linear layer uses row parallelism without immediate communication; embedding all-reduce after lookup; output embedding fused with loss to communicate only scalars [source:arxiv:1909.08053].
+- **ZeRO communication volume**: $P_{os+g}$ = $2\Psi$ (matches baseline DP); $P_{os+g+p}$ = $3\Psi$ (1.5× baseline). All-gather for parameters, reduce-scatter for gradients, all-gather for optimizer states [source:arxiv:1910.02054].
 
 ### Overlap and pipelining
 DistFlow: async double buffer overlaps data prep with GPU compute [source:arxiv:2507.13833]. LlamaRL: controller event loop triggers concurrent executor steps; generator and trainer run simultaneously [source:arxiv:2505.24034]. IMPALA: learner parallelizes time-independent ops (conv over all timesteps) + XLA/cuDNN [source:arxiv:1802.01561]. DeepSpeed-Chat: Hybrid Engine mode switch serializes inference/training; no overlap reported.
 
+Megatron-LM duplicates LayerNorm, dropout, and residual computation across model-parallel GPUs to minimize communication and enable overlap [source:arxiv:1909.08053].
+
 ## Current status and trajectory
 
-**Distributed control/data decoupling (DistFlow-style) is rising** as the default for synchronous scaling beyond 128 GPUs, with 90%+ scaling efficiency demonstrated to 512 GPUs [source:arxiv:2507.13833]. **Asynchronous actor-learner with importance weighting (LlamaRL/AIPO) is rising for maximum throughput at extreme scale (405B, thousands of GPUs)**, showing 10.7× speedup with claimed quality parity [source:arxiv:2505.24034]. **Centralized Hybrid Engine (DeepSpeed-Chat) is fading for large-scale training** due to controller bottleneck and memory-limited batch size at 175B+ [source:arxiv:2308.01320], but remains common for single-node/small-cluster RLHF. **GRPO is rising as the default PPO alternative** for math/code reasoning, eliminating critic memory and showing 2.6× distributed speedup [source:arxiv:2402.03300][source:arxiv:2507.13833]. **DDMA-style zero-copy weight sync is becoming standard** for >100B models; parameter-server approaches (OpenRLHF's 111s for 70B) are not competitive [source:arxiv:2505.24034]. **V-trace/IMPALA-style off-policy correction is not widely adopted in LLM RLHF**; AIPO is the only reported async correction in sources, and its bias-variance tradeoff vs V-trace is not benchmarked.
+**Distributed control/data decoupling (DistFlow-style) is rising** as the default for synchronous scaling beyond 128 GPUs, with 90%+ scaling efficiency demonstrated to 512 GPUs [source:arxiv:2507.13833]. **Asynchronous actor-learner with importance weighting (LlamaRL/AIPO) is rising for maximum throughput at extreme scale (405B, thousands of GPUs)**, showing 10.7× speedup with claimed quality parity [source:arxiv:2505.24034]. **Centralized Hybrid Engine (DeepSpeed-Chat) is fading for large-scale training** due to controller bottleneck and memory-limited batch size at 175B+ [source:arxiv:2308.01320], but remains common for single-node/small-cluster RLHF. **GRPO is rising as the default PPO alternative** for math/code reasoning, eliminating critic memory and showing 2.6× distributed speedup [source:arxiv:2402.03300][source:arxiv:2507.13833]. **DDMA-style zero-copy weight sync is becoming standard** for >100B models; parameter-server approaches (OpenRLHF's 111s for 70B) are not competitive [source:arxiv:2505.24034]. **V-trace/IMPALA-style off-policy correction is not widely adopted in LLM RLHF**; AIPO is the only reported async correction in sources, and its bias-variance tradeoff vs V-trace is not benchmarked. **Megatron-LM intra-layer tensor parallelism and ZeRO memory optimizations remain foundational** for model-parallel and data-parallel scaling respectively, with ZeRO enabling 170B+ parameter training on hundreds of GPUs and Megatron-LM demonstrating 76% scaling efficiency on 512 GPUs [source:arxiv:1909.08053][source:arxiv:1910.02054]. **Scaling laws dictate compute allocation**: model size should receive the majority of compute budget increases ($N \propto C^{0.73}$), informing parallelism strategy choices at scale [source:arxiv:2001.08361]. **Influence-guided data filtering (I-PPO) is emerging** as a method to improve PPO sample efficiency and reasoning quality by discarding anti-aligned episodes, with intrinsic early-stopping behavior [source:arxiv:2604.01597].
 
 ## Key takeaways
 
@@ -168,6 +216,10 @@ DistFlow: async double buffer overlaps data prep with GPU compute [source:arxiv:
 - **ZeRO-3 leaf-module handling** is critical for MoE/hybrid architectures; OpenRLHF's fix recovered gradients for 390/417 frozen params in Qwen3.5 [source:github:openrlhf-an-easy-fast-and-scalable-rlhf-].
 - **V-trace truncation** (IMPALA) controls off-policy variance at cost of bias toward intermediate policy $\pi_\rho$; not directly compared to AIPO in LLM setting [source:arxiv:1802.01561].
 - **Long-context scaling** favors decoupled architectures: DistFlow speedup grows from 1.48× (8k) to 2.03× (64k); LlamaRL offloads context to inference cluster [source:arxiv:2507.13833][source:arxiv:2505.24034].
+- **Megatron-LM intra-layer tensor parallelism** partitions MLP and attention blocks with column/row parallelism, requiring only one all-reduce per MLP block in forward/backward, achieving 76% scaling efficiency on 512 GPUs (15.1 PetaFLOPs) [source:arxiv:1909.08053].
+- **ZeRO memory optimization** partitions optimizer states, gradients, and parameters across DP ranks, reducing memory from $16\Psi$ to $\frac{16\Psi}{N_d}$ bytes and enabling 170B parameter training on 400 GPUs with 10× speedup over SOTA [source:arxiv:1910.02054].
+- **Scaling laws** prescribe $N \propto C^{0.73}$, $B \propto C^{0.24}$, $D \propto C^{0.27}$ for optimal compute allocation, guiding parallelism strategy at scale [source:arxiv:2001.08361].
+- **I-PPO influence filtering** discards episodes with negative validation-gradient alignment, improving reasoning quality (e.g., +1.9% MV on GSM8K, +2.4% on MATH for Rho-1B) and providing intrinsic early stopping [source:arxiv:2604.01597].
 
 ## Related topics
 
@@ -183,11 +235,16 @@ DistFlow: async double buffer overlaps data prep with GPU compute [source:arxiv:
 - [RL for math and code](rl-for-math-and-code.md)
 
 ## References
+- [source:github:verl-hybridflow-a-flexible-and-efficient] [verl: HybridFlow - A Flexible and Efficient RL Post-Training Framework](https://github.com/verl-project/verl)
+- [source:github:openrlhf-an-easy-fast-and-scalable-rlhf-] [OpenRLHF: An Easy, Fast, and Scalable RLHF Framework for Large Language Models](https://github.com/OpenRLHF/OpenRLHF)
+- [source:arxiv:2308.01320] [DeepSpeed-Chat: Easy, Fast and Affordable RLHF Training of ChatGPT-like Models at All Scales](https://arxiv.org/abs/2308.01320)
 - [source:arxiv:2507.13833] [DistFlow: A Fully Distributed RL Framework for Scalable and Efficient LLM Alignment](https://arxiv.org/html/2507.13833v2)
 - [source:arxiv:2505.24034] [LlamaRL: A Distributed Asynchronous Reinforcement Learning Framework for Efficient Large-scale LLM Training](https://arxiv.org/html/2505.24034v2)
-- [source:github:verl-hybridflow-a-flexible-and-efficient] [verl: HybridFlow - A Flexible and Efficient RL Post-Training Framework](https://github.com/verl-project/verl)
+- [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms (Schulman et al. 2017)](https://arxiv.org/abs/1707.06347)
 - [source:arxiv:1802.01561] [IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures](https://arxiv.org/abs/1802.01561)
-- [source:arxiv:2308.01320] [DeepSpeed-Chat: Easy, Fast and Affordable RLHF Training of ChatGPT-like Models at All Scales](https://arxiv.org/abs/2308.01320)
-- [source:github:openrlhf-an-easy-fast-and-scalable-rlhf-] [OpenRLHF: An Easy, Fast, and Scalable RLHF Framework for Large Language Models](https://github.com/OpenRLHF/OpenRLHF)
-- [source:arxiv:2402.03300] [GRPO: DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models](https://arxiv.org/abs/2402.03300)
-- [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347)
+- [source:arxiv:2402.03300] [DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models (RLVR/GRPO)](https://arxiv.org/abs/2402.03300)
+- [source:arxiv:2012.00839] [TRL: Transformer Reinforcement Learning Library](https://arxiv.org/abs/2012.00839)
+- [source:arxiv:1909.08053] [Efficient Large-Scale Language Model Training on GPU Clusters Using Megatron-LM](https://arxiv.org/abs/1909.08053)
+- [source:arxiv:1910.02054] [ZeRO: Memory Optimizations Toward Training Trillion-Parameter Models](https://arxiv.org/abs/1910.02054)
+- [source:arxiv:2001.08361] [Scaling Laws for Neural Language Models](https://arxiv.org/abs/2001.08361)
+- [source:arxiv:2604.01597] [Learning from the Right Rollouts: Data Attribution for PPO-based LLM Post-Training](https://arxiv.org/abs/2604.01597)
