@@ -20,13 +20,29 @@ Thompson Sampling (TS) is presented as a Bayesian decision rule that converts po
 
 **Key Formulas**
 Preference feedback follows a logistic link: 
-\[ p(Y_{ij}=1 \mid U_i, V_j) = \sigma(U_i^\top V_j), \tag{4.1}\]
+
+$$
+p(Y_{ij}=1 \mid U_i, V_j) = \sigma(U_i^\top V_j), \tag{4.1}
+$$
+
 The log-posterior is defined as:
-\[ \ell(U_i) = \log p(U_i) + \sum_{j \in \mathcal{D}_t} \log p(Y_{ij} \mid U_i). \tag{4.2}\]
+
+$$
+\ell(U_i) = \log p(U_i) + \sum_{j \in \mathcal{D}_t} \log p(Y_{ij} \mid U_i). \tag{4.2}
+$$
+
 The Laplace approximation quadratically expands $\ell(U_i)$ around $\hat{U}_i$, yielding a Gaussian posterior:
-\[ p(U_i \mid \mathcal{D}_t) \approx \mathcal{N}(\hat{U}_i, G^{-1}), \tag{4.4}\]
+
+$$
+p(U_i \mid \mathcal{D}_t) \approx \mathcal{N}(\hat{U}_i, G^{-1}), \tag{4.4}
+$$
+
 where the Hessian is $G = I + \sum_{j} p_j(1-p_j) V_j V_j^\top$ (4.5). The MAP estimate solves:
-\[ \hat{U}_i = \arg\max_{U_i} \Big[\sum_{j\in\mathcal{D}_t} Y_{ij}\log\sigma(U_i^\top V_j) + (1-Y_{ij})\log(1-\sigma(U_i^\top V_j)) - \tfrac{1}{2}|U_i|^2 \Big]. \tag{4.6}\]
+
+$$
+\hat{U}_i = \arg\max_{U_i} \Big[\sum_{j\in\mathcal{D}_t} Y_{ij}\log\sigma(U_i^\top V_j) + (1-Y_{ij})\log(1-\sigma(U_i^\top V_j)) - \tfrac{1}{2}|U_i|^2 \Big]. \tag{4.6}
+$$
+
 The TS selection rule is $j^* = \arg\max_j \tilde{U}_i^{(t)\top} V_j$ (4.9). For nonlinear cases, a GP prior $h_i \sim \mathcal{GP}(m(\cdot), k(\cdot,\cdot))$ (4.10) is used, typically with an RBF kernel $k(V, V') = \sigma^2 \exp\left(-\frac{\|V - V'\|^2}{2\ell^2}\right)$ (4.16). The approximate posterior at a new point $V_*$ is $\mathcal{N}(\mu_t(V_*), \sigma_t^2(V_*))$ (4.29–4.30), and TS selects $j^* = \arg\max_j \tilde{h}_i(V_j)$ (4.32).
 
 **Quantitative Results and Numbers**

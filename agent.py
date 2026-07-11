@@ -378,6 +378,8 @@ WRITE_RUBRIC = (
     "condition Y; Z would settle it.' Do not smooth it over.\n"
     "4. Use inline LaTeX for math and markdown tables where useful. No length cap; "
     "depth and precision are the bar. Do not invent citations or numbers.\n"
+    "5. MATH DELIMITERS: use ONLY $...$ for inline and $$...$$ for display math. NEVER "
+    "use \\[ \\] or \\( \\) (they do not render). Balance every brace and \\left/\\right.\n"
     "Structure: 2-sentence intro, then ## sections, then '## Key takeaways' (bullets), "
     "then '## Related topics' linking genuinely-related sibling articles (only from the "
     "provided list) as markdown links.\n"
@@ -392,6 +394,38 @@ def normalize_citations(text: str) -> str:
         ids = [i.strip() for i in m.group(1).split(",") if i.strip()]
         return "".join(f"[source:{i.replace('source:', '').strip()}]" for i in ids)
     return re.sub(r"\[(source:[^\]]+)\]", split, text)
+
+
+def fix_latex(text: str) -> str:
+    """Normalize LaTeX delimiters to what GitHub/KaTeX markdown renders ($ and $$).
+    `\\[ ... \\]` -> `$$...$$`, `\\( ... \\)` -> `$...$`. Leaves \\left[ / \\right] alone."""
+    text = re.sub(r"\\\[(.+?)\\\]", lambda m: f"\n$$\n{m.group(1).strip()}\n$$\n",
+                  text, flags=re.DOTALL)
+    text = re.sub(r"\\\((.+?)\\\)", lambda m: f"${m.group(1).strip()}$",
+                  text, flags=re.DOTALL)
+    # fallback for any leftover UNPAIRED delimiters (malformed/truncated formulas)
+    text = text.replace(r"\[", "$$").replace(r"\]", "$$").replace(r"\(", "$").replace(r"\)", "$")
+    # a bare % inside a math span is a LaTeX comment (eats the line) -> escape it
+    def esc_pct(m):
+        return m.group(1) + re.sub(r"(?<!\\)%", r"\\%", m.group(2)) + m.group(1)
+    return re.sub(r"(\${1,2})(.+?)\1", esc_pct, text, flags=re.DOTALL)
+
+
+def check_formulas(text: str) -> list[str]:
+    """Deterministic formula validator -> list of issues to fix (fed to revise)."""
+    issues = []
+    if re.search(r"\\\[|\\\]|\\\(|\\\)", text):
+        issues.append("raw \\[ \\] or \\( \\) math delimiters — use $$ or $ (GitHub won't render \\[ \\])")
+    if text.replace("$$", "").count("$") % 2 != 0:
+        issues.append("unbalanced $ (odd count) — an inline-math delimiter is missing")
+    for m in re.finditer(r"\$\$?(.+?)\$\$?", text, flags=re.DOTALL):
+        f = m.group(1)
+        if f.count("{") != f.count("}"):
+            issues.append(f"unbalanced braces {{}} in formula: {f.strip()[:60]}")
+        # count real \left/\right delimiters only (exclude \leftarrow, \rightarrow, ...)
+        if len(re.findall(r"\\left(?![a-zA-Z])", f)) != len(re.findall(r"\\right(?![a-zA-Z])", f)):
+            issues.append(f"\\left/\\right mismatch in formula: {f.strip()[:60]}")
+    return issues[:8]
 
 
 def _siblings_block(topic: dict, tax: dict) -> str:
@@ -420,7 +454,7 @@ def write_article(topic: dict, distilled: list[dict], tax: dict) -> tuple[str, l
         messages=[{"role": "system", "content": WRITE_SYS},
                   {"role": "user", "content": prompt}])
     body = strip_thoughts(content_text(resp.choices[0].message))
-    return _split_open_qs(normalize_citations(body))
+    return _split_open_qs(fix_latex(normalize_citations(body)))
 
 
 # ----------------------------------------------------------------- review gate
@@ -524,7 +558,7 @@ def revise(topic: dict, article: str, issues: list[str], distilled: list[dict],
         messages=[{"role": "system", "content": WRITE_SYS},
                   {"role": "user", "content": prompt}])
     body = strip_thoughts(content_text(resp.choices[0].message))
-    return _split_open_qs(normalize_citations(body))
+    return _split_open_qs(fix_latex(normalize_citations(body)))
 
 
 # ----------------------------------------------------------------- persistence
@@ -590,15 +624,16 @@ def compose(topic: dict, distilled: list[dict], tax: dict, verbose: bool = True)
             f_fc = ex.submit(fact_check, topic, article, distilled)
             verdict, grounding = f_rev.result(), f_fc.result()
         struct = verdict.get("issues") or [] if verdict.get("verdict") != "approve" else []
-        issues = struct + [f"[grounding] {g}" for g in grounding]
-        rounds.append({"structural": len(struct), "grounding": len(grounding)})
+        latex = check_formulas(article)          # deterministic LaTeX validation
+        issues = struct + [f"[grounding] {g}" for g in grounding] + [f"[latex] {x}" for x in latex]
+        rounds.append({"structural": len(struct), "grounding": len(grounding), "latex": len(latex)})
         if not issues:
             if verbose:
                 print(f"  round {rnd+1}: APPROVE ({len(distilled)} sources grounded)")
             break
         if verbose:
             print(f"  round {rnd+1}: revise — {len(struct)} structural, "
-                  f"{len(grounding)} grounding")
+                  f"{len(grounding)} grounding, {len(latex)} latex")
         new_article, new_qs = revise(topic, article, issues, distilled, tax)
         article, open_qs = new_article, (new_qs or open_qs)
     return article, open_qs, {"rounds": rounds}

@@ -22,15 +22,21 @@ SPPO resolves this bias-variance trade-off by explicitly reformulating reasoning
 
 **Key Formulas**
 The mathematical core of SPPO is defined by:
-\[
+
+$$
 A(s_p, a) = R - V_\phi(s_p)
-\]
-\[
+$$
+
+
+$$
 L_V(\phi) = -\mathbb{E}\left[R \log V_\phi(s_p) + (1 - R) \log(1 - V_\phi(s_p))\right]
-\]
-\[
+$$
+
+
+$$
 J_{\mathrm{SPPO}}(\theta) = \mathbb{E}_{s_p, a, t}\left[\min\left(r_t(\theta)A(s_p, a), \operatorname{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon)A(s_p, a)\right)\right]
-\]
+$$
+
 where $r_t(\theta)$ is the probability ratio between current and behavior policies, and $\epsilon$ is the clipping hyperparameter.
 
 **Quantitative Results**

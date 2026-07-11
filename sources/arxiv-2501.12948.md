@@ -41,9 +41,11 @@ topic: rl-for-reasoning
    *Method/Recipe:* The authors propose a pure reinforcement learning (RL) framework to incentivize reasoning without supervised fine-tuning (SFT). The process begins with **DeepSeek-R1-Zero**, which applies Group Relative Policy Optimization (GRPO) directly to the DeepSeek-V3-Base checkpoint. Training uses rule-based rewards (accuracy and format) and a template enforcing explicit reasoning tags. To address R1-Zero's poor readability and language mixing, the authors develop **DeepSeek-R1** via a multi-stage pipeline: (1) Cold-start SFT using thousands of human-aligned, first-person CoT trajectories; (2) First RL stage incorporating a language consistency reward; (3) Rejection sampling followed by SFT on combined reasoning and non-reasoning datasets; (4) Second RL stage integrating rule-based rewards for verifiable tasks, model-based rewards for helpfulness and safety, and language consistency rewards.
 
    *Key Formulas:* The GRPO algorithm optimizes the policy $\pi_\theta$ by maximizing:
-   \[
-   \mathcal{J}_{GRPO}(\theta) = \mathbb{E} \left[ \frac{1}{G} \sum_{i=1}^G \left( \min \left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} A_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\varepsilon, 1+\varepsilon\right) A_i \right) - \beta \mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) \right) \right]
-   \]
+   
+$$
+\mathcal{J}_{GRPO}(\theta) = \mathbb{E} \left[ \frac{1}{G} \sum_{i=1}^G \left( \min \left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} A_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\varepsilon, 1+\varepsilon\right) A_i \right) - \beta \mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) \right) \right]
+$$
+
    where the advantage $A_i$ is computed via group normalization: $A_i = \frac{r_i - \text{mean}(\{r\})}{\text{std}(\{r\})}$. The total reward combines accuracy and format components ($Reward_{\text{rule}} = Reward_{\text{acc}} + Reward_{\text{format}}$), while general queries utilize model-based helpful and safety rewards. Language consistency is enforced via $Reward_{\text{language}} = \frac{Num(Words_{target})}{Num(Words)}$.
 
    *Quantitative Results:* R1-Zero's AIME 2024 accuracy surged from 15.6% to 77.9% over 10,400 training steps, reaching 86.7% with self-consistency decoding. The final DeepSeek-R1 model achieves 79.8% on AIME 2024, 97.3% on MATH-500, 65.9% on LiveCodeBench, and a Codeforces rating of 2029. It also scores 84.0% on MMLU-Pro, 49.2% on SWE-Bench Verified, 87.6% on AlpacaEval 2.0, and 92.3% on ArenaHard. Training utilized 26k math, 17k code, 22k STEM, and 15k logic prompts for RL, alongside 800k samples for SFT.
@@ -65,9 +67,11 @@ topic: rl-for-reasoning
    The methodology follows a two-phase recipe. First, **DeepSeek-R1-Zero** is trained via Group Relative Policy Optimization (GRPO) directly on the DeepSeek-V3-Base checkpoint, bypassing supervised fine-tuning (SFT). The model receives rule-based rewards (accuracy and format) and follows a template enforcing explicit reasoning tags. Second, to resolve R1-Zero’s poor readability and language mixing, **DeepSeek-R1** undergoes a multi-stage pipeline: (1) Cold-start SFT using thousands of human-aligned, first-person CoT trajectories; (2) First RL stage incorporating a language consistency reward; (3) Rejection sampling followed by SFT on combined reasoning and non-reasoning datasets; (4) Second RL stage integrating rule-based rewards for verifiable tasks, model-based rewards for helpfulness and safety, and language consistency rewards.
 
    The GRPO algorithm optimizes the policy $\pi_\theta$ by maximizing:
-   \[
-   \mathcal{J}_{GRPO}(\theta) = \mathbb{E} \left[ \frac{1}{G} \sum_{i=1}^G \left( \min \left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} A_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\varepsilon, 1+\varepsilon\right) A_i \right) - \beta \mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) \right) \right]
-   \]
+   
+$$
+\mathcal{J}_{GRPO}(\theta) = \mathbb{E} \left[ \frac{1}{G} \sum_{i=1}^G \left( \min \left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} A_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\varepsilon, 1+\varepsilon\right) A_i \right) - \beta \mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) \right) \right]
+$$
+
    where the advantage $A_i$ is computed via group normalization: $A_i = \frac{r_i - \text{mean}(\{r\})}{\text{std}(\{r\})}$. The total reward combines accuracy and format components ($Reward_{\text{rule}} = Reward_{\text{acc}} + Reward_{\text{format}}$), while general queries utilize model-based helpful and safety rewards. Language consistency is enforced via $Reward_{\text{language}} = \frac{Num(Words_{target})}{Num(Words)}$.
 
    Quantitatively, R1-Zero’s AIME 2024 accuracy surged from 15.6% to 77.9% over 10,400 training steps, reaching 86.7% with self-consistency decoding. The final DeepSeek-R1 model achieves 79.8% on AIME 2024, 97.3% on MATH-500, 65.9% on LiveCodeBench, and a Codeforces rating of 2029. It also scores 84.0% on MMLU-Pro, 49.2% on SWE-Bench Verified, 87.6% on AlpacaEval 2.0, and 92.3% on ArenaHard. Training utilized 26k math, 17k code, 22k STEM, and 15k logic prompts for RL, alongside 800k samples for SFT.
@@ -101,9 +105,11 @@ The source addresses the core problem that enhancing large language model (LLM) 
 The methodology follows a two-phase recipe. First, **DeepSeek-R1-Zero** is trained via Group Relative Policy Optimization (GRPO) directly on the DeepSeek-V3-Base checkpoint, explicitly bypassing supervised fine-tuning (SFT). The model receives rule-based rewards (accuracy and format) and follows a template enforcing explicit reasoning tags. Second, to resolve R1-Zero’s poor readability and language mixing, **DeepSeek-R1** undergoes a multi-stage pipeline: (1) Cold-start SFT using thousands of human-aligned, first-person CoT trajectories; (2) First RL stage incorporating a language consistency reward; (3) Rejection sampling followed by SFT on combined reasoning and non-reasoning datasets; (4) Second RL stage integrating rule-based rewards for verifiable tasks, model-based rewards for helpfulness and safety, and language consistency rewards.
 
 The GRPO algorithm optimizes the policy $\pi_\theta$ by maximizing:
-\[
+
+$$
 \mathcal{J}_{GRPO}(\theta) = \mathbb{E} \left[ \frac{1}{G} \sum_{i=1}^G \left( \min \left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} A_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\varepsilon, 1+\varepsilon\right) A_i \right) - \beta \mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) \right) \right]
-\]
+$$
+
 where the advantage $A_i$ is computed via group normalization: $A_i = \frac{r_i - \text{mean}(\{r\})}{\text{std}(\{r\})}$. The KL divergence penalty is defined as $\mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) = \frac{\pi_{ref}(o_i|q)}{\pi_\theta(o_i|q)} - \log \frac{\pi_{ref}(o_i|q)}{\pi_\theta(o_i|q)} - 1$. The total reward combines accuracy and format components ($Reward_{\text{rule}} = Reward_{\text{acc}} + Reward_{\text{format}}$), while general queries utilize model-based helpful and safety rewards. Language consistency is enforced via $Reward_{\text{language}} = \frac{Num(Words_{target})}{Num(Words)}$. Training employs a learning rate of 3e-6, a KL coefficient of 0.001, and a batch size of 512 per step.
 
 Quantitatively, R1-Zero’s AIME 2024 accuracy surged from 15.6% to 77.9% over 10,400 training steps, reaching 86.7% with self-consistency decoding. The final DeepSeek-R1 model achieves 79.8% on AIME 2024, 97.3% on MATH-500, 65.9% on LiveCodeBench, and a Codeforces rating of 2029. It also scores 84.0% on MMLU-Pro, 49.2% on SWE-Bench Verified, 87.6% on AlpacaEval 2.0, and 92.3% on ArenaHard. Training utilized 26k math, 17k code, 22k STEM, and 15k logic prompts for RL, alongside 800k samples for SFT.

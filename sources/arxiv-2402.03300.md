@@ -17,5 +17,5 @@ The training pipeline executes four sequential stages. First, the DeepSeekMath C
 
 **Key Formulas**
 The GRPO objective modifies the standard Proximal Policy Optimization (PPO) formulation by replacing the value-function baseline with group-relative advantages. The PPO surrogate objective is defined as:
-\[
+$$
 \mathcal{J}_{PPO}(\theta) = \mathbb{E} [ q \sim P(Q), o \sim \pi_{\theta_{old}}(O|q) ] \frac{1}{|o|} \sum_{t=1}^{|

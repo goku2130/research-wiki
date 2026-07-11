@@ -61,9 +61,11 @@ The IOP framework attempts to convert sparse outcome feedback into token-level s
 
 ### Group Relative Policy Optimization (GRPO)
 GRPO is a dominant algorithm for reasoning models, removing the need for a separate value function (critic) by using group-relative advantages. The objective is defined as:
-\[
+
+$$
 \mathcal{J}_{GRPO}(\theta) = \mathbb{E} \left[ \frac{1}{G} \sum_{i=1}^G \left( \min \left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} A_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\varepsilon, 1+\varepsilon\right) A_i \right) - \beta \mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) \right) \right]
-\]
+$$
+
 The advantage $A_i$ is computed via group normalization: $A_i = \frac{r_i - \text{mean}(\{r\})}{\text{std}(\{r\})}$ [source:arxiv:2501.12948][source:arxiv:2502.10867].
 
 ### Search and Inference Scaling

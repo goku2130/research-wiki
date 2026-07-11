@@ -19,17 +19,23 @@ DPO circumvents explicit reward modeling and RL loops by deriving a closed-form 
 
 **Key Formulas**
 The derivation assumes the Bradley-Terry preference model, which defines the probability of human preference as:
-\[
+
+$$
 p^*(y_1 \succ y_2 \mid x) = \frac{\exp(r^*(x, y_1))}{\exp(r^*(x, y_1)) + \exp(r^*(x, y_2))}.
-\]
+$$
+
 Under a KL-constrained reward maximization objective, the optimal policy takes the form:
-\[
+
+$$
 \pi_r(y \mid x) = \frac{1}{Z(x)} \pi_{\mathrm{ref}}(y \mid x) \exp \left( \frac{1}{\beta} r(x, y) \right),
-\]
+$$
+
 where $Z(x)$ is a partition function. By algebraically rearranging this to express the reward in terms of the policy, the partition function cancels out when substituted into the preference model. This yields the DPO objective:
-\[
+
+$$
 \mathcal{L}_{\mathrm{DPO}}(\pi_{\theta}; \pi_{\mathrm{ref}}) = -\mathbb{E}_{(x, y_{w}, y_{l}) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_{\theta}(y_{w} \mid x)}{\pi_{\mathrm{ref}}(y_{w} \mid x)} - \beta \log \frac{\pi_{\theta}(y_{l} \mid x)}{\pi_{\mathrm{ref}}(y_{l} \mid x)} \right) \right],
-\]
+$$
+
 where $\sigma$ is the logistic function. The gradient of this loss implicitly weights updates by how incorrectly the model's implicit reward orders the completions, preventing policy degeneration that occurs with naive probability ratio objectives.
 
 **Quantitative Results**

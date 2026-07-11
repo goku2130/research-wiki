@@ -21,17 +21,23 @@ PPO alternates between environment interaction and surrogate objective optimizat
 
 **Key Formulas**
 The central innovation is the clipped surrogate objective, which constrains the probability ratio $r_t(\theta) = \frac{\pi_\theta(a_t \mid s_t)}{\pi_{\theta_{\text{old}}}(a_t \mid s_t)}$ to prevent excessive policy shifts:
-\[
+
+$$
 L^{CLIP}(\theta) = \hat{\mathbb{E}}_t \left[ \min \left( r_t(\theta) \hat{A}_t, \operatorname{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right]
-\]
+$$
+
 This creates a pessimistic lower bound on the unclipped conservative policy iteration objective, removing incentives to move $r_t$ outside $[1-\epsilon, 1+\epsilon]$. When parameter sharing between policy and value networks is employed, the objective combines the clipped surrogate, a value function squared-error loss $L^{VF}$, and an entropy bonus $S$:
-\[
+
+$$
 L_t^{CLIP+VF+S}(\theta) = \hat{\mathbb{E}}_t \left[ L_t^{CLIP}(\theta) - c_1 L_t^{VF}(\theta) + c_2 S[\pi_\theta](s_t) \right]
-\]
+$$
+
 Alternatively, PPO supports an adaptive KL-penalized objective:
-\[
+
+$$
 L^{KLPEN}(\theta) = \hat{\mathbb{E}}_t \left[ r_t(\theta) \hat{A}_t - \beta \operatorname{KL}[\pi_{\theta_{\text{old}}}(\cdot \mid s_t), \pi_\theta(\cdot \mid s_t)] \right]
-\]
+$$
+
 where $\beta$ is dynamically scaled to maintain a target KL divergence $d_{\text{targ}}$.
 
 **Quantitative Results**
