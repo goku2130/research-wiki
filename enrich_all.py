@@ -49,10 +49,20 @@ def enrich_one(topic: dict, tax: dict) -> str:
     return f"{slug}: enriched"
 
 
+def _maturity(slug: str) -> str:
+    p = agent.TOPICS_DIR / f"{slug}.md"
+    if not p.exists():
+        return "?"
+    parts = p.read_text().split("---", 2)
+    return (yaml.safe_load(parts[1]) or {}).get("maturity", "?") if len(parts) >= 3 else "?"
+
+
 def main() -> None:
     tax = yaml.safe_load(agent.TAXONOMY.read_text())
-    done = [t for t in tax["topics"] if t.get("status") == "done"][:MAX_TOPICS]
-    print(f"### ENRICH: {len(done)} done topics, {WORKERS} concurrent")
+    # Only enrich topics not already at 'comprehensive' (skip finished ones this pass).
+    done = [t for t in tax["topics"]
+            if t.get("status") == "done" and _maturity(t["slug"]) != "comprehensive"][:MAX_TOPICS]
+    print(f"### ENRICH: {len(done)} topics below 'comprehensive', {WORKERS} concurrent")
     print(f"### models: orch={agent.ORCH_MODEL} | distill={agent.DISTILL_MODEL} "
           f"| review={agent.REVIEWER_MODEL} | writer={agent.WRITER_MODEL}", flush=True)
     t0 = time.time()
