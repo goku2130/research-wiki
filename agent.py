@@ -104,6 +104,17 @@ def writer_client() -> OpenAI:
     return WRITER
 
 
+def _chat(client: OpenAI, **kw):
+    """chat.completions.create with retry/backoff (for API rate limits under concurrency)."""
+    for attempt in range(4):
+        try:
+            return client.chat.completions.create(**kw)
+        except Exception:  # noqa: BLE001
+            if attempt == 3:
+                raise
+            time.sleep(2 * (attempt + 1))
+
+
 def strip_thoughts(text: str) -> str:
     """Gemma 4 (API) emits inline <thought>...</thought>; drop it."""
     return re.sub(r"<thought>.*?</thought>", "", text, flags=re.DOTALL).strip()
@@ -390,7 +401,7 @@ def write_article(topic: dict, distilled: list[dict], tax: dict) -> tuple[str, l
     prompt = (f"Topic: {topic['title']}\nScope: {topic.get('notes','')}\n\n"
               f"{WRITE_RUBRIC}\n\n{_siblings_block(topic, tax)}\n\n"
               f"SOURCE SUMMARIES (cite by their [source:<id>]):\n\n{corpus}")
-    resp = writer_client().chat.completions.create(
+    resp = _chat(writer_client(),
         model=WRITER_MODEL, temperature=0.7,
         messages=[{"role": "system", "content": WRITE_SYS},
                   {"role": "user", "content": prompt}])
@@ -494,7 +505,7 @@ def revise(topic: dict, article: str, issues: list[str], distilled: list[dict],
               f"fabricated number, equation, or misattribution.\n\n"
               f"ISSUES:\n{fixes}\n\n{_siblings_block(topic, tax)}\n\n"
               f"SOURCE SUMMARIES:\n{corpus}\n\nCURRENT ARTICLE:\n{article}")
-    resp = writer_client().chat.completions.create(
+    resp = _chat(writer_client(),
         model=WRITER_MODEL, temperature=0.6,
         messages=[{"role": "system", "content": WRITE_SYS},
                   {"role": "user", "content": prompt}])
