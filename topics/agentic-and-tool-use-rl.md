@@ -1,25 +1,38 @@
 ---
 title: Agentic and tool-use RL
-maturity: developing
+maturity: comprehensive
 updated: '2026-07-11'
 sources:
-- arxiv:2510.01132
-- arxiv:2509.02547
-- arxiv:2604.09459
 - alphaxiv:triage-role-typed-credit-assignment-for-
 - github:awesome-rl-based-agentic-search-papers
-- research:advancing-search-augmented-language-mode
 - bespokelabs:improving-multi-turn-tool-use-with-reinf
+- arxiv:2509.02547
+- research:advancing-search-augmented-language-mode
+- arxiv:2510.01132
+- arxiv:2604.09459
+- arxiv:2409.02392
+- arxiv:2605.08778
+- arxiv:2001.03354
+- arxiv:2103.06224
+- arxiv:2102.03740
+- arxiv:2406.01782
+- arxiv:2306.11232
 open_questions:
-- No large-scale, controlled comparison exists between PPO, GRPO, and newer credit-assignment
-  methods (GiGPO, CARL, IGPO) on identical agentic benchmarks with matched compute
-  budgets.
-- The conditions under which sparse binary rewards suffice vs. dense verified rewards
-  are required remain empirically unmapped across task families.
-- Whether turn-level credit assignment (AgentPRM, CARL) can be combined with hierarchical
-  critics (ArCHer) without prohibitive compute overhead is untested.
-- The "echo trap" in GRPO is documented but its mitigation via token-level IS (Perplexity)
-  has not been ablated against turn-level CA methods.
+- 'Unified credit assignment benchmark**: No shared agentic benchmark exists for systematic
+  comparison of PPO, GRPO, GiGPO, CARL, IGPO, TRACE, M-DPO, AgentPRM, HCAPO, C3/CCPO,
+  ArCHer, SPRO, VinePPO, RED, SPO, PRM, PURE, M-GRPO, SHARP, MAPPA, and state-augmented
+  RL on identical tasks/compute [source:arxiv:2604.09459].'
+- 'Stochastic transition handling**: M-DPO/M-KTO assume deterministic tool execution
+  [source:arxiv:2409.02392]; agentic POMDPs have stochastic transitions [source:arxiv:2604.09459].
+  How to extend multi-turn preference learning to stochastic environments without
+  value networks?'
+- 'Information sparsity mitigation**: If hardness is fundamentally $I(A;Z|S)$ [source:arxiv:2103.06224],
+  what exploration or representation learning strategies maximally increase this mutual
+  information in agentic settings?'
+- 'PPO vs GRPO reconciliation**: Why does PPO dominate on TextWorld [source:arxiv:2510.01132]
+  while GRPO dominates in search agents [source:research:advancing-search-augmented-language-mode][source:bespokelabs:improving-multi-turn-tool-use-with-reinf]?
+  Is it horizon length, action space discreteness, reward verifiability, or hyperparameter
+  sensitivity?'
 ---
 
 Agentic RL reframes LLM fine-tuning as sequential decision-making in partially observable environments, replacing the single-turn preference optimization of RLHF with multi-turn tool use, search, and reasoning loops. The field has converged on a POMDP formalism where credit assignment across 100K–1M token trajectories—not token-level advantage estimation—is the central algorithmic bottleneck.
@@ -46,6 +59,12 @@ This formalism makes explicit five compounding difficulties absent in PBRFT [sou
 5. **Non-verifiable intermediate states** (no ground truth for intermediate turns)
 
 The survey identifies six optimizable capability modules enabled by this formalism: Planning, Tool Use, Memory, Self-Improvement, Reasoning (System 1 vs System 2), and Perception [source:arxiv:2509.02547].
+
+### Theoretical Foundations: Information Sparsity and Ensemble Credit Assignment
+
+The credit assignment problem in agentic RL can be formalized through information-theoretic and ensemble perspectives. **Information sparsity**—not reward sparsity—is the fundamental hardness measure: an MDP is $\epsilon$-information-sparse if $\sup_{\pi_0 \in \Pi_0} \mathcal{I}^{\pi_0}(A; Z|S) \leq \epsilon$, where $\mathcal{I}(A; Z|S) = \mathbb{E}_{(s,a) \sim d^\pi} [D_{KL}(p(Z|s,a) \| p(Z|s))]$ quantifies the mutual information between actions and returns conditioned on state [source:arxiv:2103.06224]. This explains why adding a constant to rewards eliminates sparsity without alleviating credit assignment difficulty.
+
+From an **ensemble perspective**, temporal credit assignment can be understood by modeling synaptic weights as Spike-and-Slab (SaS) distributions $P(w) = \pi \delta(w) + (1-\pi)\mathcal{N}(w|m,\Xi)$, enabling generalized backpropagation through time (gBPTT) that learns weight uncertainty $\Xi$ and sparsity $\pi$ alongside means $m$ [source:arxiv:2001.03354][source:arxiv:2102.03740]. This identifies three weight roles: Very Important (VIP, $\pi\approx0, \Xi\approx0$), Unimportant (UIP, $\pi\approx1$), and Variability weights. The sparsity and connection entropy exhibit non-monotonic behavior across layers—growing in middle stages then decreasing toward output—reflecting an **encoding $\to$ recoding $\to$ decoding** process [source:arxiv:2001.03354]. In the lazy learning regime (infinite width), a Recurrent Neural Tangent Kernel (RNTK) governs dynamics; finite networks escape this regime into feature learning with low-dimensional synaptic manifolds [source:arxiv:2102.03740].
 
 ## Multi-Turn Tool Use: Environments, Rewards, and Algorithm Selection
 
@@ -90,6 +109,27 @@ or equivalently $\mathbb{E}_{j \sim [N],\, t \sim [T_j]}\bigl[ \min( r_{j,t}(\th
 ### SFT–RL Budget Allocation
 
 For a fixed compute budget, a **hybrid SFT→RL schedule dominates pure SFT or pure RL** [source:arxiv:2510.01132]. With 60 SFT demonstrations + 400 RL episodes: 85% in-domain success, 59% generalization to complex tasks. Pure SFT (same budget): 55% generalization. Pure RL: 11% generalization. The guide recommends **strong SFT priors from minimal demonstrations** to accelerate convergence and stabilize policy initialization.
+
+### Multi-Turn Iterative Preference Learning for Tool-Integrated Agents
+
+A dedicated framework for **multi-turn iterative preference learning** formulates tool-integrated reasoning as an MDP with deterministic transitions (code execution results determined by history) and derives **Multi-turn DPO (M-DPO)** and **Multi-turn KTO (M-KTO)** losses that sum log-ratio advantages across all turns $h=1..H$ [source:arxiv:2409.02392]:
+
+$$
+\mathcal{L}_{\mathrm{M-DPO}}(\theta)=-\sum_{((x,\tau^{w},\tau^{l})\in\mathcal{D}}\log\sigma\Big(\eta\sum_{h=1}^{H}\Big[\log\frac{\pi_{\theta,h}(a_{h}^{w}|s_{h}^{w})}{\pi_{\mathrm{ref},h}(a_{h}^{w}|s_{h}^{w})}-\log\frac{\pi_{\theta,h}(a_{h}^{l}|s_{h}^{l})}{\pi_{\mathrm{ref},h}(a_{h}^{l}|s_{h}^{l})}\Big]\Big)
+$$
+
+$$
+\mathcal{L}_{\mathrm{M-KTO}}(\theta)=\mathbb{E}_{x,y\sim\mathcal{D}}\big[\lambda_{y}-v(x,y)\big], \quad u(x,y)=\eta\sum_{h=1}^{H}\log\frac{\pi_{u,h}(a_{h}|s_{h})}{\pi_{\mathrm{ref},h}(a_{h}|s_{h})}
+$$
+
+A critical implementation detail is **masking out user messages and external tool observations** during training so the model only optimizes its own actions. The iterative recipe uses **mixture sampling** (e.g., 20 trajectories from current model + 10 from previous iteration) for exploration-exploitation balance, labels preferences by final result checking against gold answers, and **updates the reference model to the previous iteration's policy** ($\pi_{t,\text{ref}} = \pi_{t-1}$) to optimize the non-regularized reward.
+
+**Quantitative results** on GSM8K and MATH:
+- Gemma-1.1-it-7B: 77.5% → 83.9% (GSM8K), 46.1% → 51.2% (MATH)
+- Gemma-2-it-9B: 84.1% → 86.3% (GSM8K), 51.0% → 54.5% (MATH)
+- Pass@n analysis shows preference learning primarily improves pass@1 (top response quality); for $n>16$, performance converges with SFT models, indicating **elicitation of existing knowledge rather than injection of new knowledge** [source:arxiv:2409.02392].
+
+**Limitations**: (1) Reward sparsity—final result checking cannot distinguish between two correct or two incorrect trajectories. (2) Environment determinism assumption—M-DPO/M-KTO not directly applicable to stochastic environments without value networks for adaptive margins. (3) Heavy dependency on a well-trained initial SFT model [source:arxiv:2409.02392].
 
 ## Search-Augmented RL: Agentic Search Systems
 
@@ -160,6 +200,16 @@ The credit assignment survey organizes 47 methods across **Granularity** (token,
 
 **Quantitative**: AgentPRM $8\times$ sample efficiency vs MC-PRM; CARL reduces gradient updates 72% no degradation; GiGPO +12% ALFWorld, +9% WebShop over GRPO [source:arxiv:2604.09459].
 
+### Turn-Aware Credit Assignment for Multi-Turn Jailbreaking (TRACE)
+
+**TRACE** replaces trajectory-level advantage $\hat{A}_i$ in Multi-turn GRPO with a **turn-aware advantage** $\hat{A}_{i,t} = m_{i,t} \hat{A}_i^o + \hat{A}_{i,t}^p$ [source:arxiv:2605.08778]:
+- **Success-side credit** ($\tau_i \in \mathcal{S}^+$): Leave-one-turn-out semantic masking computes raw credit $c_{i,t} := r(x_0, y_{i,T_i}) - r(x_0, y'_{i,T_i})$, normalized to multiplier $m_{i,t}^+$.
+- **Failure-side penalty** ($\tau_i \in \mathcal{S}^-$): Target-specific penalties from successful trajectory priors: **Harmfulness Penalty** $B_{i,t}^H := \max(0, \sum_{\ell \in \mathcal{C}} (q_{t,\ell})^2 - q_{t,\ell_{i,t}})$ and **Relevance Penalty** $B_{i,t}^R := \max(0, (L_t - E_{i,t}) / L_t)$, combined into multiplier $m_{i,t}^-$.
+- **Refusal-aware local process penalty**: $\hat{A}_{i,t}^p = \lambda_p r_{i,t}^p$ where $r_{i,t}^p = -\mathbb{I}\{\text{refusal}(x_{i,t}, y_{i,t})\}$.
+- **Multi-agent defense alignment**: Splits successful attack turns into latent-risk (intermediate) and direct-harm (final) turns for early risk intervention via DPO.
+
+**Quantitative**: TRACE (mix) achieves **87.10% ASR@1** (~25% relative improvement over TROJail's 69.97%), transfers to closed-source models (**96.7% ASR@5 on GPT-4o**, 93.1% on Gemini-2.5-Pro), reaches >80% ASR@1 on gpt-oss-20b within 4 turns, and reduces defended ASR from 87.84% → 9.43% while maintaining GPQA accuracy [source:arxiv:2605.08778].
+
 ### Multi-Agent Credit Assignment
 
 | Method | Mechanism |
@@ -167,8 +217,9 @@ The credit assignment survey organizes 47 methods across **Granularity** (token,
 | M-GRPO | Decompose inter-agent (team) + intra-agent (individual) credit |
 | SHARP | Shapley value decomposition across agents |
 | MAPPA | AI feedback for per-action process rewards |
+| **State-Augmented RL** | Lagrangian multipliers $\lambda$ as augmented MDP states; distributed gossip for consensus on zone occupancy [source:arxiv:2406.01782] |
 
-**Quantitative**: SHARP +23.7% over single-agent, +14.1% over multi-agent baselines; MAPPA +5.0–17.5pp AIME, +7.8–17.2pp AMC [source:arxiv:2604.09459].
+**Quantitative**: SHARP +23.7% over single-agent, +14.1% over multi-agent baselines; MAPPA +5.0–17.5pp AIME, +7.8–17.2pp AMC [source:arxiv:2604.09459]. State-augmented RL achieves feasibility for $N=2$ agents monitoring $M=4$ zones with requirements $c=[0.3,0.3,0.3,0.3]$ (total 1.2 > single-agent capacity 1.0) in Gazebo/ROS2 and floorplan patrol [source:arxiv:2406.01782].
 
 ### Limitations of Current CA Methods
 
@@ -176,6 +227,8 @@ The credit assignment survey organizes 47 methods across **Granularity** (token,
 - **LLM-as-Critic bias**: HCAPO, CAPO susceptible to self-evaluation bias [source:arxiv:2604.09459]
 - **Evaluation fragmentation**: No shared benchmarks for systematic CA comparison [source:arxiv:2604.09459]
 - **Environment constraints**: Reasoning RL methods assume deterministic transitions and verifiable intermediates—violated in agentic settings [source:arxiv:2604.09459]
+- **Stochastic environment gap**: M-DPO/M-KTO derived for deterministic transitions; not directly applicable to stochastic environments without value networks [source:arxiv:2409.02392]
+- **Information sparsity**: Fundamental hardness not captured by reward sparsity; requires mutual information between actions and returns [source:arxiv:2103.06224]
 
 ## Training Recipes and Practical Stabilization
 
@@ -205,7 +258,13 @@ Using only 100 training samples from BFCL v3 multi-turn-base, Qwen2.5-7B-Instruc
 
 ## Current Status and Trajectory
 
-Agentic RL is **rising rapidly but remains pre-standardization**. The POMDP formalism and credit assignment taxonomy are widely cited [source:arxiv:2509.02547][source:arxiv:2604.09459], and production systems (Perplexity [source:research:advancing-search-augmented-language-mode], OpenAI Deep Research [source:arxiv:2509.02547]) demonstrate competitive performance on benchmarks like BrowseComp (51.5% pass@1 for Deep Research) and FRAMES/Facts Open. However, **no single algorithmic recipe has emerged as default**: PPO dominates the Practitioner's Guide's controlled study [source:arxiv:2510.01132], while GRPO powers most search-agent deployments [source:research:advancing-search-augmented-language-mode][source:bespokelabs:improving-multi-turn-tool-use-with-reinf]. The field is fragmented by **evaluation fragmentation**—no shared agentic benchmarks enable systematic comparison [source:arxiv:2604.09459]—and **environment constraints** (API costs, stochasticity, partial observability) that prevent clean ablation. Credit assignment research is shifting from token-level (reasoning RL) to turn-level and hierarchical methods (agentic RL), but **computational overhead of MC methods and bias of LLM critics remain unresolved**. Not widely reported: any large-scale comparison of PPO vs GRPO vs newer methods (GiGPO, CARL, IGPO) on identical agentic benchmarks with identical compute budgets.
+Agentic RL is **rising rapidly but remains pre-standardization**. The POMDP formalism and credit assignment taxonomy are widely cited [source:arxiv:2509.02547][source:arxiv:2604.09459], and production systems (Perplexity [source:research:advancing-search-augmented-language-mode], OpenAI Deep Research [source:arxiv:2509.02547]) demonstrate competitive performance on benchmarks like BrowseComp (51.5% pass@1 for Deep Research) and FRAMES/Facts Open. However, **no single algorithmic recipe has emerged as default**: PPO dominates the Practitioner's Guide's controlled study [source:arxiv:2510.01132], while GRPO powers most search-agent deployments [source:research:advancing-search-augmented-language-mode][source:bespokelabs:improving-multi-turn-tool-use-with-reinf]. The field is fragmented by **evaluation fragmentation**—no shared agentic benchmarks enable systematic comparison [source:arxiv:2604.09459]—and **environment constraints** (API costs, stochasticity, partial observability) that prevent clean ablation. Credit assignment research is shifting from token-level (reasoning RL) to turn-level and hierarchical methods (agentic RL), but **computational overhead of MC methods and bias of LLM critics remain unresolved**. Not widely reported: any large-scale comparison of PPO vs GRPO vs newer methods (GiGPO, CARL, IGPO, TRACE, M-DPO) on identical agentic benchmarks with identical compute budgets.
+
+**NEW DISAGREEMENTS SURFACED**:
+1. **PPO vs GRPO on TextWorld**: Practitioner's Guide finds PPO 88% vs GRPO ~18% [source:arxiv:2510.01132], contradicting GRPO's dominance in search-agent deployments [source:research:advancing-search-augmented-language-mode][source:bespokelabs:improving-multi-turn-tool-use-with-reinf][source:arxiv:2509.02547]. Credit assignment survey attributes GRPO's weakness to "echo trap" from uniform trajectory-level credit [source:arxiv:2604.09459].
+2. **Dense vs sparse rewards**: Practitioner's Guide shows dense verified rewards (22%) >> sparse binary (4.2%) on SWE-Gym [source:arxiv:2510.01132], but Bespoke Labs achieves 78% with sparse binary on BFCL [source:bespokelabs:improving-multi-turn-tool-use-with-reinf]. Perplexity's gated design requires $r_{\text{base}}=1$ before preference credit [source:research:advancing-search-augmented-language-mode]. Task structure (discrete API calls vs extended code editing) likely explains discrepancy.
+3. **Deterministic vs stochastic transitions**: M-DPO/M-KTO assume deterministic tool execution [source:arxiv:2409.02392], while agentic POMDP formalism explicitly includes stochastic transitions as a core difficulty [source:arxiv:2604.09459]. This limits direct transfer of multi-turn preference learning to stochastic environments.
+4. **Information sparsity vs reward sparsity**: Theoretical work establishes information sparsity (low $I(A;Z|S)$) as the fundamental hardness, not reward sparsity [source:arxiv:2103.06224], implying that dense rewards alone cannot solve credit assignment if actions carry little information about returns.
 
 ## Key Takeaways
 
@@ -213,7 +272,9 @@ Agentic RL is **rising rapidly but remains pre-standardization**. The POMDP form
 - **Credit assignment is the core bottleneck**: Trajectories of 100K–1M tokens with stochastic transitions, non-verifiable intermediates, and action heterogeneity make episode-level methods (GRPO) prone to "echo trap" [source:arxiv:2604.09459].
 - **Reward density matters critically**: Execution-verified dense rewards (22%) dramatically outperform sparse binary (4.2%) and model-based judges (7–9%) on complex coding tasks [source:arxiv:2510.01132], but binary rewards suffice for discrete API-calling benchmarks [source:bespokelabs:improving-multi-turn-tool-use-with-reinf].
 - **Curriculum + SFT initialization + stabilized PPO** is the Practitioner's Guide's winning recipe for TextWorld/ALFWorld/SWE-Gym; **SFT→GRPO with gated rewards + token-level IS** is Perplexity's production recipe for web search [source:arxiv:2510.01132][source:research:advancing-search-augmented-language-mode].
-- **Turn-level CA methods (AgentPRM, CARL, IGPO) show large efficiency gains** (8× sample efficiency, 72% fewer updates) over token-level reasoning RL methods when transferred to agentic settings [source:arxiv:2604.09459].
+- **Turn-level CA methods (AgentPRM, CARL, IGPO, TRACE) show large efficiency gains** (8× sample efficiency, 72% fewer updates, 25% ASR improvement) over token-level reasoning RL methods when transferred to agentic settings [source:arxiv:2604.09459][source:arxiv:2605.08778].
+- **Multi-turn iterative preference learning (M-DPO/M-KTO)** enables tool-integrated mathematical reasoning with iterative reference model updates, but assumes deterministic transitions and depends heavily on SFT initialization [source:arxiv:2409.02392].
+- **Information-theoretic and ensemble perspectives** reveal that credit assignment hardness stems from information sparsity (low $I(A;Z|S)$) not reward sparsity, and that synaptic weight distributions exhibit encoding→recoding→decoding dynamics across layers [source:arxiv:2103.06224][source:arxiv:2001.03354][source:arxiv:2102.03740].
 - **Practical stability requires**: overlong filtering, small KL with periodic reference updates, minimal reward complexity, and synthetic verifiable data pipelines [source:bespokelabs:improving-multi-turn-tool-use-with-reinf][source:research:advancing-search-augmented-language-mode].
 
 ## Related Topics
@@ -233,12 +294,23 @@ Agentic RL is **rising rapidly but remains pre-standardization**. The POMDP form
 - [Distributed RL training for LLMs](distributed-rl-training.md)
 - [Async and off-policy RL](async-and-off-policy-rl.md)
 - [Rollout generation infrastructure](rollout-generation-infra.md)
+- [Self-improvement and self-play RL](self-improvement-and-self-play.md)
+- [Reward model over-optimization](reward-model-overoptimization.md)
+- [Length and format bias](length-and-format-bias.md)
+- [Sycophancy and misgeneralization](sycophancy-and-misgeneralization.md)
 
 ## References
-- [source:arxiv:2510.01132] [A Practitioner's Guide to Multi-turn Agentic Reinforcement Learning](https://arxiv.org/html/2510.01132v1)
-- [source:arxiv:2509.02547] [The Landscape of Agentic Reinforcement Learning for LLMs: A Survey](https://arxiv.org/abs/2509.02547)
-- [source:arxiv:2604.09459] [From Reasoning to Agentic: Credit Assignment in Reinforcement Learning for Large Language Models](https://arxiv.org/html/2604.09459v1)
 - [source:alphaxiv:triage-role-typed-credit-assignment-for-] [TRIAGE: Role-Typed Credit Assignment for Agentic Reinforcement Learning](https://www.alphaxiv.org/abs/2606.32017)
 - [source:github:awesome-rl-based-agentic-search-papers] [Awesome-RL-based-Agentic-Search-Papers](https://github.com/ventr1c/Awesome-RL-based-Agentic-Search-Papers)
-- [source:research:advancing-search-augmented-language-mode] [Advancing Search-Augmented Language Models](https://research.perplexity.ai/articles/advancing-search-augmented-language-models)
 - [source:bespokelabs:improving-multi-turn-tool-use-with-reinf] [Improving Multi-Turn Tool Use with Reinforcement Learning](https://bespokelabs.ai/blog/improving-multi-turn-tool-use-with-reinforcement-learning)
+- [source:arxiv:2509.02547] [The Landscape of Agentic Reinforcement Learning for LLMs: A Survey](https://arxiv.org/abs/2509.02547)
+- [source:research:advancing-search-augmented-language-mode] [Advancing Search-Augmented Language Models](https://research.perplexity.ai/articles/advancing-search-augmented-language-models)
+- [source:arxiv:2510.01132] [A Practitioner's Guide to Multi-turn Agentic Reinforcement Learning](https://arxiv.org/html/2510.01132v1)
+- [source:arxiv:2604.09459] [From Reasoning to Agentic: Credit Assignment in Reinforcement Learning for Large Language Models](https://arxiv.org/html/2604.09459v1)
+- [source:arxiv:2409.02392] [Building Math Agents with Multi-Turn Iterative Preference Learning](https://arxiv.org/abs/2409.02392)
+- [source:arxiv:2605.08778] [Not All Turns Matter: Credit Assignment for Multi-Turn Jailbreaking](https://arxiv.org/abs/2605.08778)
+- [source:arxiv:2001.03354] [Learning credit assignment](https://arxiv.org/abs/2001.03354)
+- [source:arxiv:2103.06224] [An Information-Theoretic Perspective on Credit Assignment in Reinforcement Learning](https://arxiv.org/abs/2103.06224)
+- [source:arxiv:2102.03740] [Ensemble perspective for understanding temporal credit assignment](https://arxiv.org/abs/2102.03740)
+- [source:arxiv:2406.01782] [Multi-agent assignment via state augmented reinforcement learning](https://arxiv.org/abs/2406.01782)
+- [source:arxiv:2306.11232] [Eight challenges in developing theory of intelligence](https://arxiv.org/abs/2306.11232)
