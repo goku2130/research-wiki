@@ -1,37 +1,23 @@
 ---
 id: arxiv:2305.18290
 type: paper
-title: 'Direct Preference Optimization (DPO): Your Language Model is Secretly a Reward
-  Model'
+title: Reasoning with Language Model is Planning with World Model
 url: https://arxiv.org/abs/2305.18290
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: distributed-rl-training
+topic: test-time-and-rl-interplay
 ---
 
-**Core Problem**
-Aligning large-scale unsupervised language models with human preferences is difficult due to their broad, uncontrolled training objectives. Standard alignment relies on Reinforcement Learning from Human Feedback (RLHF), a complex pipeline that first fits an explicit reward model to human preference data and then fine-tunes the language model via reinforcement learning (e.g., PPO) to maximize the learned reward while constraining KL divergence from a reference policy. This process is computationally expensive, requires continuous policy sampling during training, and suffers from instability and extensive hyperparameter tuning.
+The core problem addressed is the computational complexity and instability of aligning large language models (LLMs) with human preferences via Reinforcement Learning from Human Feedback (RLHF). Standard RLHF pipelines require training a separate reward model to fit human preferences and then fine-tuning the LLM using reinforcement learning (e.g., PPO) to maximize this reward while constraining policy drift via a KL-divergence penalty. This multi-stage process demands extensive hyperparameter tuning, continuous policy sampling during training, and significant computational overhead, making preference learning a major practical bottleneck.
 
-**Method/Recipe**
-Direct Preference Optimization (DPO) bypasses explicit reward modeling and reinforcement learning by directly optimizing the policy through a simple classification objective. The algorithm proceeds as follows: (1) Initialize a reference policy $\pi_{\text{ref}}$, typically a supervised fine-tuned (SFT) model. (2) Construct an offline dataset $\mathcal{D} = \{x^{(i)}, y_w^{(i)}, y_l^{(i)}\}_{i=1}^N$ containing prompts and human-labeled preference pairs, where $y_w$ is preferred and $y_l$ is dispreferred. (3) Optimize the target policy $\pi_\theta$ by minimizing a binary cross-entropy loss that directly compares the log-probability ratios of preferred versus dispreferred completions relative to the reference model. (4) Train using standard supervised learning without sampling during the optimization loop or significant hyperparameter search. When an SFT model is unavailable, $\pi_{\text{ref}}$ can be initialized by maximizing the likelihood of preferred completions to mitigate distribution shift between the true reference distribution and the model used for optimization.
+Direct Preference Optimization (DPO) resolves this by eliminating explicit reward modeling and reinforcement learning loops. The DPO recipe operates in two sequential stages. First, a dataset of human preferences $\mathcal{D} = \{x^{(i)}, y_w^{(i)}, y_l^{(i)}\}_{i=1}^N$ is collected, where $y_w$ and $y_l$ denote the preferred and dispreferred completions for prompt $x$. Second, a reference policy $\pi_{\text{ref}}$ (typically a supervised fine-tuned model) is fixed. The target policy $\pi_\theta$ is then optimized by minimizing a single binary cross-entropy objective that directly parameterizes the policy rather than a reward function. Mechanistically, the DPO gradient increases the log-probability of preferred completions and decreases dispreferred ones, with updates dynamically weighted by how incorrectly the implicit reward model orders the pair, effectively preventing model degeneration.
 
-**Key Formulas**
-The standard RLHF objective maximizes expected reward subject to a KL constraint:
+The theoretical foundation rests on the analytical mapping between reward functions and optimal policies under the KL-constrained RL objective. The optimal policy for a reward $r(x,y)$ takes the form $\pi_{r}(y \mid x) = \frac{1}{Z(x)} \pi_{\mathrm{ref}}(y \mid x) \exp \left( \frac{1}{\beta} r(x, y) \right)$, where $Z(x)$ is a partition function. By inverting this relationship, the reward is reparameterized as $r(x, y) = \beta \log \frac{\pi_{r}(y \mid x)}{\pi_{\mathrm{ref}}(y \mid x)} + \beta \log Z(x)$. Substituting this into the Bradley-Terry preference model causes the partition function to cancel, yielding the DPO loss:
+\[
+\mathcal{L}_{\mathrm{DPO}}(\pi_{\theta}; \pi_{\mathrm{ref}}) = -\mathbb{E}_{(x, y_{w}, y_{l}) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_{\theta}(y_{w} \mid x)}{\pi_{\mathrm{ref}}(y_{w} \mid x)} - \beta \log \frac{\pi_{\theta}(y_{l} \mid x)}{\pi_{\mathrm{ref}}(y_{l} \mid x)} \right) \right].
+\]
+This formulation allows exact optimization of the standard RLHF objective using only supervised classification loss, bypassing the need for actor-critic algorithms.
 
-$$
-\max_{\pi_\theta} \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(y|x)} [r_\phi(x,y)] - \beta \mathbb{D}_{\mathrm{KL}}[\pi_\theta(y|x) || \pi_{\text{ref}}(y|x)].
-$$
+Quantitative evaluations demonstrate DPO's efficacy across multiple tasks. In controlled sentiment generation, DPO produces a reward-KL frontier that strictly dominates both PPO and an oracle PPO variant using ground-truth rewards. For TL;DR summarization on the Reddit dataset, DPO achieves a 61% win rate against reference summaries at temperature 0.0, outperforming PPO’s 57% at its optimal temperature, while exhibiting greater robustness to sampling temperature variations. In single-turn dialogue on the Anthropic Helpful and Harmless dataset, DPO is the only computationally efficient method to surpass the baseline preferred completions, matching the performance of a computationally intensive "Best of 128" sampling baseline. Furthermore, DPO demonstrates superior out-of-distribution generalization on CNN/DailyMail news articles, achieving GPT-4 win rates of 0.36 and 0.31 at temperatures 0 and 0.25, respectively, compared to PPO’s 0.26 and 0.23. Human evaluation studies confirm that GPT-4 automated judgments correlate strongly with human annotators, with agreement rates ranging from 65% to 87%.
 
-The optimal policy under this objective takes the form $\pi_r(y|x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y|x) \exp\left(\frac{1}{\beta} r(x,y)\right)$. By inverting this relationship and substituting into the Bradley-Terry preference model, the partition function cancels, yielding the DPO objective:
-
-$$
-\mathcal{L}_{\mathrm{DPO}}(\pi_{\theta}; \pi_{\mathrm{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_{\theta}(y_w \mid x)}{\pi_{\mathrm{ref}}(y_w \mid x)} - \beta \log \frac{\pi_{\theta}(y_l \mid x)}{\pi_{\mathrm{ref}}(y_l \mid x)} \right) \right],
-$$
-
-where $\sigma$ is the logistic function and $\beta$ controls the strength of the implicit KL regularization.
-
-**Quantitative Results**
-In controlled sentiment generation, DPO achieves the most efficient reward-KL frontier, strictly dominating PPO and outperforming PPO trained with ground-truth rewards. For TL;DR summarization, DPO achieves a ~61% win rate against reference summaries at temperature 0.0, surpassing PPO's 57% at its optimal temperature, while demonstrating greater robustness to sampling temperature variations. In single-turn dialogue on the Anthropic HH dataset, DPO is the only computationally efficient method to improve over the dataset's preferred completions, matching the performance of a computationally prohibitive "Best of 128" baseline. Under out-of-distribution evaluation on CNN/DailyMail articles, DPO maintains superior win rates (0.36 at temp 0; 0.31 at temp 0.25) compared to PPO (0.26 and 0.23). Human evaluation studies confirm that GPT-4 automated judgments correlate strongly with human preferences, achieving inter-annotator agreement levels.
-
-**Stated Limitations**
-The authors note that DPO's out-of-distribution generalization relative to explicit reward learning requires further investigation. The manifestation of reward over-optimization within the DPO framework remains unclear. Experiments were limited to models up to 6B parameters, leaving scaling to larger architectures unexplored. Additionally, the reliance on GPT-4 for automated evaluation introduces prompt sensitivity, necessitating more robust evaluation protocols. Future work must also address how DPO can leverage unlabeled prompts through self-labeling and extend to generative models beyond text.
+The authors acknowledge several limitations. Comprehensive studies on out-of-distribution generalization relative to explicit reward learning are pending. The manifestation of reward over-optimization within the DPO framework remains unclear, and preliminary results suggest potential performance degradation at higher sampling temperatures. Additionally, while DPO is evaluated on models up to 6B parameters, its scalability to state-of-the-art models orders of magnitude larger is unexplored. Finally, the authors note that automated evaluation metrics using GPT-4 are sensitive to prompt formulation, necessitating careful prompt design for accurate win-rate estimation.
