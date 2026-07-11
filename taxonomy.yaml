@@ -67,7 +67,7 @@ topics:
 - slug: reward-hacking
   title: Reward hacking in RLHF
   notes: Specification gaming, Goodhart, mitigation
-  status: empty
+  status: done
 - slug: reward-model-overoptimization
   title: Reward model over-optimization
   notes: Gao scaling laws, KL budget, ensembles

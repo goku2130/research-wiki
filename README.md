@@ -18,7 +18,7 @@ _Auto-generated 2026-07-11._
 - ✅ [Nash and game-theoretic preference optimization](topics/nash-and-game-theoretic-po.md)
 - ✅ [Self-improvement and self-play RL](topics/self-improvement-and-self-play.md)
 - ✅ [Process vs outcome reward models](topics/process-vs-outcome-rewards.md)
-- ⬜ Reward hacking in RLHF
+- ✅ [Reward hacking in RLHF](topics/reward-hacking.md)
 - ✅ [Reward model over-optimization](topics/reward-model-overoptimization.md)
 - ⬜ Verifiable rewards (RLVR)
 - ⬜ Entropy and exploration in RL fine-tuning
