@@ -3,333 +3,204 @@ title: RL for LLMs — overview
 maturity: developing
 updated: '2026-07-11'
 sources:
-- arxiv:2203.02155
-- arxiv:2212.08073
+- arxiv:2507.04136
+- arxiv:2509.16679
+- aclanthology:offline-reinforcement-learning-for-llm-m
+- cameronrwolfe:online-versus-offline-rl-for-llms
+- arxiv:2405.19107
+- en:reinforcement-learning-from-human-feedba
 - arxiv:2305.18290
-- arxiv:2405.14734
-- arxiv:2402.10770
+- arxiv:2204.05862
 open_questions:
-- 'Reward hacking in offline PO**: How does reward hacking manifest in DPO and SimPO,
-  and what techniques can mitigate it? Empirical studies on large-scale models are
-  needed to understand the dynamics of over-optimization in these frameworks.'
-- 'Generalization of offline PO**: Can offline PO methods like DPO and SimPO generalize
-  to out-of-distribution prompts and tasks as effectively as RLHF? Theoretical and
-  empirical comparisons are needed to answer this question.'
-- 'Hybrid RLHF/offline PO**: Can hybrid approaches (e.g., iterative DPO or combining
-  offline PO with online RL) achieve the best of both worlds in terms of efficiency
-  and performance? Empirical evaluations on diverse tasks are needed to validate these
-  methods.'
-- 'Scalability of RLAIF**: How does the performance of RLAIF scale with model size
-  and the quality of AI feedback? Can RLAIF fully replace human feedback for alignment,
-  or is human oversight still necessary for safety-critical applications?'
+- Does RLVR genuinely *expand* the set of solvable reasoning problems beyond the base
+  model’s support, or does it only increase the *sampling probability* of solutions
+  already accessible to the base model? [source:arxiv:2509.16679]
+- Can offline RL methods (OREO, ILQL, DRO) match online GRPO/PPO performance on frontier-scale
+  ($> 100$B) reasoning tasks when provided with sufficiently diverse offline datasets,
+  or is on-policy exploration fundamentally necessary for hard multi-step credit assignment?
+- What is the *minimal* verifier quality threshold for V-RL / RLVR to avoid “Adversarial
+  Goodharting” where the policy attacks the verifier rather than learning valid reasoning?
+  [source:arxiv:2507.04136]
+- How do the critique–revision gap and recursive bias amplification in Constitutional
+  AI / RLAIF scale with model size—do they vanish, persist, or worsen beyond 100B
+  parameters? [source:arxiv:2507.04136]
 ---
 
-# RL for LLMs — Overview
+Reinforcement learning has become the dominant paradigm for aligning large language models with human intent and for eliciting complex reasoning capabilities, replacing static supervised objectives with dynamic reward-driven optimization. This article surveys the full landscape—from the canonical RLHF pipeline through AI feedback, direct preference methods, verifiable-reward reasoning RL, and offline policy optimization—detailing mathematical formulations, empirical trade-offs, and open tensions in the literature.
 
-Reinforcement learning (RL) has emerged as the dominant paradigm for aligning large language models (LLMs) with human preferences, enabling them to generate outputs that are helpful, honest, and harmless. While initial LLM training relies on next-token prediction via supervised learning on vast corpora, this objective does not inherently capture nuanced human values or contextual appropriateness. RL bridges this gap by fine-tuning models using reward signals derived from human feedback (RLHF), AI feedback (RLAIF), or verifiable reward functions (RLVR), as well as through offline preference optimization (PO) methods that bypass explicit reward modeling. This deep dive surveys the landscape of RL techniques for LLMs, dissecting their theoretical foundations, empirical performance, trade-offs, and open challenges.
+## Canonical RLHF pipeline
 
----
-
-## Core Motivations and Challenges
-
-LLMs trained via maximum likelihood estimation (MLE) on next-token prediction exhibit several misalignment pathologies:
-- **Truthfulness and hallucination**: Models generate plausible but factually incorrect or unsupported claims, particularly in domains with sparse training data [source:arxiv:2203.02155].
-- **Toxicity and bias**: Models reflect and amplify biases present in pretraining data, producing harmful or discriminatory outputs even when prompted neutrally [source:arxiv:2203.02155].
-- **Helpfulness and instruction-following**: Models fail to reliably follow user instructions, especially when prompts contain implicit constraints or require multi-step reasoning [source:arxiv:2203.02155].
-- **Over-optimization and reward hacking**: Models exploit flaws in reward functions to achieve high scores without fulfilling the intended objective, e.g., by generating verbose or overly hedged responses [source:arxiv:2305.18290][source:arxiv:2405.14734].
-
-RL addresses these issues by optimizing models for *preference satisfaction* rather than token likelihood. However, this introduces new challenges:
-1. **Reward modeling**: Human preferences are noisy, context-dependent, and often contradictory. Distilling them into a scalar reward function is non-trivial and may introduce biases [source:arxiv:2203.02155].
-2. **Exploration vs. exploitation**: RL fine-tuning must balance discovering high-reward outputs with avoiding degenerate behaviors (e.g., mode collapse or sycophancy) [source:arxiv:2203.02155].
-3. **Scalability and stability**: Traditional RL algorithms like PPO are computationally expensive, memory-intensive, and sensitive to hyperparameters, making them difficult to scale to large models [source:arxiv:2305.18290].
-4. **Alignment tax**: Improving alignment with human preferences can degrade performance on standard benchmarks (e.g., MMLU, SQuAD) due to distributional shift [source:arxiv:2203.02155].
-5. **Generalization**: Models may overfit to the preferences of a specific group of annotators or the limitations of the reward function, failing to generalize to broader populations or novel tasks [source:arxiv:2203.02155][source:arxiv:2212.08073].
-
----
-
-## The RLHF Pipeline: Reinforcement Learning from Human Feedback
-
-RLHF is the foundational approach for aligning LLMs with human preferences. It consists of three sequential stages:
-
-### 1. Supervised Fine-Tuning (SFT)
-- **Objective**: Adapt a pretrained LLM to follow instructions by fine-tuning on a dataset of human-written demonstrations.
-- **Data collection**: Human annotators (e.g., contractors or crowdworkers) provide high-quality responses to a diverse set of prompts, covering tasks like question answering, summarization, and creative writing. Prompts may be sourced from user interactions, public datasets, or synthetic generation [source:arxiv:2203.02155].
-- **Training**: The pretrained model is fine-tuned via supervised learning (typically cross-entropy loss) on the demonstration data. This step is critical for initializing the policy in a region of the parameter space where RL can effectively explore [source:arxiv:2203.02155].
-- **Challenges**:
-  - **Data quality**: Demonstrations must be diverse, high-quality, and representative of desired behaviors. Low-quality or biased demonstrations can propagate flaws into the RL stage.
-  - **Scalability**: Collecting human demonstrations is expensive and time-consuming, limiting the size and diversity of the SFT dataset.
-
-### 2. Reward Modeling (RM)
-- **Objective**: Train a model to predict human preferences over pairs of model outputs, effectively distilling human judgments into a scalar reward function.
-- **Data collection**: Annotators rank multiple model outputs (typically 4–9 per prompt) generated by the SFT model or other policies. Rankings are collected via pairwise comparisons or best-worst scaling [source:arxiv:2203.02155].
-- **Training**: The reward model is trained using the Bradley-Terry model, which assumes that the probability of preferring output $y_w$ over $y_l$ for prompt $x$ is:
+The foundational three-stage RLHF procedure [source:arxiv:2204.05862][source:en:reinforcement-learning-from-human-feedba][source:arxiv:2507.04136] consists of: (1) **Supervised Fine-Tuning (SFT)** on human-written demonstrations $\mathcal{D}_{\text{SFT}}$ to establish a coherent baseline policy $\pi_{\text{SFT}}$; (2) **Reward Model (RM) training** on pairwise preference data $\mathcal{D}_{\text{pref}} = \{(x, y_w, y_l)\}$ using a Bradley–Terry–Luce likelihood  
 
 $$
-p(y_w \succ y_l \mid x) = \sigma(r_\theta(x, y_w) - r_\theta(x, y_l)),
+\mathcal{L}_{\text{RM}}(\phi) = -\mathbb{E}_{(x,y_w,y_l)\sim\mathcal{D}_{\text{pref}}}\Bigl[\log\sigma\bigl(r_\phi(x,y_w)-r_\phi(x,y_l)\bigr)\Bigr]
 $$
 
-  where $\sigma$ is the sigmoid function and $r_\theta(x, y)$ is the scalar reward predicted by the model. The loss function is:
+where $r_\phi$ is a scalar reward head typically initialized from $\pi_{\text{SFT}}$; (3) **PPO optimization** of the policy $\pi_\theta$ against the frozen RM with a KL penalty toward the reference policy $\pi_{\text{ref}} = \pi_{\text{SFT}}$:  
 
 $$
-\mathcal{L}(\theta) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma(r_\theta(x, y_w) - r_\theta(x, y_l)) \right],
+\mathcal{L}_{\text{total}}(\theta) = \mathcal{L}_{\text{PPO}}(\theta) - \beta\,\mathcal{D}_{\text{KL}}\bigl(\pi_\theta(\cdot|x)\,\|\,\pi_{\text{ref}}(\cdot|x)\bigr)
 $$
 
-  where $\mathcal{D}$ is the dataset of ranked pairs [source:arxiv:2203.02155].
-- **Architecture**: The reward model is typically initialized from the SFT model, with a linear head added to predict the scalar reward. It may share weights with the policy model or be trained separately [source:arxiv:2203.02155].
-- **Challenges**:
-  - **Annotator agreement**: Human preferences are subjective and context-dependent, leading to low inter-annotator agreement (e.g., ~73% in [source:arxiv:2203.02155]). Aggregating preferences (e.g., via majority vote or probabilistic models) can mitigate noise but may introduce bias.
-  - **Reward hacking**: Models may exploit flaws in the reward function, e.g., by generating verbose or overly polite responses that score highly without being genuinely helpful [source:arxiv:2203.02155][source:arxiv:2405.14734].
-  - **Generalization**: Reward models may fail to generalize to out-of-distribution prompts or outputs, particularly if the training data is narrow or biased.
-
-### 3. Reinforcement Learning (RL)
-- **Objective**: Fine-tune the SFT model to maximize the reward predicted by the reward model while constraining divergence from the SFT policy to prevent over-optimization.
-- **Algorithm**: Proximal Policy Optimization (PPO) is the dominant algorithm for RLHF, though alternatives like REINFORCE or A2C are occasionally used. PPO optimizes the following objective:
+with the clipped surrogate  
 
 $$
-\mathcal{J}(\phi) = \mathbb{E}_{(x, y) \sim \pi_\phi^{\text{RL}}} \left[ r_\theta(x, y) - \beta \cdot \text{KL}(\pi_\phi^{\text{RL}}(y \mid x) \| \pi^{\text{SFT}}(y \mid x)) \right],
+\mathcal{L}_{\text{PPO}}(\theta) = \mathbb{E}_t\Bigl[\min\bigl(r_t(\theta)\hat{A}_t,\;\text{clip}(r_t(\theta),1-\epsilon,1+\epsilon)\hat{A}_t\bigr)\Bigr],\qquad r_t(\theta)=\frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}.
 $$
 
-  where $\pi_\phi^{\text{RL}}$ is the RL policy, $\pi^{\text{SFT}}$ is the SFT policy, $\beta$ controls the KL penalty strength, and $r_\theta(x, y)$ is the reward predicted by the reward model [source:arxiv:2203.02155].
-- **PPO-ptx**: To mitigate the alignment tax, [source:arxiv:2405.14734] introduces PPO-ptx, which augments the RL objective with a term that maximizes the log-likelihood of pretraining data:
+Anthropic’s large-scale study [source:arxiv:2204.05862] found that RLHF improves helpfulness and harmlessness simultaneously for models $\ge 13$B parameters, with a roughly linear relationship between $\sqrt{\mathcal{D}_{\text{KL}}}$ and PM reward during training, but observed **overfitting beyond $\sim 150$k training samples** (train/test PM scores diverge) and an **alignment tax** on standard NLP benchmarks for smaller models. The same work notes that harmlessness data collected by having crowdworkers *select the more harmful response* biases the RM toward simple refusals rather than nuanced “hostage-negotiation” behaviors.
+
+## RLAIF and Constitutional AI
+
+RLAIF replaces human annotators with an LLM judge (e.g., GPT-4, a specialized classifier, or a “constitution”-guided critic) to generate preference labels for RM training [source:arxiv:2507.04136][source:arxiv:2509.16679]. Constitutional AI [source:arxiv:2507.04136] structures this in two phases: (SL-CA) the model self-critiques and revises its outputs against explicit principles, then fine-tunes on the revisions; (RL-CA) the model generates response pairs and a feedback model—conditioned on the constitution—assigns preferences for PPO optimization. **Stated limitations** [source:arxiv:2507.04136]: (i) a **critique–revision gap** where discriminative ability exceeds generative corrective capacity, especially below $\approx 50$B parameters; (ii) **performative alignment** (parroting safety language without semantic understanding); (iii) **over-refusal gap between interpretability of explicit rules and flexibility**; (iv) **recursive alignment risk**—if the AI evaluator has systematic bias $\delta(x)$, its flaws amplify through the loop, producing sycophancy loops and model collapse. The survey notes that RLAIF “may not fully capture nuanced human values” and can propagate biases from the evaluator’s own training data.
+
+## Direct Preference Optimization and offline PO variants
+
+DPO [source:arxiv:2305.18290] eliminates the explicit RM and PPO stages by reparameterizing the optimal KL-constrained policy  
 
 $$
-\mathcal{J}_{\text{ptx}}(\phi) = \mathcal{J}(\phi) + \gamma \cdot \mathbb{E}_{x \sim \mathcal{D}_{\text{pretrain}}} \left[ \log \pi_\phi^{\text{RL}}(x) \right],
+\pi^*(y|x) = \frac{1}{Z(x)}\,\pi_{\text{ref}}(y|x)\exp\bigl(\tfrac{1}{\beta}r(x,y)\bigr)
 $$
 
-  where $\gamma$ controls the strength of the pretraining gradient. This helps preserve performance on standard benchmarks while improving alignment.
-- **Challenges**:
-  - **Computational cost**: PPO requires in-loop sampling (generating outputs from the current policy during training), which is memory-intensive and slow for large models. Distributed training and optimized rollout generation infrastructure are often necessary [source:arxiv:2203.02155].
-  - **Hyperparameter sensitivity**: PPO is sensitive to hyperparameters like the KL penalty $\beta$, learning rate, and clipping threshold. Poor choices can lead to instability, mode collapse, or reward hacking.
-  - **Exploration**: RL fine-tuning must balance exploration (discovering high-reward outputs) with exploitation (refining known high-reward behaviors). Insufficient exploration can lead to suboptimal policies, while excessive exploration may degrade performance.
-  - **Over-optimization**: As the policy improves, the reward model may become miscalibrated, leading to reward hacking or mode collapse. Techniques like reward model ensembling or iterative reward modeling can mitigate this [source:arxiv:2203.02155].
-
----
-
-## Offline Preference Optimization: DPO and Variants
-
-Offline preference optimization methods bypass the reward modeling and RL stages of RLHF by directly optimizing the policy to satisfy human preferences using a static dataset. These methods are computationally efficient, stable, and easy to implement, but they sacrifice some flexibility and may underperform in out-of-distribution settings.
-
-### Direct Preference Optimization (DPO)
-- **Core insight**: DPO reformulates the RLHF objective as a supervised learning problem by leveraging the closed-form solution to the KL-constrained reward maximization problem. The optimal policy under this objective is:
+to obtain an implicit reward $r(x,y)=\beta\log\frac{\pi^*(y|x)}{\pi_{\text{ref}}(y|x)}+\beta\log Z(x)$. Substituting into the Bradley–Terry model cancels $Z(x)$, yielding the **DPO loss**  
 
 $$
-\pi_r(y \mid x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y \mid x) \exp \left( \frac{1}{\beta} r(x, y) \right),
+\mathcal{L}_{\text{DPO}}(\theta)=-\mathbb{E}_{(x,y_w,y_l)\sim\mathcal{D}_{\text{pref}}}\Bigl[\log\sigma\Bigl(\beta\log\frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)}-\beta\log\frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)}\Bigr)\Bigr].
 $$
 
-  where $Z(x)$ is the partition function. By algebraically rearranging this equation, the reward $r(x, y)$ can be expressed in terms of the policy and reference model:
+DPO matches or exceeds PPO on summarization (TL;DR: DPO 61% win rate vs. PPO 57% at temp 0.0), dialogue (Anthropic HH: only efficient method improving over preferred completions), and OOD generalization (CNN/DM: DPO win rate 0.36 vs. PPO 0.26) [source:arxiv:2305.18290]. **Limitations** [source:arxiv:2507.04136][source:arxiv:2305.18290]: (i) less effective at exploring diverse outputs; (ii) quality highly dependent on preference data accuracy; (iii) **susceptible to length bias and unbounded implicit reward explosion** on noisy labels (“catastrophic overfitting”); (iv) **open gap in robustness to label noise** compared to PPO; (v) scaling to frontier model sizes ($> 100$B) not yet validated in the original work.
+
+**DRO (Direct Reward Optimisation)** [source:arxiv:2405.19107] extends offline PO to *single-trajectory* data $(x,y,r)$ with scalar rewards (thumbs-up/down, 1/0), learning both a policy $\pi_\theta$ and a value function $V_\phi$ by minimizing  
 
 $$
-r(x, y) = \beta \log \frac{\pi_r(y \mid x)}{\pi_{\text{ref}}(y \mid x)} + \beta \log Z(x).
+\mathcal{L}_{\text{DRO}}(\pi,V)=\tfrac12\mathbb{E}_{x\sim\rho,\,y\sim\mu(\cdot|x)}\Bigl[\bigl(r(x,y)-V(x)-\tau\log\tfrac{\pi(y|x)}{\pi_{\text{ref}}(y|x)}\bigr)^2\Bigr].
 $$
 
-  Substituting this into the Bradley-Terry preference model yields the DPO objective:
+On UltraFeedback with T5-L (770M) and T5-XL (3B), DRO-V beats KTO by **63.4%** and **57.5%** win-rate margins respectively vs. SFT, and shows stable performance across an order of magnitude of learning rates. Ablation reveals **separate policy/value networks with multiple value heads** significantly outperforms weight-sharing (Double Net Multiple Values 76.6% vs. Single Net 55.5% win rate vs. SFT) [source:arxiv:2405.19107].
+
+**UNA (Unified Alignment)** [source:arxiv:2507.04136] generalizes PPO, DPO, KTO under a supervised regression objective  
 
 $$
-\mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w \mid x)}{\pi_{\text{ref}}(y_w \mid x)} - \beta \log \frac{\pi_\theta(y_l \mid x)}{\pi_{\text{ref}}(y_l \mid x)} \right) \right],
+\mathcal{L}_{\text{UNA}}(\theta)=\mathbb{E}_{(x,y,z)\sim\mathcal{D}}\Bigl[\ell\Bigl(\beta\log\tfrac{\pi_\theta(y|x)}{\pi_{\text{ref}}(y|x)},\,z\Bigr)\Bigr],
 $$
 
-  where $\pi_\theta$ is the policy being optimized, $\pi_{\text{ref}}$ is the reference model (typically the SFT model), and $\beta$ controls the strength of the implicit KL constraint [source:arxiv:2305.18290].
-- **Advantages**:
-  - **Simplicity**: DPO eliminates the need for a separate reward model and RL algorithm, reducing implementation complexity and computational overhead.
-  - **Stability**: DPO is less sensitive to hyperparameters than PPO and does not require in-loop sampling, making it more stable and easier to scale.
-  - **Efficiency**: DPO achieves competitive performance with significantly lower computational cost than RLHF. For example, DPO matches the performance of the "Best of 128" baseline on Anthropic HH [source:arxiv:2305.18290].
-- **Limitations**:
-  - **Reference model dependency**: DPO requires a reference model during training, which increases memory usage and computational cost. This can be prohibitive for very large models.
-  - **Reward mismatch**: The implicit reward in DPO (the log-ratio of policy and reference model probabilities) may not align perfectly with the desired behavior, particularly if the reference model is suboptimal.
-  - **Out-of-distribution generalization**: DPO may underperform in settings where the preference data does not cover the full range of desired behaviors, as it cannot explore beyond the static dataset.
-  - **Length bias**: DPO is susceptible to length bias, as the log-probability ratio reward favors longer responses that accumulate higher log-probabilities [source:arxiv:2405.14734].
+where $\ell$ is MSE (scalar scores), BCE (binary labels), or logistic margin (pairwise). **Stated limitations**: “exploration deficit” (strictly supervised loss struggles to generate novel high-utility reasoning paths), “functional ceiling” (discourages super-human strategies exceeding target scores), and “support mismatch” (if $\pi_{\text{ref}}$ assigns negligible mass to a valid high-scoring response, implicit reward explodes).
 
-### SimPO: Simple Preference Optimization
-- **Core insight**: SimPO addresses DPO’s limitations by replacing the log-ratio reward with a length-normalized average log-likelihood, directly aligning the training objective with the generation metric. It also introduces a target margin to enforce a minimum separation between winning and losing rewards.
-- **Objective**: The SimPO reward is defined as:
+| Method | Data requirement | RL stage | Key hyperparameters | Memory footprint (models) |
+|--------|------------------|----------|---------------------|---------------------------|
+| RLHF (PPO) | Pairwise prefs | Online (on-policy) | $\beta,\epsilon,\gamma$ | 4 ($\pi,\pi_{\text{ref}},r_\phi,V_\psi$) |
+| RLAIF | AI-generated prefs | Online (on-policy) | Same as RLHF | 4 |
+| DPO | Pairwise prefs | Offline (RL-free) | $\beta$ | 2 ($\pi,\pi_{\text{ref}}$) |
+| DRO | Single-traj $(x,y,r)$ | Offline | $\tau$ | 2 ($\pi,V$) + value net |
+| KTO | Binary $(x,y,\text{desirable?})$ | Offline | $\beta$ | 2 |
+| UNA | Unified (scalar/binary/pair) | Offline | $\beta$ | 2 |
 
-$$
-r_{\text{SimPO}}(x, y) = \frac{\beta}{|y|} \log \pi_\theta(y \mid x),
-$$
+## RLVR: Outcome-based and process-supervised RL for reasoning
 
-  where $|y|$ is the length of the response. The Bradley-Terry model with target margin $\gamma$ is:
+RLVR replaces learned reward models with **verifiable rewards**—automated ground-truth checks (unit tests, proof verifiers, symbolic executors)—enabling RL on reasoning tasks without human preference annotation [source:arxiv:2507.04136][source:arxiv:2509.16679].
+
+**Outcome-Based RL (OB-RL)** [source:arxiv:2507.04136] uses a sparse terminal reward $R(\tau)\in\{0,1\}$:  
 
 $$
-p(y_w \succ y_l \mid x) = \sigma(r_{\text{SimPO}}(x, y_w) - r_{\text{SimPO}}(x, y_l) - \gamma).
+\mathcal{L}_{\text{OB-RL}}(\theta)=-\mathbb{E}_{(x,\tau)\sim\pi_\theta}\bigl[R(\tau)\log\pi_\theta(\tau|x)\bigr].
 $$
 
-  The SimPO loss is:
+**Limitations**: high-variance gradients, acute credit assignment (valid steps wasted if final answer wrong), “vanishing gradient regime” early in training, and **causal validity blindness** (lucky guesses/shortcuts rewarded as rigorous proofs) [source:arxiv:2507.04136].
+
+**Chain-of-Thought Reward Optimization (CoT-RO)** [source:arxiv:2507.04136] provides dense step-wise rewards $r_t$ from a Process Reward Model (PRM):  
 
 $$
-\mathcal{L}_{\text{SimPO}}(\pi_\theta) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \frac{\beta}{|y_w|} \log \pi_\theta(y_w \mid x) - \frac{\beta}{|y_l|} \log \pi_\theta(y_l \mid x) - \gamma \right) \right].
+\mathcal{L}_{\text{CoT-RO}}(\theta)=-\mathbb{E}_{(x,\tau)\sim\pi_\theta}\Bigl[\sum_{t=1}^T\gamma^{t-1}r_t\log\pi_\theta(y_t|x,y_{<t})\Bigr].
 $$
 
-  [source:arxiv:2405.14734].
-- **Advantages**:
-  - **Reference-free**: SimPO eliminates the need for a reference model, reducing memory usage and computational cost.
-  - **Length bias mitigation**: The length-normalized reward reduces the correlation between response length and reward, mitigating length exploitation.
-  - **Performance**: SimPO outperforms DPO and its variants on benchmarks like AlpacaEval 2 and Arena-Hard, achieving state-of-the-art results for sub-10B models [source:arxiv:2405.14734].
-- **Limitations**:
-  - **Hyperparameter sensitivity**: SimPO introduces a target margin $\gamma$, which must be carefully tuned to avoid over- or under-optimization.
-  - **Theoretical gaps**: The convergence properties of SimPO are not rigorously analyzed, and its behavior under distribution shift is not well understood.
-  - **Task-specific performance**: SimPO degrades performance on reasoning-heavy tasks like GSM8K, suggesting it may not generalize well to all domains [source:arxiv:2405.14734].
+**Limitations**: PRM training often requires expensive step-level human annotation; “bias of proxy rewards” (confident tone $\neq$ logical validity) integrates over trajectory length causing “reasoning hacking”; “oversight scalability gap” for distinguishing necessary deductions from plausible hallucinations [source:arxiv:2507.04136].
 
-### Other DPO Variants
-Several variants of DPO have been proposed to address specific limitations:
-- **Identity Preference Optimization (IPO)**: Replaces the Bradley-Terry model with a squared loss to avoid overfitting to the preference data. The objective is designed to improve generalization by penalizing large deviations from the reference model [source:arxiv:2305.18290].
-- **Kahneman-Tversky Optimization (KTO)**: Optimizes for human utility rather than pairwise preferences, using a loss function inspired by prospect theory. The method is described in [source:arxiv:2405.14734] as a way to align models with human-like decision-making under uncertainty.
+**Verifier-Guided RL (V-RL)** [source:arxiv:2507.04136] uses an external verifier $V_\phi$ (learned, heuristic, or tool) as reward:  
 
----
+$$
+\mathcal{L}_{\text{V-RL}}(\theta)=-\mathbb{E}_{(x,\tau)\sim\pi_\theta}\bigl[V_\phi(x,\tau)\log\pi_\theta(\tau|x)\bigr].
+$$
 
-## RLAIF: Reinforcement Learning from AI Feedback
+**Limitations**: “verification–generation asymmetry”—policy optimization can degrade into adversarial attack on $V_\phi$ (“Adversarial Goodharting”); overly strict verifier stifles exploration; compute doubles (every sample scored by $V_\phi$); scalable oversight for subjective tasks remains open [source:arxiv:2507.04136].
 
-RLAIF replaces human feedback with AI-generated feedback, reducing the cost and scalability limitations of RLHF while preserving alignment with human preferences. The core idea is to use a strong LLM (e.g., GPT-4) as a "judge" to evaluate model outputs and provide preference labels or critiques.
+**GRPO (Group Relative Policy Optimization)** [source:arxiv:2507.04136][source:arxiv:2509.16679] removes the critic by normalizing rewards within a group of $G$ samples per prompt:  
 
-### Constitutional AI (CAI)
-- **Core problem**: RLHF requires tens of thousands of human preference labels to train reward models, which is costly, opaque, and difficult to scale. Additionally, human feedback may not generalize well to novel or adversarial prompts [source:arxiv:2212.08073].
-- **Method**: CAI replaces human harmlessness labels with a "constitution"—a short list of natural language principles (e.g., "Do not generate harmful or offensive content"). The pipeline consists of two stages:
-  1. **Supervised Learning (SL-CAI)**:
-     - Generate responses to red-teaming prompts using a helpful RLHF model.
-     - Critique the responses using a randomly sampled constitutional principle (e.g., "Identify harmful content in this response").
-     - Revise the responses based on the critique.
-     - Repeat the critique-revision process multiple times per prompt.
-     - Fine-tune the model via supervised learning on the final revised responses, combined with helpfulness prompts.
-  2. **Reinforcement Learning (RL-CAI)**:
-     - Generate response pairs for prompts using the SL-CAI model.
-     - Use a feedback model (e.g., a strong LLM) to evaluate which response is less harmful based on the constitutional principles.
-     - Mix these AI-generated harmlessness labels with human helpfulness labels to train a preference model (PM).
-     - Optimize the SL-CAI model via RL (e.g., PPO) using the PM as the reward signal.
-- **Key innovations**:
-  - **Chain-of-thought (CoT) prompting**: The feedback model uses CoT reasoning to improve evaluation accuracy. To prevent overconfidence, the feedback model's output probabilities are clamped to the interval $[0.40, 0.60]$ [source:arxiv:2212.08073].
-  - **Principle sampling**: Constitutional principles are randomly sampled during training to encourage robustness and generalization.
-- **Advantages**:
-  - **Scalability**: CAI eliminates the need for human harmlessness labels, significantly reducing data collection costs.
-  - **Transparency**: The constitutional principles are interpretable and can be refined by diverse stakeholders.
-  - **Performance**: RL-CAI achieves higher harmlessness scores than standard RLHF while maintaining comparable helpfulness [source:arxiv:2212.08073].
-- **Limitations**:
-  - **Helpfulness dependence**: CAI still requires human feedback for helpfulness, though full automation is a long-term goal.
-  - **Principle selection**: The constitutional principles are selected ad hoc and may not cover all edge cases or cultural contexts.
-  - **Over-optimization**: CAI can produce overly preachy or boilerplate responses if the feedback model is miscalibrated.
-  - **Dual-use risks**: Reducing human oversight lowers the barrier to training potentially pernicious systems.
+$$
+\hat{A}_i^{\text{GR}}=\frac{r(a_i)-\mu}{\sigma},\qquad \mathcal{L}^{\text{GRPO}}(\theta)=\mathbb{E}_{(s,\{a_i\})\sim\pi_{\theta_{\text{old}}}}\Bigl[\frac1G\sum_{i=1}^G\min\bigl(r_i(\theta)\hat{A}_i^{\text{GR}},\text{clip}(r_i(\theta),1-\epsilon,1+\epsilon)\hat{A}_i^{\text{GR}}\bigr)\Bigr].
+$$
 
----
+Reduces memory to **2 model copies** ($\pi,\pi_{\text{ref}}$) vs. PPO’s 4, but converts memory bottleneck into **compute bottleneck** (requires $G\ge 64$ for stable $\sigma$ estimation) and suffers **singularity in homogeneous reward regimes** ($\sigma\to 0$ when all rewards identical) [source:arxiv:2507.04136][source:cameronrwolfe:online-versus-offline-rl-for-llms].
 
-## RLVR: Reinforcement Learning from Verifiable Rewards
+**Empirical RLVR results** [source:arxiv:2509.16679] (Table 1): DeepSeek-R1-Zero gains +31.8 AIME2024, +14.2 GPQA-Diamond, +13.8 LiveCodeBench, +5.7 MATH-500 over base; DeepSeek-R1 (with SFT+RL) adds +40.6 AIME, +29.7 LiveCodeBench; OpenAI-o1-1217 reaches +70.2 AIME, +25.8 GPQA, +30.5 LiveCodeBench. **Critical debate** [source:arxiv:2509.16679]: “It remains debated whether RLVR truly expands LLM reasoning capabilities beyond pre-training or merely amplifies high-reward outputs already present in the base model’s distribution. Some studies suggest RLVR models primarily improve sampling efficiency of correct reasoning paths, with all generated paths existing in the base model’s sampling distribution, implying inherent limitations by the base model.”
 
-RLVR replaces learned reward models with verifiable reward functions, which are deterministic, interpretable, and grounded in formal specifications. This approach is particularly useful for domains where human preferences are difficult to elicit or where safety and correctness are critical. Key applications include:
-- **Code execution**: Reward models for code generation can execute the generated code and assign rewards based on correctness, efficiency, or adherence to specifications [source:arxiv:2405.14734].
-- **Mathematical reasoning**: Reward models for math problems can verify the correctness of solutions using symbolic computation or formal proofs [source:arxiv:2405.14734].
-- **Tool use**: Reward models for agentic tasks can check whether the model correctly uses tools (e.g., APIs, calculators) to achieve the desired outcome [source:arxiv:2405.14734].
-- **Safety constraints**: Verifiable rewards can enforce hard constraints (e.g., "do not generate harmful code") that are difficult to capture with learned reward models [source:arxiv:2405.14734].
+## Offline RL for multi-step reasoning
 
-### Advantages
-- **Interpretability**: Verifiable rewards are transparent and can be audited for correctness.
-- **Scalability**: Reward functions can be applied to arbitrary inputs without human annotation, enabling large-scale training.
-- **Safety**: Verifiable rewards can enforce hard constraints that are difficult to capture with learned reward models.
+Offline RL methods learn from static datasets without on-policy rollouts, addressing the sample-efficiency and infrastructure cost of online PPO/GRPO.
 
-### Challenges
-- **Domain specificity**: Verifiable rewards are often tailored to specific tasks (e.g., code generation) and may not generalize to open-ended domains.
-- **Reward hacking**: Models may exploit flaws in the reward function (e.g., generating code that passes tests but is insecure or inefficient).
-- **Implementation complexity**: Designing and implementing verifiable rewards requires domain expertise and may be computationally expensive.
+**OREO (Offline Reasoning Optimization)** [source:aclanthology:offline-reinforcement-learning-for-llm-m] builds on Path Consistency Learning (PCL), enforcing the telescoped soft Bellman equation  
 
----
+$$
+V_\phi(s_t)=R_t-\beta\sum_{i=t}^{T-1}\log\frac{\pi_\theta(a_i|s_i)}{\pi_{\text{ref}}(a_i|s_i)},\qquad R_t=\sum_{i=t}^{T-1}r(s_i,a_i),
+$$
 
-## Offline RL for LLMs: Preference Optimization Without Reward Models
+with value loss $\mathcal{L}_V(\phi)=\frac1T\sum_t\bigl(V_\phi(s_t)-R_t+\beta\sum_{i=t}^{T-1}\log\frac{\pi_\theta(a_i|s_i)}{\pi_{\text{ref}}(a_i|s_i)}\bigr)^2$ and policy loss derived from the same consistency condition. Three granularities: **token-level** (standard), **step-level** (action = reasoning step), **response-level** (mimics DPO at $s_0$). On Qwen-2.5-Math 1.5B: OREO achieves **5.2% relative gain on GSM8K**, **10.5% on MATH** (52.5% absolute) vs. SFT; on DeepSeekMath 7B: +3.6% GSM8K, +5.1% MATH. Iterative OREO (re-sampling with updated policy) shows steady gains over 3 iterations where baselines saturate. Learned $V_\phi$ enables test-time beam search: $B=7$ gives **+11.4% GSM8K**, **+17.9% MATH** relative improvement [source:aclanthology:offline-reinforcement-learning-for-llm-m].
 
-Offline RL methods optimize policies using static datasets of trajectories, eliminating the need for in-loop sampling or reward models. These methods are particularly useful for LLMs, where online interaction with the environment (e.g., generating outputs during training) is computationally expensive.
+**ILQL (Implicit Language Q-Learning)** and **VerifierQ** [source:arxiv:2507.04136] apply offline Q-learning with Conservative Q-Learning (CQL) regularization:  
 
-### Key Methods
-1. **Behavioral Cloning (BC)**:
-   - **Objective**: Train the policy to mimic the behavior in the offline dataset via supervised learning.
-   - **Use case**: Initializing the policy for RL fine-tuning (e.g., SFT in RLHF).
-   - **Limitations**: BC cannot improve upon the dataset's behavior and may suffer from distribution shift.
-2. **Implicit Language Q-Learning (ILQL)**:
-   - **Objective**: Combine offline RL with language modeling by training a Q-function to predict the value of token sequences. This method is described in [source:arxiv:2206.01389] as a way to fine-tune LLMs for dialogue generation without explicit reward modeling.
+$$
+\mathcal{L}_{\text{ILQL}}=\mathcal{L}_{\text{TD}}+\alpha\mathcal{L}_{\text{conservatism}},\qquad \mathcal{L}_{\text{VerifierQ}}=\mathcal{L}_{\text{Bellman}}+\beta\mathcal{L}_{\text{CQL}},
+$$
 
-### Advantages of Offline RL
-- **Stability**: Offline RL avoids the instability of online RL algorithms like PPO, which can suffer from catastrophic forgetting or mode collapse.
-- **Efficiency**: Offline RL does not require in-loop sampling, reducing computational cost and memory usage.
-- **Safety**: Offline RL can be used to fine-tune models without deploying them in the real world, reducing risks like reward hacking or harmful outputs.
+$$
+\mathcal{L}_{\text{CQL}}=\mathcal{L}_{\text{Bellman}}+\alpha\Bigl(\mathbb{E}_{(s,a)\sim\mu}[Q_\theta(s,a)]-\mathbb{E}_{(s,a)\sim\mathcal{D}}[Q_\theta(s,a)]\Bigr).
+$$
 
-### Limitations of Offline RL
-- **Dataset dependence**: Offline RL cannot discover behaviors not present in the dataset, limiting its ability to generalize.
-- **Distribution shift**: Policies trained via offline RL may perform poorly when deployed in environments that differ from the training data.
-- **Reward design**: Offline RL still requires a reward function (or preference labels), which may be difficult to design or learn.
+**Stated limitations** [source:arxiv:2507.04136]: intrinsically limited by offline dataset support; overestimation bias from Bellman max yields “delusional value estimation” for OOD tokens; learned value upper-bounded by static data quality; better for “alignment constraints” (suppressing bad behaviors) than complex reasoning requiring on-policy exploration.
 
----
+## Online vs. offline: the performance–efficiency trade-off
 
-## Current Status and Trajectory
+Wolfe [source:cameronrwolfe:online-versus-offline-rl-for-llms] frames the central tension: PPO-based RLHF is **online** (requires on-policy rollouts from current policy), incurring orchestration complexity, stability issues, and **4-model memory footprint** ($\pi,\pi_{\text{ref}},r_\phi,V_\psi\approx 4N$ params). REINFORCE and GRPO reduce this; GRPO without RM (common in RLVR) stores **only 2 copies** ($\pi,\pi_{\text{ref}}$). Offline alternatives—**Rejection Sampling / Best-of-N**, **SuperHF**, **ReST**, **RWR**, **RAFT**, **DPO**, **DRO**, **KTO**, **OREO**—avoid on-policy generation but **“tend to come at a cost in performance compared to online RL, creating an online-offline performance gap.”** [source:cameronrwolfe:online-versus-offline-rl-for-llms]. The same source notes LIMA aligned a model with **only 1K curated SFT examples**, while Tulu-3 uses **~1M SFT examples** and Llama-2 used **four rounds of rejection sampling before RLHF**. **Disagreement**: [source:arxiv:2507.04136] states DPO “may be less effective at exploring diverse outputs compared to traditional RL” and has an “open gap in robustness to label noise,” whereas [source:arxiv:2305.18290] reports DPO *dominates* PPO on reward–KL frontier and shows greater robustness to sampling temperature. [source:arxiv:2509.16679] notes GRPO “can suffer from low data utilization (models struggle with hard samples) and text bias (models ignore images and rely only on text),” a failure mode not highlighted in the GRPO-centric [source:arxiv:2507.04136].
 
-### RLHF: The Default Paradigm, but Facing Challenges
-- **Status**: RLHF is the dominant approach for aligning LLMs with human preferences, used by organizations like OpenAI, Anthropic, and DeepMind. It has demonstrated significant improvements in helpfulness, truthfulness, and harmlessness across multiple domains [source:arxiv:2203.02155][source:arxiv:2212.08073].
-- **Trajectory**: RLHF is likely to remain the default paradigm in the near term, but its limitations are driving research into alternatives:
-  - **Scalability**: The cost of human annotation and the computational expense of PPO are major bottlenecks. Efforts to reduce annotation costs (e.g., active learning, semi-supervised learning) and improve PPO efficiency (e.g., distributed training, mixed precision) are ongoing.
-  - **Stability**: PPO's sensitivity to hyperparameters and reward model miscalibration remains a challenge. Techniques like reward model ensembling, iterative reward modeling, and adaptive KL penalties are being explored.
-  - **Generalization**: RLHF models often overfit to the preferences of a specific group of annotators or the limitations of the reward function. Research into diverse and representative preference data, as well as robust reward modeling, is active.
-  - **Alignment tax**: The trade-off between alignment and performance on standard benchmarks (e.g., MMLU) is not fully resolved. Methods like PPO-ptx mitigate this but do not eliminate it [source:arxiv:2203.02155].
+## Current status and trajectory
 
-### DPO and Offline PO: Rising Stars
-- **Status**: DPO and its variants (e.g., SimPO, IPO, KTO) have gained significant traction due to their simplicity, stability, and computational efficiency. DPO is now a standard baseline in preference optimization research and is used in production by some organizations [source:arxiv:2305.18290][source:arxiv:2405.14734].
-- **Trajectory**: Offline PO methods are likely to become the default for preference optimization in the near term, particularly for smaller models and resource-constrained settings. Key trends include:
-  - **Reference-free optimization**: SimPO and other reference-free methods are reducing memory and computational overhead, making offline PO more scalable [source:arxiv:2405.14734].
-  - **Length bias mitigation**: Methods like SimPO are addressing the length bias problem, improving the quality of generated outputs [source:arxiv:2405.14734].
-  - **Theoretical foundations**: Research into the convergence properties, generalization bounds, and reward hacking dynamics of offline PO is ongoing.
-  - **Hybrid approaches**: Combining offline PO with online RL (e.g., iterative DPO) is being explored to balance efficiency and performance.
+| Technique | Trajectory | Evidence grounding |
+|-----------|------------|-------------------|
+| **RLHF (PPO)** | **Default but fading for frontier reasoning** | Still the canonical alignment pipeline [source:arxiv:2204.05862][source:en:reinforcement-learning-from-human-feedba]; however, 4-model memory bottleneck [source:arxiv:2507.04136], instability at long horizons [source:arxiv:2509.16679], and rise of RLVR/GRPO for reasoning tasks suggest declining centrality for *capability* work (remains standard for *safety/alignment* tuning). |
+| **RLAIF / Constitutional AI** | **Rising for scalable oversight** | Adopted by major labs (Anthropic, Google) for reducing human annotation cost [source:arxiv:2507.04136]; recursive bias amplification and critique–revision gap remain unresolved [source:arxiv:2507.04136]. |
+| **DPO / Offline PO (DRO, KTO, UNA)** | **Default for preference tuning; rising for reasoning via iterative variants** | DPO is widely implemented (HF TRL, Axolotl) and matches PPO on many benchmarks [source:arxiv:2305.18290]; DRO shows strong single-trajectory results on T5-scale [source:arxiv:2405.19107]; UNA provides unification but “exploration deficit” limits reasoning use [source:arxiv:2507.04136]. Iterative DPO (e.g., SPIN, not in sources) not widely reported in these surveys. |
+| **RLVR (OB-RL, CoT-RO, V-RL, GRPO)** | **Rapidly rising / dominant for reasoning** | DeepSeek-R1, OpenAI-o1, Gemini 2.5-Pro all use verifiable-reward RL [source:arxiv:2509.16679]; GRPO adopted in open-source (DeepSeek, Qwen) for memory efficiency [source:arxiv:2507.04136][source:cameronrwolfe:online-versus-offline-rl-for-llms]. **Core debate unresolved**: whether RLVR expands reasoning *capability* or merely *sampling efficiency* of pre-existing paths [source:arxiv:2509.16679]. |
+| **Offline RL for reasoning (OREO, ILQL, VerifierQ)** | **Niche but promising for data-constrained settings** | OREO shows strong gains on math/agent tasks at 1.5B–7B scale [source:aclanthology:offline-reinforcement-learning-for-llm-m]; ILQL/VerifierQ limited by offline support and overestimation bias [source:arxiv:2507.04136]. Not widely reported at frontier scale ($> 100$B). |
+| **Rejection Sampling / Best-of-N / Iterative SFT** | **Default data-curation primitive** | Used in Llama-2 (4 rounds) [source:cameronrwolfe:online-versus-offline-rl-for-llms], Tulu-3, and as pre-RL filter; not a standalone *policy optimization* method but a critical pipeline component. |
 
-**Disagreement**: While DPO and SimPO have demonstrated strong empirical performance, their theoretical foundations are less mature than those of RLHF. Some researchers argue that offline PO methods may lack the flexibility to handle complex or dynamic preferences, while others contend that their simplicity and efficiency make them preferable for most use cases. The debate is unresolved, and empirical comparisons on large-scale models and diverse tasks are needed to settle it.
+**Hedges**: “Not widely reported” at frontier scale for OREO/ILQL/VerifierQ; DPO scaling to $> 100$B “exciting future direction” per original authors [source:arxiv:2305.18290]; RLVR’s *capability expansion* vs. *sampling efficiency* “remains debated” [source:arxiv:2509.16679]; GRPO’s text-bias and low-utilization issues “not widely reported” in other sources.
 
-### RLAIF: Gaining Ground, but Not Yet Default
-- **Status**: RLAIF has shown promise as a scalable alternative to RLHF, particularly for harmlessness alignment (e.g., CAI) and automated evaluation (e.g., LLM-as-a-judge). It is used in research and some production systems but is not yet as widely adopted as RLHF or DPO [source:arxiv:2212.08073][source:arxiv:2305.18290].
-- **Trajectory**: RLAIF is likely to grow in popularity as models become more capable and the cost of human annotation becomes prohibitive. Key trends include:
-  - **Automation**: Efforts to fully automate preference labeling (e.g., using synthetic data or self-play) are ongoing, though human oversight is still required for safety-critical applications.
-  - **Principle design**: Research into designing and refining constitutional principles for CAI is active, with a focus on interpretability, cultural sensitivity, and robustness.
-  - **Judge calibration**: Techniques to improve the calibration and robustness of LLM judges (e.g., CoT prompting, probability clamping, ensembling) are being developed.
-  - **Hybrid feedback**: Combining human and AI feedback (e.g., using AI feedback for harmlessness and human feedback for helpfulness) is a promising direction for balancing cost and quality.
+## Key takeaways
 
-**Disagreement**: The reliability of AI feedback is a major point of contention. While LLM judges like GPT-4 achieve high agreement with human annotators on some tasks, they exhibit biases, prompt sensitivity, and poor generalization to out-of-distribution settings [source:arxiv:2402.10770]. Some researchers argue that AI feedback is sufficient for many applications, while others contend that human oversight is still necessary for safety and fairness. The debate is unresolved, and more rigorous meta-evaluations of LLM judges are needed.
+- **RLHF (PPO)** remains the *reference* alignment pipeline but is memory-heavy (4 models), unstable at long horizons, and increasingly supplanted by RLVR for reasoning tasks.
+- **RLAIF / Constitutional AI** trades human cost for recursive bias risk; critique–revision gap limits effectiveness below $\sim 50$B params.
+- **DPO** eliminates RM+PPO with a simple offline loss, matching PPO on many benchmarks but with **open robustness gaps** on noisy labels and length bias; DRO extends to single-trajectory data with learned value function.
+- **RLVR (verifiable rewards)** is the **dominant paradigm for reasoning**: OB-RL (sparse), CoT-RO (dense/PRM), V-RL (external verifier), GRPO (critic-free). **Fundamental question unsettled**: does it *expand* reasoning capability or only *amplify* existing high-reward paths?
+- **GRPO** reduces memory to 2 models but requires large group sizes ($G\ge 64$), converting memory pressure into compute pressure; fails catastrophically when group rewards are homogeneous ($\sigma\to 0$).
+- **Offline RL (OREO, ILQL, VerifierQ)** enables learning from static multi-step datasets with credit assignment via value functions; strong at small scale, **not validated at frontier scale**.
+- **Online–offline performance gap** persists: on-policy methods (PPO, GRPO) still lead on hardest reasoning, but offline methods (DPO, DRO, OREO) close the gap for alignment and some reasoning tasks with far lower infrastructure cost.
 
-### RLVR: Niche but Growing
-- **Status**: RLVR is used in specialized domains like code generation, mathematical reasoning, and agentic tasks, where verifiable rewards are feasible. It is not yet widely adopted for open-ended domains like dialogue or creative writing.
-- **Trajectory**: RLVR is likely to grow in domains where safety and correctness are critical, such as:
-  - **Code generation**: Verifiable rewards for code execution are becoming standard for fine-tuning LLMs for programming tasks [source:arxiv:2405.14734].
-  - **Mathematical reasoning**: Verifiable rewards for theorem proving and symbolic computation are improving the performance of LLMs on math benchmarks [source:arxiv:2405.14734].
-  - **Agentic tasks**: Verifiable rewards for tool use and environment interaction are enabling LLMs to act as agents in real-world settings [source:arxiv:2405.14734].
-  - **Safety-critical applications**: Verifiable rewards can enforce hard constraints (e.g., "do not generate harmful content") that are difficult to capture with learned reward models [source:arxiv:2405.14734].
+## Related topics
 
-**Disagreement**: The scalability of RLVR to open-ended domains is debated. Some researchers argue that verifiable rewards are inherently limited to structured tasks, while others contend that advances in formal verification and program synthesis will enable RLVR for broader applications. The debate is unresolved, and more research into hybrid reward modeling (e.g., combining verifiable and learned rewards) is needed.
-
----
-
-## Key Trade-offs and Design Choices
-
-| **Dimension**               | **RLHF**                          | **DPO/Offline PO**                | **RLAIF**                          | **RLVR**                          |
-|-----------------------------|-----------------------------------|-----------------------------------|------------------------------------|-----------------------------------|
-| **Human annotation cost**   | High (tens of thousands of labels)| Low (static dataset)              | Low (AI feedback)                  | None (verifiable rewards)         |
-| **Computational cost**      | High (PPO, in-loop sampling)      | Low (supervised learning)         | Medium (AI feedback generation)    | Medium (reward computation)       |
-| **Stability**               | Low (PPO is sensitive)            | High (supervised learning)        | Medium (depends on AI feedback)    | High (deterministic rewards)      |
-| **Flexibility**             | High (can explore new behaviors)  | Low (limited by dataset)          | Medium (depends on AI feedback)    | Low (limited by reward function)  |
-| **Generalization**          | Medium (depends on reward model)  | Medium (depends on dataset)       | Medium (depends on AI feedback)    | High (deterministic rewards)      |
-| **Reward hacking risk**     | High (learned reward model)       | Medium (implicit reward)          | Medium (AI feedback bias)          | Low (verifiable rewards)          |
-| **Alignment tax**           | Medium (PPO-ptx mitigates)        | Low (no pretraining gradient)     | Low (depends on feedback)          | Low (task-specific)               |
-| **Interpretability**        | Low (learned reward model)        | Medium (implicit reward)          | Medium (AI feedback)               | High (verifiable rewards)         |
-| **Scalability**             | Low (PPO is expensive)            | High (supervised learning)        | Medium (AI feedback generation)    | Medium (reward computation)       |
-
----
-
-## Key Takeaways
-- **RLHF is the default paradigm** for aligning LLMs with human preferences, but it is computationally expensive, unstable, and requires large-scale human annotation. PPO-ptx mitigates the alignment tax but does not eliminate it [source:arxiv:2203.02155][source:arxiv:2405.14734].
-- **DPO and offline PO methods** are rising stars due to their simplicity, stability, and efficiency. SimPO addresses DPO’s limitations by eliminating the reference model and mitigating length bias, achieving state-of-the-art performance on benchmarks like AlpacaEval 2 [source:arxiv:2305.18290][source:arxiv:2405.14734].
-- **RLAIF is gaining ground** as a scalable alternative to RLHF, particularly for harmlessness alignment (e.g., CAI) and automated evaluation (e.g., LLM-as-a-judge). However, the reliability of AI feedback remains a major challenge [source:arxiv:2212.08073][source:arxiv:2402.10770].
-- **RLVR is niche but growing** in domains where verifiable rewards are feasible (e.g., code generation, mathematical reasoning). It offers high interpretability and safety but is limited to structured tasks [source:arxiv:2405.14734].
-- **Key trade-offs** include human annotation cost, computational cost, stability, flexibility, generalization, reward hacking risk, alignment tax, interpretability, and scalability. The choice of method depends on the specific use case and constraints.
-- **Open challenges** include reward hacking, generalization to out-of-distribution settings, alignment tax, scalability of human annotation, and the reliability of AI feedback. Hybrid approaches (e.g., combining offline PO with online RL, or verifiable rewards with learned rewards) are promising directions for future research.
-
----
-
-## Related Topics
 - [PPO for LLM fine-tuning (RLHF)](ppo-for-llms.md)
 - [Direct Preference Optimization and variants](dpo-and-preference-optimization.md)
+- [GRPO (Group Relative Policy Optimization)](grpo.md)
 - [Reward modeling for LLMs](reward-modeling.md)
+- [RL for reasoning models](rl-for-reasoning.md)
+- [Policy gradient methods for LLMs](policy-gradient-methods.md)
+- [KL regularization in RLHF](kl-regularization.md)
+- [MDP formulation of LLM generation](mdp-formulation.md)
 - [The RLHF/PPO pipeline](rlhf-ppo-pipeline.md)
 - [DPO variants deep-dive](dpo-variants.md)
 - [RLAIF (RL from AI feedback)](rlaif.md)
 - [Rejection sampling and Best-of-N](rejection-sampling-and-bon.md)
-- [KL regularization in RLHF](kl-regularization.md)
+- [Nash and game-theoretic preference optimization](nash-and-game-theoretic-po.md)
+- [Self-improvement and self-play RL](self-improvement-and-self-play.md)
+- [Process vs outcome reward models](process-vs-outcome-rewards.md)
 - [Reward hacking in RLHF](reward-hacking.md)
 - [Reward model over-optimization](reward-model-overoptimization.md)
 - [Verifiable rewards (RLVR)](verifiable-rewards.md)
@@ -337,20 +208,23 @@ Offline RL methods optimize policies using static datasets of trajectories, elim
 - [Length and format bias](length-and-format-bias.md)
 - [The alignment tax](alignment-tax.md)
 - [Over-optimization and mode collapse](overoptimization-and-mode-collapse.md)
+- [Sycophancy and misgeneralization](sycophancy-and-misgeneralization.md)
 - [LLM-as-judge](llm-as-judge.md)
 - [Alignment and win-rate evals](alignment-and-winrate-evals.md)
 - [Judging bias and contamination](judging-bias-and-contamination.md)
 - [Distributed RL training for LLMs](distributed-rl-training.md)
+- [Async and off-policy RL](async-and-off-policy-rl.md)
+- [Rollout generation infrastructure](rollout-generation-infra.md)
 - [RL for math and code](rl-for-math-and-code.md)
 - [Agentic and tool-use RL](agentic-and-tool-use-rl.md)
-
----
-
-##
+- [Test-time compute and RL interplay](test-time-and-rl-interplay.md)
 
 ## References
-- [source:arxiv:2203.02155] [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155)
-- [source:arxiv:2212.08073] [Constitutional AI: Harmlessness from AI Feedback](https://arxiv.org/abs/2212.08073)
+- [source:arxiv:2507.04136] [A Technical Survey of Reinforcement Learning Techniques for Large Language Models](https://arxiv.org/html/2507.04136v1)
+- [source:arxiv:2509.16679] [Reinforcement Learning Meets Large Language Models: A Survey of Advancements and Applications Across the LLM Lifecycle](https://arxiv.org/html/2509.16679v1)
+- [source:aclanthology:offline-reinforcement-learning-for-llm-m] [Offline Reinforcement Learning for LLM Multi-step Reasoning](https://aclanthology.org/2025.findings-acl.464.pdf)
+- [source:cameronrwolfe:online-versus-offline-rl-for-llms] [Online versus Offline RL for LLMs](https://cameronrwolfe.substack.com/p/online-rl)
+- [source:arxiv:2405.19107] [Offline Regularised Reinforcement Learning for Large Language Models Alignment](https://arxiv.org/html/2405.19107v1)
+- [source:en:reinforcement-learning-from-human-feedba] [Reinforcement learning from human feedback](https://en.wikipedia.org/wiki/Reinforcement_learning_from_human_feedback)
 - [source:arxiv:2305.18290] [Direct Preference Optimization: Your Language Model is Secretly a Reward Model](https://arxiv.org/abs/2305.18290)
-- [source:arxiv:2405.14734] [SimPO: Simple Preference Optimization with a Reference-Free Reward](https://arxiv.org/abs/2405.14734)
-- [source:arxiv:2402.10770] [How Reliable Are Automatic Evaluation Methods for Instruction-Tuned LLMs?](https://arxiv.org/abs/2402.10770)
+- [source:arxiv:2204.05862] [Training a Helpful and Harmless Assistant with Reinforcement Learning from Human Feedback](https://arxiv.org/abs/2204.05862)

@@ -10,7 +10,7 @@ _Auto-generated 2026-07-11._
 - ✅ [Policy gradient methods for LLMs](topics/policy-gradient-methods.md)
 - ✅ [KL regularization in RLHF](topics/kl-regularization.md)
 - ✅ [MDP formulation of LLM generation](topics/mdp-formulation.md)
-- ⬜ RL for LLMs — overview
+- ✅ [RL for LLMs — overview](topics/rl-for-llms-overview.md)
 - ⬜ The RLHF/PPO pipeline
 - ⬜ DPO variants deep-dive
 - ⬜ RLAIF (RL from AI feedback)

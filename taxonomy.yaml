@@ -35,7 +35,7 @@ topics:
 - slug: rl-for-llms-overview
   title: RL for LLMs — overview
   notes: 'The landscape: RLHF, RLAIF, RLVR, offline PO'
-  status: empty
+  status: done
 - slug: rlhf-ppo-pipeline
   title: The RLHF/PPO pipeline
   notes: SFT -> reward model -> PPO; InstructGPT recipe
