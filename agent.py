@@ -714,14 +714,20 @@ def fact_check(topic: dict, article: str, distilled: list[dict]) -> list[str]:
 
 
 def revise(topic: dict, article: str, issues: list[str], distilled: list[dict],
-           tax: dict) -> tuple[str, list[str]]:
+           tax: dict, preserve: bool = False) -> tuple[str, list[str]]:
     corpus = "\n\n".join(f"[source:{d['id']}] {d['title']}\n{d['summary']}"
                          for d in distilled)
     fixes = "\n".join(f"- {i}" for i in issues)
-    prompt = (f"Revise this wiki article to fix the issues below. Keep what is good; "
-              f"output the FULL improved article (same format: [source:<id>] citations, "
+    keep = ("PRESERVE MODE: fix ONLY the specific issues listed below (broken LaTeX and "
+            "ungrounded claims). Preserve every other sentence, section, table, equation, "
+            "and [source:<id>] citation VERBATIM. Do NOT shorten, summarize, merge, drop, "
+            "or restructure any content that is not named in an issue.\n"
+            if preserve else
+            "Keep what is good; output the FULL improved article.\n")
+    prompt = (f"Revise this wiki article to fix the issues below. {keep}"
+              f"Output the article in the same format: [source:<id>] citations, "
               f"'## Current status and trajectory', '## Key takeaways', '## Related "
-              f"topics', then an 'OPEN_QUESTIONS:' trailer).\n"
+              f"topics', then an 'OPEN_QUESTIONS:' trailer.\n"
               f"Output ONLY the article itself — start directly with the content. Do NOT "
               f"add any preamble, greeting, or list of changes you made.\n"
               f"For any issue marked [grounding], the claim is NOT supported by its cited "
@@ -839,6 +845,7 @@ def compose(topic: dict, distilled: list[dict], tax: dict, verbose: bool = True,
     """Write (or DEEPEN an existing article if seed_body) -> review + fact-check ->
     revise. Returns (article, open_qs, meta)."""
     slug = topic["slug"]
+    preserve = seed_body is not None     # enrichment: ADD only, never shrink the base article
     tw = time.time()
     if seed_body:
         article, open_qs = deepen(topic, seed_body, distilled, tax)
@@ -853,7 +860,12 @@ def compose(topic: dict, distilled: list[dict], tax: dict, verbose: bool = True,
             f_rev = ex.submit(review, topic, article, open_qs, distilled)
             f_fc = ex.submit(fact_check, topic, article, distilled)
             verdict, grounding = f_rev.result(), f_fc.result()
-        struct = verdict.get("issues") or [] if verdict.get("verdict") != "approve" else []
+        # In enrichment (preserve) mode the base article was already approved at
+        # generation; deepen only ADDS. Acting on the reviewer's structural notes
+        # rewrites (and shrinks) the longer draft, so ignore them and keep only the
+        # grounding + latex guards that protect the NEW material.
+        struct = [] if preserve else (verdict.get("issues") or []
+                                      if verdict.get("verdict") != "approve" else [])
         latex = check_formulas(article)          # deterministic LaTeX validation
         issues = struct + [f"[grounding] {g}" for g in grounding] + [f"[latex] {x}" for x in latex]
         rounds.append({"structural": len(struct), "grounding": len(grounding), "latex": len(latex)})
@@ -862,7 +874,7 @@ def compose(topic: dict, distilled: list[dict], tax: dict, verbose: bool = True,
             break
         log(slug, f"review r{rnd+1}: revise — {len(struct)} structural, {len(grounding)} "
                   f"grounding, {len(latex)} latex ({time.time()-tr:.0f}s)")
-        new_article, new_qs = revise(topic, article, issues, distilled, tax)
+        new_article, new_qs = revise(topic, article, issues, distilled, tax, preserve=preserve)
         article, open_qs = new_article, (new_qs or open_qs)
     return article, open_qs, {"rounds": rounds}
 
