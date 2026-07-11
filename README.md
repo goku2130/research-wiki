@@ -13,7 +13,7 @@ _Auto-generated 2026-07-11._
 - ✅ [RL for LLMs — overview](topics/rl-for-llms-overview.md)
 - ✅ [The RLHF/PPO pipeline](topics/rlhf-ppo-pipeline.md)
 - ⬜ DPO variants deep-dive
-- ⬜ RLAIF (RL from AI feedback)
+- ✅ [RLAIF (RL from AI feedback)](topics/rlaif.md)
 - ⬜ Rejection sampling and Best-of-N
 - ⬜ Nash and game-theoretic preference optimization
 - ⬜ Self-improvement and self-play RL
