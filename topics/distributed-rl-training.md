@@ -3,226 +3,191 @@ title: Distributed RL training for LLMs
 maturity: developing
 updated: '2026-07-11'
 sources:
-- arxiv:2203.02155
-- arxiv:2306.04925
-- arxiv:2307.09288
-- arxiv:2305.18290
-- arxiv:2209.00708
-- arxiv:1909.08053
-- arxiv:2402.03000
-- arxiv:2404.01378
+- arxiv:2507.13833
+- arxiv:2505.24034
+- github:verl-hybridflow-a-flexible-and-efficient
+- arxiv:1802.01561
+- arxiv:2308.01320
+- github:openrlhf-an-easy-fast-and-scalable-rlhf-
+- arxiv:2402.03300
+- arxiv:1707.06347
 open_questions:
-- 'Staleness Tolerance**: What is the maximum synchronization interval for IMPALA-PPO
-  before performance degrades for models >100B parameters?'
-- 'Reward Model Scaling**: Can reward models be scaled to match policy model sizes
-  without becoming a bottleneck?'
-- 'Multi-Turn RLHF**: How can state tracking be incorporated into distributed RLHF
-  pipelines for multi-turn dialogue?'
-- 'Off-Policy Correction**: Are there more efficient methods than importance weighting
-  to correct for staleness in asynchronous PPO?'
+- How does AIPO's per-token importance sampling with clipping $\rho\in[2,10]$ compare
+  to V-trace's dual truncation $(\bar\rho,\bar c)$ in terms of bias-variance tradeoff
+  for LLM policy optimization?
+- Does GRPO's group-based advantage estimation interact adversely with DistFlow's
+  constrained LPT load balancing (which equalizes item counts but not sequence lengths
+  per worker)?
+- What is the optimal DP/TP/PP/precision configuration for the generator vs trainer
+  in co-located offloading when using GRPO (no critic) vs PPO (with critic)?
+- Can DDMA-style zero-copy weight sync be combined with DistFlow's Data Coordinator
+  for DP-size transitions, or does the zero-copy requirement constrain parallelism
+  flexibility?
 ---
 
-# Distributed RL Training for LLMs: Rollout/Learner Split, Sharding, and PPO at Scale
+Distributed RL training for LLMs has evolved from centralized parameter-server architectures into fully decoupled control/data planes that sustain near-linear scaling to hundreds of GPUs. The central tension remains balancing synchronous algorithmic correctness against the throughput gains of asynchronous, off-policy execution.
 
-Reinforcement learning (RL) has emerged as the dominant paradigm for aligning large language models (LLMs) with human preferences, but its computational demands scale superlinearly with model size, batch size, and sequence length. Distributed RL training architectures decompose the problem into specialized, sharded components—decoupling rollout generation from policy optimization—while preserving algorithmic correctness under asynchronous, off-policy conditions. This deep dive dissects the system design, mathematical trade-offs, and empirical scaling behaviors that enable PPO and its variants to train models with tens to hundreds of billions of parameters across thousands of accelerators.
+## Architectural paradigms: rollout/learner split
 
----
+### Centralized controller bottlenecks
+Early RLHF systems (DeepSpeed-Chat, Colossal-AI) used a single controller to orchestrate experience collection, reward computation, and policy updates. DeepSpeed-Chat's Hybrid Engine switches the same model weights between inference (vLLM-style KV-cache, tensor parallelism) and training (ZeRO-3, LoRA) modes [source:arxiv:2308.01320]. This avoids maintaining separate actor/critic copies but forces all tensor movement through the controller, creating O(N) dispatch overhead as GPU count N grows. OpenRLHF similarly relies on a central coordinator with DeepSpeed ZeRO-2/3 and vLLM 0.22.1 for generation [source:github:openrlhf-an-easy-fast-and-scalable-rlhf-].
 
-## 1. The Rollout/Learner Split: Decoupling Generation and Optimization
+### Fully distributed control/data decoupling
+DistFlow eliminates the central controller by splitting responsibilities: **DAG Workers** execute a declarative Directed Acyclic Graph of computational primitives (generation, reward, update), while a **Data Coordinator** independently manages the data lifecycle [source:arxiv:2507.13833]. The DAG Planner linearizes the logical graph and inserts depth-based dependencies to prevent OOM from colocated same-depth nodes. The Data Coordinator provides:
+- **Distributed Dataloader**: each DP rank loads its shard locally
+- **Distributed Databuffer**: redistributes tensors when DP size changes between stages
+- **Local Caching**: avoids Ray object-store round-trips when DP size is constant
+- **Constrained LPT Load Balancing**: assigns variable-length sequences to least-loaded workers while enforcing equal item counts per worker for collective sync
+- **Async Double Buffer**: overlaps data prep with GPU compute
 
-### 1.1 Motivating the Split
-Standard RLHF pipelines, as described in [source:arxiv:2203.02155], employ a three-stage process (supervised fine-tuning, reward modeling, and RLHF) but do not explicitly address the architectural separation of policy sampling and gradient updates. For LLMs, a monolithic design becomes untenable due to memory constraints. While exact memory footprints vary by implementation, a 70B-parameter model typically requires hundreds of gigabytes of accelerator memory for a single forward pass (FP16), and storing rollouts for PPO’s advantage estimation and value function bootstrapping further compounds memory pressure. The rollout/learner split resolves this by offloading generation to dedicated "actor" nodes and optimization to "learner" nodes, enabling horizontal scaling of each component independently.
+LlamaRL adopts a **single-controller event loop** with three decoupled components: **Executors** (self-contained generator/trainer/reward units with independent parallelism/precision), **Communication Channels** (typed links for Broadcast/Scatter/Gather/weight-sync), and a **Controller** that ticks the pipeline [source:arxiv:2505.24034]. This enables **co-located model offloading**: the generator runs on a separate GPU cluster with its own DP/MP/PP and precision (fp8/fp4), fully decoupled from the trainer's parallelism.
 
-### 1.2 System Architecture
-The split introduces three logical components:
-1. **Actors**: Stateless workers that sample trajectories from the current policy $\pi_\theta$ and reward model $r_\phi$. Each actor maintains a local copy of $\pi_\theta$ (periodically synchronized from the learner) and streams completed rollouts to a distributed replay buffer.
-2. **Replay Buffer**: A sharded, fault-tolerant store (e.g., Apache Kafka, Redis Cluster) that decouples actor/learner throughput. Rollouts are keyed by `(prompt_id, trajectory_id)` and include:
-   - Prompt tokens $x$
-   - Sampled response tokens $y \sim \pi_\theta(\cdot|x)$
-   - Per-token log probabilities $\log \pi_\theta(y_t|x,y_{<t})$
-   - Reward model scores $r_\phi(x,y)$
-3. **Learner**: A centralized optimizer that consumes rollouts from the buffer, computes policy/value losses, and updates $\theta$. The learner broadcasts updated policy weights to actors at fixed intervals (e.g., every 1000 steps).
-
-This architecture is inspired by distributed RL designs like IMPALA, adapted for autoregressive generation and LLM-specific constraints.
-
-### 1.3 Mathematical Correctness Under Asynchrony
-The split introduces off-policy bias because actors sample from a stale policy $\pi_{\theta_{\text{old}}}$ while the learner optimizes $\pi_{\theta_{\text{new}}}$. For PPO, this manifests as a mismatch in the clipped objective:
+### Asynchronous actor-learner with off-policy correction
+IMPALA pioneered the decoupled actor-learner pattern for deep RL: actors pull latest policy π, run n-step trajectories with behavior policy μ, push (s,a,r,μ(a|s)) to learner queues; learners batch trajectories and update π via V-trace truncated importance sampling [source:arxiv:1802.01561]. V-trace defines per-timestep weights:
 
 $$
-\mathcal{L}^{\text{CLIP}}(\theta) = \mathbb{E}_{(x,y) \sim \pi_{\theta_{\text{old}}}} \left[ \min \left( \frac{\pi_\theta(y|x)}{\pi_{\theta_{\text{old}}}(y|x)} A^{\theta_{\text{old}}}(x,y), \text{clip}\left(\frac{\pi_\theta(y|x)}{\pi_{\theta_{\text{old}}}(y|x)}, 1-\epsilon, 1+\epsilon\right) A^{\theta_{\text{old}}}(x,y) \right) \right].
+\rho_t = \min(\bar\rho, \pi(a_t|x_t)/\mu(a_t|x_t)), \quad c_i = \min(\bar c, \pi(a_i|x_i)/\mu(a_i|x_i))
 $$
 
-Here, $A^{\theta_{\text{old}}}$ is computed using rollouts from $\pi_{\theta_{\text{old}}}$, but $\pi_\theta$ may have drifted. To bound the bias, practitioners:
-- Limit the policy update magnitude via $\epsilon$ (typically 0.1–0.2).
-- Use short synchronization intervals (e.g., 1000 steps) to minimize staleness.
-- Employ importance weighting for advantage estimation:
+The n-step value target:
 
 $$
-A^{\text{corrected}}(x,y) = \frac{\pi_\theta(y|x)}{\pi_{\theta_{\text{old}}}(y|x)} A^{\theta_{\text{old}}}(x,y).
+v_s = V(x_s) + \sum_{t=s}^{s+n-1} \gamma^{t-s} \Bigl(\prod_{i=s}^{t-1} c_i\Bigr) \delta_t V, \quad \delta_t V = \rho_t(r_t + \gamma V(x_{t+1}) - V(x_t))
 $$
 
-Empirical studies in [source:arxiv:2307.09288] demonstrate that LLaMA-2’s RLHF pipeline maintains performance with synchronization intervals up to 1000 steps, though this tolerance may shrink for larger models or more sensitive tasks.
+Policy gradient uses $\rho_t \nabla \log \pi(a_t|x_t) (r_t + \gamma v_{t+1} - V(x_t))$. Truncation introduces bias toward a policy $\pi_\rho$ between μ and π but controls variance.
 
----
-
-## 2. Sharding Strategies for Distributed RL
-
-### 2.1 Model Parallelism for Policy and Reward Models
-LLMs exceed single-device memory limits, necessitating model parallelism. Two dominant sharding schemes are used:
-
-| **Scheme**               | **Description**                                                                 | **Communication**                          | **Use Case**                          |
-|--------------------------|-------------------------------------------------------------------------------|--------------------------------------------|---------------------------------------|
-| **Tensor Parallelism**   | Split individual layers (e.g., attention heads, MLP blocks) across devices.   | All-reduce per layer (forward/backward).   | Policy models (e.g., Megatron-LM [source:arxiv:1909.08053]). |
-| **Pipeline Parallelism** | Partition layers across devices; micro-batch sequences through the pipeline.  | P2P sends between stages; pipeline bubbles. | Reward models (implementation simplicity). |
-
-**Tensor Parallelism (TP)** is preferred for policy models because:
-- It avoids pipeline bubbles, which are catastrophic for autoregressive generation.
-- It enables efficient attention computation via sharded softmax and all-reduce [source:arxiv:1909.08053].
-- Megatron-LM’s intra-layer partitioning achieves 76% scaling efficiency for 8.3B-parameter models on 512 GPUs.
-
-**Pipeline Parallelism (PP)** is used for reward models because:
-- Reward models are typically smaller (e.g., 6B–13B parameters) and can tolerate bubbles.
-- PP reduces memory fragmentation for non-autoregressive tasks (reward scoring is a single forward pass).
-
-### 2.2 Data Parallelism for Rollout Generation
-Actors generate rollouts in parallel using data parallelism (DP). Each actor:
-1. Samples a prompt from a shared dataset (e.g., Anthropic HH).
-2. Generates a response $y \sim \pi_\theta(\cdot|x)$ using nucleus sampling ($p=0.9$) or temperature scaling.
-3. Scores $y$ with the reward model $r_\phi(x,y)$.
-4. Streams the rollout to the replay buffer.
-
-**Key Challenges**:
-- **Prompt Skew**: Long prompts or high-variance generation lengths create stragglers. Solutions include dynamic batching and truncating long generations.
-- **Reward Model Bottleneck**: Scoring $K$ rollouts per prompt increases latency. Mitigations include sharding the reward model across actors.
-
-### 2.3 Hybrid Sharding for Learners
-Learners combine:
-1. **Model Parallelism**: TP or PP for the policy model.
-2. **Data Parallelism**: DP for the value function and reward model (if trained jointly).
-3. **Optimizer State Sharding**: Techniques like ZeRO-3 (sharded optimizer states and gradients) reduce memory usage, though specific implementations are not detailed in the provided sources.
-
-For example, LLaMA-2’s RLHF pipeline [source:arxiv:2307.09288] uses:
-- PPO with a KL penalty term to prevent over-optimization (exact $\beta$ values are not specified).
-- Rejection sampling (sampling $K$ outputs and selecting the highest-reward candidate).
-- Ghost Attention (GAtt) to preserve multi-turn system instructions by masking loss on intermediate turns.
-
-The AIME 2023 paper [source:arxiv:2306.04925] introduces the Prefer-to-Classify (P2C) framework for text classification using pairwise preferences but does not discuss DeepSpeed-Chat or reward model sharding. Thus, claims about DeepSpeed-Chat’s sharding strategies are unsupported by the provided sources.
-
----
-
-## 3. PPO at Scale: Algorithmic and System Optimizations
-
-### 3.1 Scaling the PPO Objective
-The PPO objective combines policy, value, and entropy terms:
+LlamaRL adapts this to LLM RLHF with **Asynchronous Importance weighted Policy Optimization (AIPO)** [source:arxiv:2505.24034]. The trainer updates π using samples from stale actor μ:
 
 $$
-\mathcal{L}(\theta) = \mathbb{E}_{(x,y) \sim \pi_{\theta_{\text{old}}}} \left[ \mathcal{L}^{\text{CLIP}}(\theta) - c_1 \mathcal{L}^{\text{VF}}(\psi) + c_2 \mathcal{H}(\pi_\theta(x)) \right],
+\sum_{t=1}^T \min\Bigl(\frac{\pi(y_t|x,y_{<t})}{\mu(y_t|x,y_{<t})}, \rho\Bigr) \cdot A(x,y_{\le t}) \nabla \log \pi(y_t|x,y_{<t})
 $$
 
-where:
-- $\mathcal{L}^{\text{CLIP}}$ is the clipped policy loss (Equation 1).
-- $\mathcal{L}^{\text{VF}} = (V_\psi(x,y_{<t}) - R_t)^2$ is the value function loss.
-- $\mathcal{H}(\pi_\theta(x))$ is an entropy bonus to encourage exploration.
+with clipping constant $\rho \in [2,10]$. Baseline for variance reduction: $v(x,y_{<t}) = \frac{1}{n}\sum_{i=1}^n r(x,y_i)$. Without AIPO, async training shows "sporadic instability" and sudden performance drops on complex data mixtures [source:arxiv:2505.24034].
 
-**Scaling Challenges**:
-1. **Reward Variance**: LLMs generate high-variance rewards (e.g., $r_\phi(x,y) \in [-10, 10]$). Solutions include reward normalization and advantage normalization.
-2. **KL Divergence Control**: The KL penalty $\beta D_{\text{KL}}(\pi_\theta \parallel \pi_{\text{ref}})$ prevents mode collapse. [source:arxiv:2203.02155] and [source:arxiv:2307.09288] mention a KL penalty term but do not specify numerical values for $\beta$.
-3. **Value Function Generalization**: The value function $V_\psi(x,y_{<t})$ must generalize across prompts and partial sequences. Techniques include sharing the policy model’s bottom layers with the value function.
+**Disagreement**: DistFlow explicitly avoids async relaxation, arguing it "compromises model convergence and algorithmic correctness" [source:arxiv:2507.13833]. LlamaRL demonstrates 2.52×–10.7× speedups with AIPO corrections and claims parity or better quality vs synchronous baselines on MATH-500/GSM8K [source:arxiv:2505.24034]. IMPALA's V-trace shows bias-variance tradeoff controlled by $\bar\rho, \bar c$ [source:arxiv:1802.01561]. No source directly compares AIPO vs V-trace on LLM tasks; Z would settle it.
 
-### 3.2 Distributed Advantage Estimation
-PPO’s advantage estimation uses Generalized Advantage Estimation (GAE):
+## Sharding strategies for multi-model RLHF
+
+### Model placement and parallelism composition
+RLHF requires 3–4 model copies: policy (actor), reference, reward, and optionally critic (value). DeepSpeed-Chat's Hybrid Engine **time-multiplexes** a single model copy between inference and training modes, using ZeRO-3 for training memory and lightweight KV-cache + TP for inference [source:arxiv:2308.01320]. This reduces peak memory but serializes generation and update.
+
+OpenRLHF uses **ZeRO-2/3 with vLLM** for separate actor/critic/reward models, marking `SparseMoeBlock` as leaf modules for MoE support (Mixtral, DeepSeek) [source:github:openrlhf-an-easy-fast-and-scalable-rlhf-]. Loss normalization aggregates token counts across DP ranks and gradient-accumulation windows to compute exact global mean per micro-batch.
+
+LlamaRL **decouples parallelism per executor**: generator uses (DP_g, TP_g, PP_g, fp8) while trainer uses (DP_t, TP_t, PP_t, bf16) [source:arxiv:2505.24034]. This allows generator to run with higher DP (more throughput) and lower precision without constraining trainer sharding.
+
+DistFlow's Data Coordinator handles **DP-size transitions** between stages via the Distributed Databuffer: when stage i has DP_i and stage i+1 has DP_{i+1}, tensors are redistributed across the new DP groups [source:arxiv:2507.13833]. Local caching avoids this when DP_i = DP_{i+1}.
+
+### Weight synchronization at scale
+LlamaRL's **Distributed Direct Memory Access (DDMA)** enables zero-copy GPU→GPU weight sync via NVLink/InfiniBand, bypassing CPU memory [source:arxiv:2505.24034]. For 70B model: 1.15s sync vs 111.65s in OpenRLHF (parameter-server style). For 405B across thousands of GPUs: ~2s for terabyte-scale weights. DeepSpeed-Chat does not report dedicated weight-sync benchmarks; its Hybrid Engine updates weights in-place during mode switch.
+
+## PPO at scale: memory, throughput, and alternatives
+
+### PPO mechanics and multi-model overhead
+Standard PPO clips the probability ratio $r_t(\theta) = \pi_\theta(a_t|s_t)/\pi_{\theta_{\text{old}}}(a_t|s_t)$ [source:arxiv:1707.06347]:
 
 $$
-A_t^{\text{GAE}} = \sum_{l=0}^{\infty} (\gamma \lambda)^l \delta_{t+l}, \quad \delta_t = r_t + \gamma V_\psi(x,y_{<t+1}) - V_\psi(x,y_{<t}).
+L^{\text{CLIP}}(\theta) = \hat{\mathbb{E}}_t \Bigl[ \min\bigl(r_t(\theta)\hat A_t,\; \text{clip}(r_t(\theta),1-\epsilon,1+\epsilon)\hat A_t\bigr) \Bigr]
 $$
 
-**Distributed Implementation**:
-- Each actor computes GAE locally using its rollouts.
-- Learners aggregate GAE estimates across actors to compute the advantage mean/variance for normalization.
-- [source:arxiv:2307.09288] does not report specific values for $\lambda$ or $\gamma$.
+Combined with value loss $L^{\text{VF}} = (V_\theta(s_t)-V_t^{\text{targ}})^2$ and entropy bonus $S[\pi_\theta](s_t)$. For LLMs, this requires:
+- Actor forward/backward (policy)
+- Critic forward/backward (value)
+- Reference forward (KL)
+- Reward forward
+- Often: separate old-policy forward for ratio (or recompute)
 
-### 3.3 Asynchronous PPO Variants
-The rollout/learner split enables asynchronous PPO variants:
-1. **IMPALA-PPO**: Actors sample from $\pi_{\theta_{\text{old}}}$ and send rollouts to a central learner. The learner updates $\theta$ and broadcasts new weights to actors. This is mentioned in [source:arxiv:2307.09288] as part of LLaMA-2’s RLHF pipeline.
+DeepSpeed-Chat reports OPT-13B: 10.8h RLHF on 8×A100-40G; OPT-175B: <1 day on 64×A100-80G [source:arxiv:2308.01320]. Throughput drops for "gigantic models" due to memory-limited batch size.
 
-### 3.4 Rejection Sampling and Best-of-N
-Rejection sampling (Best-of-N) is a critical pre-filtering step in RLHF:
-1. For each prompt $x$, sample $N$ responses $\{y_1, ..., y_N\}$ from $\pi_\theta$.
-2. Select the response $y^* = \arg\max_{y_i} r_\phi(x,y_i)$.
-3. Train PPO on $(x, y^*)$ with reward $r_\phi(x,y^*)$.
+### GRPO: eliminating the critic
+GRPO removes the value network by estimating advantages from group statistics [source:arxiv:2402.03300]. For each question q, sample G outputs $\{o_i\}_{i=1}^G \sim \pi_{\theta_{\text{old}}}$. Token-level advantage:
 
-**Scaling Rejection Sampling**:
-- [source:arxiv:2307.09288] mentions rejection sampling (sampling $K$ outputs) but does not specify $N$.
-- [source:arxiv:2305.18290] shows that DPO matches the performance of a "Best of 128" baseline but does not claim 10× fewer PPO steps.
+$$
+\hat A_{i,t} = \frac{r_i - \text{mean}(\mathbf r)}{\text{std}(\mathbf r)} \quad \text{(outcome supervision)}
+$$
 
----
+or process supervision: $\hat A_{i,t} = \sum_{j: \text{index}(j)\ge t} \tilde r_i^{\text{index}(j)}$. Objective:
 
-## 4. Empirical Scaling Laws
+$$
+\mathcal J_{\text{GRPO}}(\theta) = \mathbb{E}_{q,\{o_i\}} \Bigl[ \frac{1}{G}\sum_{i=1}^G \frac{1}{|o_i|}\sum_{t=1}^{|o_i|} \min\Bigl(\frac{\pi_\theta(o_{i,t}|q,o_{i,<t})}{\pi_{\theta_{\text{old}}}(o_{i,t}|q,o_{i,<t})}\hat A_{i,t},\; \text{clip}(\cdot,1-\epsilon,1+\epsilon)\hat A_{i,t}\Bigr) - \beta D_{\text{KL}}(\pi_\theta\|\pi_{\text{ref}}) \Bigr]
+$$
 
-### 4.1 Throughput Scaling
-Throughput (tokens/sec) scales with:
-1. **Model Size**: Throughput decreases as $O(1/\text{model\_size})$ due to memory bandwidth limits. [source:arxiv:1909.08053] reports 39 TFLOPs for 1.2B parameters vs. 15.1 PFLOPs for 8.3B parameters (76% scaling efficiency).
-2. **Batch Size**: Throughput increases sublinearly with batch size due to kernel launch overhead.
-3. **Sequence Length**: Throughput decreases as $O(1/\text{sequence\_length})$ due to attention’s quadratic cost.
+KL estimated via unbiased estimator: $\frac{\pi_{\text{ref}}}{\pi_\theta} - \log\frac{\pi_{\text{ref}}}{\pi_\theta} - 1$.
 
-### 4.2 Sample Efficiency
-Sample efficiency (reward improvement per token) depends on:
-1. **Algorithm**: PPO is sample-efficient but computationally expensive. DPO [source:arxiv:2305.18290] is more sample-efficient but may not scale to large models.
-2. **Reward Model Quality**: [source:arxiv:2307.09288] shows that LLaMA-2’s reward model accuracy (63.2% on internal test sets) correlates with RLHF win rates.
+DistFlow benchmarks GRPO vs PPO: GRPO speedup up to 2.62× over verl baseline (vs 1.64× for PPO), attributed to "superior handling of data-intensive workloads" [source:arxiv:2507.13833]. LlamaRL supports GRPO as one of its algorithm executors [source:arxiv:2505.24034].
 
----
+**Disagreement**: GRPO's group-based advantage assumes i.i.d. sampling from π_old; DistFlow's constrained LPT load balancing enforces equal item counts per worker, which may correlate sequence lengths within groups. No source analyzes this interaction. DeepSeekMath reports GRPO matches PPO on math reasoning (51.7% MATH vs proprietary baselines) [source:arxiv:2402.03300], but no large-scale distributed GRPO vs PPO ablation exists in sources.
 
-## 5. Current Status and Trajectory
+## Scaling laws and system efficiency
 
-### 5.1 Adoption and Trends
-- **Rising**: The rollout/learner split is now the default for LLM alignment at scale. Major labs (e.g., Meta) use it for models ≥30B parameters [source:arxiv:2307.09288].
-- **Default**: PPO remains the dominant RL algorithm for RLHF, but DPO and GRPO are gaining traction for smaller models [source:arxiv:2305.18290].
-- **Fading**: Monolithic RLHF pipelines are no longer viable for models >10B parameters due to memory constraints.
+### Throughput scaling
+| Framework | Model | GPUs | Speedup vs Baseline | Scaling Efficiency |
+|-----------|-------|------|---------------------|-------------------|
+| DistFlow (PPO) | Qwen-2.5 7B/32B/72B | up to 512 | 1.09–1.64× | 90.1% (7B), 93.9% (32B), 91.8% (72B) |
+| DistFlow (GRPO) | Qwen-2.5 7B/32B/72B | up to 512 | up to 2.62× | — |
+| LlamaRL | 8B/70B/405B | thousands | 2.52× / 3.98× / 10.7× | — |
+| DeepSpeed-Chat | OPT-13B/66B/175B | 8–64 | 6–19× vs Colossal-AI | — |
+| IMPALA | — | — | 250k fps (30× A3C) | — |
 
-### 5.2 Emerging Alternatives
-1. **DPO and Variants**: Direct Preference Optimization [source:arxiv:2305.18290] eliminates the reward model and RL loop, reducing computational cost.
-2. **GRPO**: Group Relative Policy Optimization improves sample efficiency for multi-turn dialogue.
-3. **RLAIF**: Reinforcement Learning from AI Feedback reduces annotation costs.
+DistFlow's scaling efficiency formula:
 
----
+$$
+\text{Scaling Efficiency} = \frac{T_2/T_1}{N_2/N_1} \times 100\%
+$$
 
-## 6. Key Takeaways
-- **Rollout/Learner Split**: Decouples generation and optimization, enabling horizontal scaling. Correctness is maintained via clipped objectives and short synchronization intervals.
-- **Sharding Strategies**:
-  - Tensor parallelism for policy models (Megatron-LM [source:arxiv:1909.08053]).
-  - Pipeline parallelism for reward models (implementation simplicity).
-  - Hybrid sharding (TP+DP+optimizer state sharding) for learners.
-- **PPO at Scale**:
-  - Reward normalization and advantage normalization are critical for stability.
-  - Rejection sampling (Best-of-N) improves sample efficiency but increases generation cost.
-  - Asynchronous variants (IMPALA-PPO) trade off staleness for throughput.
-- **Scaling Laws**:
-  - Throughput scales sublinearly with model size and batch size.
-  - Sample efficiency is limited by reward model quality and KL regularization.
-- **Current Status**: The rollout/learner split is rising as the default for LLM alignment, while PPO remains dominant but faces competition from DPO and GRPO.
+where $T$ = throughput, $N$ = GPU count [source:arxiv:2507.13833]. Near-linear scaling to 512 GPUs attributed to control/data decoupling and LPT load balancing.
 
----
+LlamaRL's super-linear speedup (10.7× at 405B) comes from async pipelining eliminating "idle bubbles" [source:arxiv:2505.24034]. DeepSpeed-Chat's 7.5× scale increase on single node (50B vs 6.7B) comes from ZeRO-3 + Hybrid Engine [source:arxiv:2308.01320].
 
-## 7. Related Topics
+### Long-context scaling
+DistFlow shows speedup increasing with context: 7B model, 1.48× (8k) → 2.03× (64k) vs baseline [source:arxiv:2507.13833]. Baseline (verl) OOMs at 72B/32k; DistFlow succeeds. LlamaRL's generator offloading allows independent context-length scaling on inference cluster.
+
+### Memory and OOM robustness
+DistFlow's DAG Planner inserts sequential dependencies for same-depth nodes to prevent colocated OOM [source:arxiv:2507.13833]. Local caching avoids Ray object-store memory pressure. LlamaRL's DDMA avoids CPU staging memory for weight sync. DeepSpeed-Chat notes 175B efficiency limited by per-GPU memory restricting batch size [source:arxiv:2308.01320]. OpenRLHF's ZeRO-3 leaf-module fix (disabling hybrid detection) recovered gradients for ~390/417 inner params in Qwen3.5-9B [source:github:openrlhf-an-easy-fast-and-scalable-rlhf-].
+
+## Communication optimization
+
+### Collective patterns
+- **Weight broadcast/sync**: LlamaRL DDMA (GPU→GPU, zero-copy) [source:arxiv:2505.24034]; DeepSpeed-Chat in-place (Hybrid Engine) [source:arxiv:2308.01320]; OpenRLHF parameter server via DeepSpeed [source:github:openrlhf-an-easy-fast-and-scalable-rlhf-]; DistFlow Data Coordinator redistribution [source:arxiv:2507.13833].
+- **Experience collection**: DistFlow constrained LPT + async double buffer [source:arxiv:2507.13833]; LlamaRL async channels with Scatter/Gather [source:arxiv:2505.24034]; IMPALA actor→learner queues [source:arxiv:1802.01561].
+- **Gradient/all-reduce**: All use NCCL/DeepSpeed ZeRO collectives; no source details topology-aware scheduling beyond DP-group alignment.
+
+### Overlap and pipelining
+DistFlow: async double buffer overlaps data prep with GPU compute [source:arxiv:2507.13833]. LlamaRL: controller event loop triggers concurrent executor steps; generator and trainer run simultaneously [source:arxiv:2505.24034]. IMPALA: learner parallelizes time-independent ops (conv over all timesteps) + XLA/cuDNN [source:arxiv:1802.01561]. DeepSpeed-Chat: Hybrid Engine mode switch serializes inference/training; no overlap reported.
+
+## Current status and trajectory
+
+**Distributed control/data decoupling (DistFlow-style) is rising** as the default for synchronous scaling beyond 128 GPUs, with 90%+ scaling efficiency demonstrated to 512 GPUs [source:arxiv:2507.13833]. **Asynchronous actor-learner with importance weighting (LlamaRL/AIPO) is rising for maximum throughput at extreme scale (405B, thousands of GPUs)**, showing 10.7× speedup with claimed quality parity [source:arxiv:2505.24034]. **Centralized Hybrid Engine (DeepSpeed-Chat) is fading for large-scale training** due to controller bottleneck and memory-limited batch size at 175B+ [source:arxiv:2308.01320], but remains common for single-node/small-cluster RLHF. **GRPO is rising as the default PPO alternative** for math/code reasoning, eliminating critic memory and showing 2.6× distributed speedup [source:arxiv:2402.03300][source:arxiv:2507.13833]. **DDMA-style zero-copy weight sync is becoming standard** for >100B models; parameter-server approaches (OpenRLHF's 111s for 70B) are not competitive [source:arxiv:2505.24034]. **V-trace/IMPALA-style off-policy correction is not widely adopted in LLM RLHF**; AIPO is the only reported async correction in sources, and its bias-variance tradeoff vs V-trace is not benchmarked.
+
+## Key takeaways
+
+- **Control/data decoupling** (DistFlow) achieves 90%+ scaling efficiency to 512 GPUs by separating DAG-based control from parallelism-aware data movement with LPT load balancing and local caching [source:arxiv:2507.13833].
+- **Async actor-learner with AIPO** (LlamaRL) delivers 10.7× speedup at 405B by running generator/trainer concurrently on decoupled clusters with DDMA zero-copy weight sync (~2s for TB-scale) [source:arxiv:2505.24034].
+- **GRPO eliminates the critic** and uses group-normalized advantages, reducing memory and achieving 2.6× distributed speedup over PPO baselines [source:arxiv:2402.03300][source:arxiv:2507.13833].
+- **Hybrid Engine time-multiplexing** (DeepSpeed-Chat) enables single-copy RLHF but bottlenecks at 175B+ due to memory-limited batch size and serialized inference/training [source:arxiv:2308.01320].
+- **ZeRO-3 leaf-module handling** is critical for MoE/hybrid architectures; OpenRLHF's fix recovered gradients for 390/417 frozen params in Qwen3.5 [source:github:openrlhf-an-easy-fast-and-scalable-rlhf-].
+- **V-trace truncation** (IMPALA) controls off-policy variance at cost of bias toward intermediate policy $\pi_\rho$; not directly compared to AIPO in LLM setting [source:arxiv:1802.01561].
+- **Long-context scaling** favors decoupled architectures: DistFlow speedup grows from 1.48× (8k) to 2.03× (64k); LlamaRL offloads context to inference cluster [source:arxiv:2507.13833][source:arxiv:2505.24034].
+
+## Related topics
+
 - [PPO for LLM fine-tuning (RLHF)](ppo-for-llms.md)
-- [Direct Preference Optimization and variants](dpo-and-preference-optimization.md)
 - [GRPO (Group Relative Policy Optimization)](grpo.md)
-- [Reward modeling for LLMs](reward-modeling.md)
 - [Async and off-policy RL](async-and-off-policy-rl.md)
 - [Rollout generation infrastructure](rollout-generation-infra.md)
+- [RLHF/PPO pipeline](rlhf-ppo-pipeline.md)
 - [KL regularization in RLHF](kl-regularization.md)
-- [The RLHF/PPO pipeline](rlhf-ppo-pipeline.md)
-
----
-
-##
+- [Reward modeling for LLMs](reward-modeling.md)
+- [Policy gradient methods for LLMs](policy-gradient-methods.md)
+- [Verifiable rewards (RLVR)](verifiable-rewards.md)
+- [RL for math and code](rl-for-math-and-code.md)
 
 ## References
-- [source:arxiv:2203.02155] [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155)
-- [source:arxiv:2306.04925] [DeepSpeed-Chat: Easy, Effective and Scalable Reinforcement Learning for Large Language Models](https://arxiv.org/abs/2306.04925)
-- [source:arxiv:2307.09288] [Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288)
-- [source:arxiv:2305.18290] [Direct Preference Optimization (DPO): Your Language Model is Secretly a Reward Model](https://arxiv.org/abs/2305.18290)
-- [source:arxiv:2209.00708] [ColossalAI: A Practical Distributed Training Framework for Large-Scale Deep Learning Systems](https://arxiv.org/abs/2209.00708)
-- [source:arxiv:1909.08053] [Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism](https://arxiv.org/abs/1909.08053)
-- [source:arxiv:2402.03000] [RLOO: Reinforcement Learning with Off-Policy Correction](https://arxiv.org/abs/2402.03000)
-- [source:arxiv:2404.01378] [A General Theoretical Paradigm to Understand Learning from Human Preferences](https://arxiv.org/abs/2404.01378)
+- [source:arxiv:2507.13833] [DistFlow: A Fully Distributed RL Framework for Scalable and Efficient LLM Alignment](https://arxiv.org/html/2507.13833v2)
+- [source:arxiv:2505.24034] [LlamaRL: A Distributed Asynchronous Reinforcement Learning Framework for Efficient Large-scale LLM Training](https://arxiv.org/html/2505.24034v2)
+- [source:github:verl-hybridflow-a-flexible-and-efficient] [verl: HybridFlow - A Flexible and Efficient RL Post-Training Framework](https://github.com/verl-project/verl)
+- [source:arxiv:1802.01561] [IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures](https://arxiv.org/abs/1802.01561)
+- [source:arxiv:2308.01320] [DeepSpeed-Chat: Easy, Fast and Affordable RLHF Training of ChatGPT-like Models at All Scales](https://arxiv.org/abs/2308.01320)
+- [source:github:openrlhf-an-easy-fast-and-scalable-rlhf-] [OpenRLHF: An Easy, Fast, and Scalable RLHF Framework for Large Language Models](https://github.com/OpenRLHF/OpenRLHF)
+- [source:arxiv:2402.03300] [GRPO: DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models](https://arxiv.org/abs/2402.03300)
+- [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347)
