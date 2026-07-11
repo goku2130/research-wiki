@@ -436,14 +436,16 @@ def arxiv_seed(topic: dict) -> list[dict]:
     # Notes first (they hold the real technical terms / variant names) with loose
     # matching; title only as an EXACT phrase (loose=False) to avoid common-word noise
     # like "deep dive". relevance = seminal; submittedDate = newest follow-ups.
-    passes = []
+    passes = [arxiv_search(title, 6, "relevance", loose=False)]        # exact title = seminal
     if topic.get("notes"):
         passes.append(arxiv_search(topic["notes"], 8, "relevance", loose=True))
-    passes.append(arxiv_search(title, 6, "relevance", loose=False))
-    passes.append(arxiv_search(title, 4, "submittedDate", loose=False))
-    for lst in passes:
-        for s in lst:
-            if s["url"] not in seen:
+    passes.append(arxiv_search(title, 4, "submittedDate", loose=False))  # newest follow-ups
+    # Interleave passes round-robin so title-matches and notes-matches both reach the top
+    # (concatenation would bury good exact-title hits under vague-notes noise, or vice-versa).
+    from itertools import zip_longest
+    for row in zip_longest(*passes):
+        for s in row:
+            if s and s["url"] not in seen:
                 seen.add(s["url"]); seeds.append(s)
     for s in list(seeds[:3]):                       # follow citations -> descendant variants
         aid = arxiv_id(s["url"])
