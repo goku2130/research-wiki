@@ -5,7 +5,7 @@ title: Proximal Policy Optimization Algorithms
 url: https://arxiv.org/abs/1707.06347
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: distributed-rl-training
+topic: ppo-for-llms
 ---
 
 # Proximal Policy Optimization (PPO) Algorithms

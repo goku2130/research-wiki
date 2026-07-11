@@ -6,7 +6,7 @@ title: Training a Helpful and Harmless Assistant with Reinforcement Learning fro
 url: https://arxiv.org/abs/2204.05862
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: rl-for-llms-overview
+topic: ppo-for-llms
 ---
 
 Here's a faithful and thorough summary of the provided source, "Training a Helpful and Harmless Assistant with Reinforcement Learning from Human Feedback," for a research wiki:
