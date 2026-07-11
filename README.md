@@ -19,7 +19,7 @@ _Auto-generated 2026-07-11._
 - ⬜ Self-improvement and self-play RL
 - ✅ [Process vs outcome reward models](topics/process-vs-outcome-rewards.md)
 - ✅ [Reward hacking in RLHF](topics/reward-hacking.md)
-- ⬜ Reward model over-optimization
+- ✅ [Reward model over-optimization](topics/reward-model-overoptimization.md)
 - ⬜ Verifiable rewards (RLVR)
 - ⬜ Entropy and exploration in RL fine-tuning
 - ⬜ Length and format bias
