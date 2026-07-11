@@ -236,20 +236,6 @@ PPO remains the **default** RL optimizer for industrial RLHF pipelines (OpenAI, 
 - [Rollout generation infrastructure](rollout-generation-infra.md) — Engineering of the environment interaction loop
 
 ## References
-- [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347)
-- [source:arxiv:1706.03741] [Deep Reinforcement Learning from Human Preferences](https://arxiv.org/abs/1706.03741)
-- [source:arxiv:2009.01325] [Learning to summarize with human feedback](https://arxiv.org/abs/2009.01325)
-- [source:arxiv:2204.05862] [Training a Helpful and Harmless Assistant with Reinforcement Learning from Human Feedback](https://arxiv.org/abs/2204.05862)
-- [source:arxiv:1909.08593] [Fine-Tuning Language Models from Human Preferences](https://arxiv.org/abs/1909.08593)
-- [source:arxiv:2307.04964] [Secrets of RLHF in Large Language Models Part I: PPO](https://arxiv.org/abs/2307.04964)
-- [source:arxiv:2310.00212] [Pairwise Proximal Policy Optimization (P3O)](https://arxiv.org/abs/2310.00212)
-- [source:arxiv:2403.19279] [Fine-Tuning Language Models with Reward Learning on Policy](https://arxiv.org/abs/2403.19279)
-- [source:arxiv:2203.02155] [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155)
-- [source:cameronrwolfe:proximal-policy-optimization-ppo-the-key] [Proximal Policy Optimization (PPO): The Key to LLM Alignment](https://cameronrwolfe.substack.com/p/proximal-policy-optimization-ppo)
-- [source:spinningup:spinning-up-in-deep-rl-ppo-documentation] [Spinning Up in Deep RL: PPO Documentation](https://spinningup.openai.com/en/latest/algorithms/ppo.html)
-- [source:bair:rethinking-the-role-of-ppo-in-rlhf-bair-] [Rethinking the Role of PPO in RLHF (BAIR Blog)](https://bair.berkeley.edu/blog/2023/10/12/ppo-rlhf/)
-
-## References
 - [source:arxiv:2403.19279] [Fine-Tuning Language Models with Reward Learning on Policy](https://arxiv.org/abs/2403.19279)
 - [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347)
 - [source:arxiv:2310.00212] [Pairwise Proximal Policy Optimization (P3O)](https://arxiv.org/abs/2310.00212)

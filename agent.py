@@ -805,6 +805,10 @@ def save(topic: dict, distilled: list[dict], article: str, open_qs: list[str],
     if open_qs:
         front["open_questions"] = open_qs
     refs = "\n".join(f"- [source:{d['id']}] [{d['title']}]({d['url']})" for d in distilled)
+    # Strip any References section the body already carries (deepen() preserves the
+    # existing one) so we emit exactly one, regenerated from the full source set.
+    article = re.sub(r"\n#{1,6}[ \t]*References[ \t]*\n.*$", "", article,
+                     flags=re.DOTALL | re.IGNORECASE).rstrip()
     (TOPICS_DIR / f"{topic['slug']}.md").write_text(
         fm(front) + article + "\n\n## References\n" + refs + "\n")
 

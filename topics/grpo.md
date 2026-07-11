@@ -256,18 +256,6 @@ However, the field is **not settled on GRPO as a universal replacement for PPO**
 - [Self-improvement and self-play RL](self-improvement-and-self-play.md) — iterative GRPO as self-improvement loop
 
 ## References
-- [source:arxiv:2402.03300] [[PDF] arXiv:2402.03300v3 [cs.CL] 27 Apr 2024](https://arxiv.org/pdf/2402.03300)
-- [source:cameronrwolfe:group-relative-policy-optimization-grpo-] [Group Relative Policy Optimization (GRPO) - Deep (Learning) Focus](https://cameronrwolfe.substack.com/p/grpo)
-- [source:medium:the-math-behind-deepseek-a-deep-dive-int] [The Math Behind DeepSeek: A Deep Dive into Group Relative ...](https://medium.com/@sahin.samia/the-math-behind-deepseek-a-deep-dive-into-group-relative-policy-optimization-grpo-8a75007491ba)
-- [source:snorkel:grpo-group-relative-policy-optimization-] [GRPO (Group Relative Policy Optimization), explained - Snorkel AI](https://snorkel.ai/grpo/)
-- [source:youtube:deepseek-s-grpo-group-relative-policy-op] [DeepSeek's GRPO (Group Relative Policy Optimization) - YouTube](https://www.youtube.com/watch?v=xT4jxQUl0X8)
-- [source:arxiv:2402.03300] [DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models](https://arxiv.org/abs/2402.03300)
-- [source:arxiv:2405.02104] [DeepSeek-RLHF: A Strong and Customizable LLM with Reinforcement Learning from Human Feedback](https://arxiv.org/abs/2405.02104)
-- [source:turingpost:what-is-grpo-group-relative-policy-optim] [What Is GRPO? Group Relative Policy Optimization Explained](https://www.turingpost.com/p/what-is-grpo-group-relative-policy)
-- [source:arxiv:2511.03527] [Learning Without Critics? Revisiting GRPO in Classical Control and LLMs](https://arxiv.org/abs/2511.03527)
-- [source:aayushgarg:understanding-grpo-ppo-without-the-criti] [Understanding GRPO: PPO without the Critic](https://aayushgarg.com/understanding-grpo)
-
-## References
 - [source:cameronrwolfe:group-relative-policy-optimization-grpo-] [Group Relative Policy Optimization (GRPO) - Deep (Learning) Focus](https://cameronrwolfe.substack.com/p/grpo)
 - [source:arxiv:2402.03300] [DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models](https://arxiv.org/abs/2402.03300)
 - [source:arxiv:2405.02104] [DeepSeek-RLHF: A Strong and Customizable LLM with Reinforcement Learning from Human Feedback](https://arxiv.org/abs/2405.02104)

@@ -204,19 +204,6 @@ DPO and its variants are the **default** offline preference alignment methods as
 - [Alignment and win-rate evals](alignment-and-winrate-evals.md)
 
 ## References
-- [source:arxiv:2305.18290] [Direct Preference Optimization: Your Language Model is Secretly a Reward Model](https://arxiv.org/abs/2305.18290)
-- [source:icml:alphadpo-adaptive-reward-margin-for-dire] [AlphaDPO: Adaptive Reward Margin for Direct Preference Optimization](https://icml.cc/virtual/2025/poster/45946)
-- [source:mbrenndoerfer:dpo-variants-ipo-kto-orpo-cdpo-for-llm-a] [DPO Variants: IPO, KTO, ORPO & cDPO for LLM Alignment](https://mbrenndoerfer.com/writing/dpo-variants-ipo-kto-orpo-cdpo-llm-alignment)
-- [source:mesuvash:reward-modeling-and-dpo-learning-what-go] [Reward Modeling and DPO: Learning What "Good" Means](https://mesuvash.github.io/blog/2026/reward-modeling/)
-- [source:youtube:orpo-explained-superior-llm-alignment-te] [ORPO Explained: Superior LLM Alignment Technique vs. DPO/RLHF](https://www.youtube.com/watch?v=32S_xBt2IXw)
-- [source:arxiv:2402.00164] [Beyond DPO: A Survey of Preference-Based Alignment Algorithms for LLMs](https://arxiv.org/abs/2402.00164)
-- [source:arxiv:2310.12036] [Identity Preference Optimization (IPO)](https://arxiv.org/abs/2310.12036)
-- [source:arxiv:2402.01306] [Kahneman-Tversky Optimization (KTO)](https://arxiv.org/abs/2402.01306)
-- [source:cameronrwolfe:direct-preference-optimization-dpo-deep-] [Direct Preference Optimization (DPO) - Deep (Learning) Focus](https://cameronrwolfe.substack.com/p/direct-preference-optimization-dpo)
-
-##
-
-## References
 - [source:youtube:orpo-explained-superior-llm-alignment-te] [ORPO Explained: Superior LLM Alignment Technique vs. DPO/RLHF](https://www.youtube.com/watch?v=32S_xBt2IXw)
 - [source:mbrenndoerfer:dpo-variants-ipo-kto-orpo-cdpo-for-llm-a] [DPO Variants: IPO, KTO, ORPO & cDPO for LLM Alignment](https://mbrenndoerfer.com/writing/dpo-variants-ipo-kto-orpo-cdpo-llm-alignment)
 - [source:arxiv:2402.00164] [Beyond DPO: A Survey of Preference-Based Alignment Algorithms for LLMs](https://arxiv.org/abs/2402.00164)
