@@ -17,13 +17,17 @@ Direct Preference Optimization (DPO) bypasses explicit reward modeling and reinf
 
 **Key Formulas**
 The standard RLHF objective maximizes expected reward subject to a KL constraint:
+
 $$
 \max_{\pi_\theta} \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(y|x)} [r_\phi(x,y)] - \beta \mathbb{D}_{\mathrm{KL}}[\pi_\theta(y|x) || \pi_{\text{ref}}(y|x)].
 $$
+
 The optimal policy under this objective takes the form $\pi_r(y|x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y|x) \exp\left(\frac{1}{\beta} r(x,y)\right)$. By inverting this relationship and substituting into the Bradley-Terry preference model, the partition function cancels, yielding the DPO objective:
+
 $$
 \mathcal{L}_{\mathrm{DPO}}(\pi_{\theta}; \pi_{\mathrm{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_{\theta}(y_w \mid x)}{\pi_{\mathrm{ref}}(y_w \mid x)} - \beta \log \frac{\pi_{\theta}(y_l \mid x)}{\pi_{\mathrm{ref}}(y_l \mid x)} \right) \right],
 $$
+
 where $\sigma$ is the logistic function and $\beta$ controls the strength of the implicit KL regularization.
 
 **Quantitative Results**

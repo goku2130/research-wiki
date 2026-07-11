@@ -26,12 +26,20 @@ LLM alignment is formulated as a Markov Decision Process (MDP) where the initial
 
 ### Vanilla Policy Gradient (VPG)
 The goal is to optimize a policy $\pi_\theta$ to maximize the expected cumulative reward $J(\theta) = \mathbb{E}_\tau [ \sum_{t=1}^{T} r_t ]$ [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people]. Using the log-derivative trick, the gradient is estimated as:
-$$\nabla_\theta J(\theta) = \mathbb{E} \left[ \sum_{t=1}^{T} \nabla_\theta \log \pi_\theta(a_t|s_t) \Psi_t \right]$$
+
+$$
+\nabla_\theta J(\theta) = \mathbb{E} \left[ \sum_{t=1}^{T} \nabla_\theta \log \pi_\theta(a_t|s_t) \Psi_t \right]
+$$
+
 where $\Psi_t$ is a signal representing the quality of the action [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people]. Direct application of VPG often results in high variance [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people].
 
 ### Variance Reduction and the Advantage Function
 To reduce variance, $\Psi_t$ is replaced by the advantage function $A(s, a) = Q(s, a) - V(s)$, which measures how much better a specific action is compared to the average action in that state [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people]. In practice, Generalized Advantage Estimation (GAE) is used to balance bias and variance:
-$$\hat{A}_t^{GAE} = \sum_{l=0}^{\infty} (\gamma \lambda)^l \delta_{t+l}, \quad \delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)$$
+
+$$
+\hat{A}_t^{GAE} = \sum_{l=0}^{\infty} (\gamma \lambda)^l \delta_{t+l}, \quad \delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)
+$$
+
 where $\gamma$ is the discount factor and $\lambda$ is a smoothing parameter [source:arxiv:2307.04964].
 
 ## Reward Modeling
@@ -39,9 +47,17 @@ Because human feedback is prohibitively expensive to collect for every RL step, 
 
 ### The Bradley-Terry Model
 RMs are typically trained on pairwise comparisons. Based on the Bradley-Terry model, the probability that a human prefers trajectory $\tau_1$ over $\tau_2$ is:
-$$P(\tau_1 \succ \tau_2) = \frac{e^{R(\tau_1)}}{e^{R(\tau_1)} + e^{R(\tau_2)}}$$
+
+$$
+P(\tau_1 \succ \tau_2) = \frac{e^{R(\tau_1)}}{e^{R(\tau_1)} + e^{R(\tau_2)}}
+$$
+
 The RM is trained by minimizing the negative log-likelihood (or cross-entropy loss) of the preferred summary relative to the rejected one:
-$$\mathcal{L}_{RM}(\theta) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} [\log \sigma(r_\theta(x, y_w) - r_\theta(x, y_l))]$$
+
+$$
+\mathcal{L}_{RM}(\theta) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} [\log \sigma(r_\theta(x, y_w) - r_\theta(x, y_l))]
+$$
+
 where $y_w$ is the winning (preferred) response and $y_l$ is the losing response [source:arxiv:1706.03741][source:arxiv:2009.01325].
 
 ### Advanced RM Refinements
@@ -56,12 +72,20 @@ Standard policy gradient methods are limited to one gradient update per data sam
 
 ### The Policy Ratio
 PPO tracks the ratio between the current policy $\pi_\theta$ and the policy used to collect the data $\pi_{\theta_{old}}$:
-$$r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{old}}(a_t|s_t)}$$
+
+$$
+r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{old}}(a_t|s_t)}
+$$
+
 [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people][source:arxiv:2307.04964].
 
 ### PPO-Clip Objective
 To prevent "catastrophic" updates that move the policy too far from the trust region, PPO clips the policy ratio:
-$$\mathcal{L}^{CLIP}(\theta) = \mathbb{E}_t \left[ \min\left( r_t(\theta) \hat{A}_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right]$$
+
+$$
+\mathcal{L}^{CLIP}(\theta) = \mathbb{E}_t \left[ \min\left( r_t(\theta) \hat{A}_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right]
+$$
+
 This ensures that the update is limited if the ratio $r_t(\theta)$ moves outside the interval $[1-\epsilon, 1+\epsilon]$ [source:arxiv:2307.04964].
 
 ## KL Penalty and Stability
@@ -69,7 +93,11 @@ Directly optimizing for the RM can lead to "reward hacking," where the model fin
 
 ### The KL Constraint
 To prevent the policy from collapsing or drifting too far from the initial Supervised Fine-Tuning (SFT) model $\pi_{ref}$, a Kullback-Leibler (KL) divergence penalty is added to the reward:
-$$R(x, y) = r_\theta(x, y) - \beta \log \frac{\pi_\phi(y|x)}{\pi_{ref}(y|x)}$$
+
+$$
+R(x, y) = r_\theta(x, y) - \beta \log \frac{\pi_\phi(y|x)}{\pi_{ref}(y|x)}
+$$
+
 where $\beta$ controls the strength of the penalty [source:arxiv:2009.01325][source:arxiv:2307.04964].
 
 ### Divergent Views on KL Necessity

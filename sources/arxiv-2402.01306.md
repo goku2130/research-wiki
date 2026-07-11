@@ -17,13 +17,28 @@ KTO derives a HALO from the Kahneman-Tversky value function, replacing the origi
 
 **Key Formulas**
 The canonical Kahneman-Tversky value function is adapted as:
-$$v(z; \lambda, \alpha, z_0) = \begin{cases} (z - z_0)^\alpha & \text{if } z \ge z_0 \\ -\lambda(z_0 - z)^\alpha & \text{if } z < z_0 \end{cases}$$
+
+$$
+v(z; \lambda, \alpha, z_0) = \begin{cases} (z - z_0)^\alpha & \text{if } z \ge z_0 \\ -\lambda(z_0 - z)^\alpha & \text{if } z < z_0 \end{cases}
+$$
+
 The KTO loss function is defined as:
-$$L_{\text{KTO}}(\pi_\theta, \pi_{\text{ref}}) = \mathbb{E}_{x,y \sim \mathcal{D}} [\lambda_y - v(x, y)]$$
+
+$$
+L_{\text{KTO}}(\pi_\theta, \pi_{\text{ref}}) = \mathbb{E}_{x,y \sim \mathcal{D}} [\lambda_y - v(x, y)]
+$$
+
 where the value function $v(x,y)$ uses a logistic approximation:
-$$v(x, y) = \begin{cases} \lambda_D \sigma(\beta(r_\theta(x, y) - z_0)) & \text{if } y \sim y_{\text{desirable}}|x \\ \lambda_U \sigma(\beta(z_0 - r_\theta(x, y))) & \text{if } y \sim y_{\text{undesirable}}|x \end{cases}$$
+
+$$
+v(x, y) = \begin{cases} \lambda_D \sigma(\beta(r_\theta(x, y) - z_0)) & \text{if } y \sim y_{\text{desirable}}|x \\ \lambda_U \sigma(\beta(z_0 - r_\theta(x, y))) & \text{if } y \sim y_{\text{undesirable}}|x \end{cases}
+$$
+
 HALOs are formally characterized by a value function $v$ that is non-decreasing and concave in gains, with the general loss structure:
-$$f(\pi_\theta, \pi_{\text{ref}}) = \mathbb{E}_{x,y \sim \mathcal{D}}[a_{x,y} v(r_\theta(x, y) - \mathbb{E}_Q[r_\theta(x, y')])] + C_{\mathcal{D}}$$
+
+$$
+f(\pi_\theta, \pi_{\text{ref}}) = \mathbb{E}_{x,y \sim \mathcal{D}}[a_{x,y} v(r_\theta(x, y) - \mathbb{E}_Q[r_\theta(x, y')])] + C_{\mathcal{D}}
+$$
 
 **Quantitative Results**
 KTO matches or exceeds DPO performance across model scales from 1B to 30B parameters. It demonstrates robustness to extreme data imbalance, matching DPO while utilizing up to 90% fewer desirable examples. For sufficiently large models (13B and 30B), KTO can be applied directly without supervised finetuning (SFT) without sacrificing generation quality, a capability DPO lacks. On the UltraFeedback dataset, replacing DPO with KTO on Zephyr-$\beta$-SFT improved GSM8K scores by 13.5 points. Even when trained on a single output per input (reducing data volume by 72%), KTO-aligned Mistral-7B models outperformed both DPO and the official instruction-tuned baseline. Recommended hyperparameters include a learning rate of $5 \times 10^{-6}$, $\beta \in [0.01, 0.10]$ for SFT-aligned models, and $\beta \in [0.10, 1.00]$ for direct KTO training.

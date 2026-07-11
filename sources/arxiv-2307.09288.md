@@ -21,17 +21,22 @@ The development pipeline proceeds through five sequential stages:
 
 **Key Formulas**
 The reward model optimization employs a margin-enhanced ranking loss:
-\[
+
+$$
 \mathcal {L} _ {\text { ranking }} = - \log (\sigma (r _ {\theta} (x, y _ {c}) - r _ {\theta} (x, y _ {r}) - m (r)))
-\]
+$$
+
 where $r_{\theta}$ outputs a scalar score, $y_c$ and $y_r$ are chosen/rejected responses, and $m(r)$ scales with preference rating strength. The PPO objective maximizes expected reward subject to a KL penalty:
-\[
+
+$$
 \arg \max _ {\pi} \mathbb {E} _ {p \sim \mathcal {D}, g \sim \pi} [ R (g \mid p) ]
-\]
+$$
+
 The final reward function combines safety ($R_s$) and helpfulness ($R_h$) models, applying a 0.15 threshold for safety filtering and whitening via logit reversal:
-\[
+
+$$
 R (g \mid p) = \text { WHITEN } ( \text { LOGIT } (R _ {c} (g \mid p)) ) - \beta D _ {K L} (\pi_ {\theta} (g \mid p) \parallel \pi_ {0} (g \mid p))
-\]
+$$
 
 **Quantitative Results**
 Pretraining consumed 3.3 million GPU hours with an estimated 539 tCO₂eq footprint (fully offset). The LLaMA 2 70B base model achieves 68.9 on MMLU, 51.2 on BBH, and 56.8 on GSM8K, outperforming LLaMA 1 65B by approximately 5 and 8 points, respectively. The Helpfulness and Safety reward models achieve 63.2% and 64.5% accuracy on internal test sets, surpassing baselines including GPT-4. In human evaluations across ~4,000 prompts, LLaMA 2-CHAT 70B secures a 36% win rate and 31.5% tie rate against ChatGPT, while outperforming open-source competitors (e.g., >75% win rate vs. Vicuna-33B). Safety RLHF significantly improves long-tail safety scores without degrading helpfulness, though false refusal rates rise to ~0.05% on standard prompts and higher on adversarial borderline cases.

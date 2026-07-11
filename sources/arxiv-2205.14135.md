@@ -21,9 +21,11 @@ FLASHATTENTION resolves this by introducing an IO-aware exact attention algorith
 
 **Key Formulas & Complexity**
 The standard attention computation is defined as $\mathbf{S} = \mathbf{Q}\mathbf{K}^\top$, $\mathbf{P} = \mathrm{softmax}(\mathbf{S})$, and $\mathbf{O} = \mathbf{P}\mathbf{V}$. FLASHATTENTION decomposes the softmax for concatenated vectors $x^{(1)}, x^{(2)}$ as:
-\[
+
+$$
 m(x) = \max(m(x^{(1)}), m(x^{(2)})), \quad \ell(x) = e^{m(x^{(1)})-m(x)}\ell(x^{(1)}) + e^{m(x^{(2)})-m(x)}\ell(x^{(2)}).
-\]
+$$
+
 Theoretical analysis proves that standard attention requires $\Theta(Nd + N^2)$ HBM accesses, whereas FLASHATTENTION reduces this to $\Theta(N^2 d^2 M^{-1})$. A proven lower bound demonstrates this IO complexity is asymptotically optimal for exact attention across all SRAM sizes. Extending the method to block-sparse patterns with sparsity ratio $s$ yields an IO complexity of $\Theta(Nd + N^2 d^2 M^{-1} s)$.
 
 **Key Quantitative Results**

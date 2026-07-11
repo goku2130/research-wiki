@@ -22,12 +22,27 @@ InfoRM addresses misgeneralization by reformulating reward modeling through a va
 
 **Key Formulas**
 The theoretical IB objective balances preference utility and input irrelevance:
-$$\max_{\boldsymbol{\theta}} I(\boldsymbol{S}; Y) - \beta I(\boldsymbol{X}; \boldsymbol{S}|Y)$$
+
+$$
+\max_{\boldsymbol{\theta}} I(\boldsymbol{S}; Y) - \beta I(\boldsymbol{X}; \boldsymbol{S}|Y)
+$$
+
 The practical training loss approximates the variational lower bound:
-$$L_{\text{preference}} = \log \sigma \left( g_{\psi}(h_{\phi}(\boldsymbol{x}^w,\boldsymbol{\epsilon}^w)) - g_{\psi}(h_{\phi}(\boldsymbol{x}^l,\boldsymbol{\epsilon}^l)) \right)$$
-$$L_{\text{bottleneck}} = \text{KL} \left[ p_{\phi}(\boldsymbol{S}|\boldsymbol{x}^w), r(\boldsymbol{S}) \right] + \text{KL} \left[ p_{\phi}(\boldsymbol{S}|\boldsymbol{x}^l), r(\boldsymbol{S}) \right]$$
+
+$$
+L_{\text{preference}} = \log \sigma \left( g_{\psi}(h_{\phi}(\boldsymbol{x}^w,\boldsymbol{\epsilon}^w)) - g_{\psi}(h_{\phi}(\boldsymbol{x}^l,\boldsymbol{\epsilon}^l)) \right)
+$$
+
+$$
+L_{\text{bottleneck}} = \text{KL} \left[ p_{\phi}(\boldsymbol{S}|\boldsymbol{x}^w), r(\boldsymbol{S}) \right] + \text{KL} \left[ p_{\phi}(\boldsymbol{S}|\boldsymbol{x}^l), r(\boldsymbol{S}) \right]
+$$
+
 The CSI detection metric is calculated as:
-$$\mathrm{CSI} = \sum_{i=1}^n |C_i| \cdot \min_{\mathbf{s} \in S} \|\mathbf{c}_i - \mathbf{s}\|$$
+
+$$
+\mathrm{CSI} = \sum_{i=1}^n |C_i| \cdot \min_{\mathbf{s} \in S} \|\mathbf{c}_i - \mathbf{s}\|
+$$
+
 where $C_i$ denotes DBSCAN clusters, $\mathbf{c}_i$ their geometric centroids, and $S$ the set of SFT model outputs.
 
 **Key Quantitative Results**

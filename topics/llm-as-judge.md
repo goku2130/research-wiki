@@ -23,10 +23,6 @@ open_questions:
   biases from LLM judges? [source:arxiv:2306.05685]'
 ---
 
-Here is the fully revised wiki article, incorporating all requested fixes, precise methodology, key formulas, benchmark numbers, and grounded citations. Conflicting findings are explicitly documented, and the structure adheres to the specified format.
-
----
-
 # LLM-as-Judge: Automated Preference Evaluation for Large Language Models
 
 ## Overview
@@ -55,9 +51,11 @@ MT-Bench is a curated benchmark of 80 multi-turn questions across 8 categories (
 
 **Key Formula (Inter-Judge Agreement)**:
 For a human-majority baseline, partial credit is assigned for tied votes:
+
 $$
 \text{Agreement} = \frac{1}{2} \quad \text{if human votes are split equally.}
 $$
+
 [source:arxiv:2306.05685]
 
 #### PROMETHEUS
@@ -80,21 +78,27 @@ LLMs exhibit severe positional bias in pairwise comparisons, favoring responses 
 
 **Key Formulas**:
 - **Conflict Rate**:
-  $$
-  \text{Conflict Rate} = \frac{\sum_{i=1}^{N} \mathbb{I}(\mathbf{ER}_i^{r12} \neq \mathbf{ER}_i^{r21})}{N}
-  $$
+
+$$
+\text{Conflict Rate} = \frac{\sum_{i=1}^{N} \mathbb{I}(\mathbf{ER}_i^{r12} \neq \mathbf{ER}_i^{r21})}{N}
+$$
+
   where $\mathbb{I}$ is an indicator function comparing evaluation results $\mathbf{ER}$ from swapped positions [source:arxiv:2305.17926].
 
 - **BPC Calibrated Score**:
-  $$
-  CS_R = \sum_{i=1}^{k} \frac{S_R^i + S_R^{\prime i}}{2k}, \quad R \in \{r1, r2\}
-  $$
+
+$$
+CS_R = \sum_{i=1}^{k} \frac{S_R^i + S_R^{\prime i}}{2k}, \quad R \in \{r1, r2\}
+$$
+
   where $S_R^i$ and $S_R^{\prime i}$ are scores at first/second positions [source:arxiv:2305.17926].
 
 - **BPDE (Uncertainty Metric)**:
-  $$
-  \mathrm{BPDE} = \sum_{\mathbf{er} \in \{\text{win}, \text{tie}, \text{lose}\}} -\mathbf{p}_{\mathbf{er}} \log \mathbf{p}_{\mathbf{er}}
-  $$
+
+$$
+\mathrm{BPDE} = \sum_{\mathbf{er} \in \{\text{win}, \text{tie}, \text{lose}\}} -\mathbf{p}_{\mathbf{er}} \log \mathbf{p}_{\mathbf{er}}
+$$
+
   where $\mathbf{p}_{\mathbf{er}}$ is the probability of outcome $\mathbf{er}$ [source:arxiv:2305.17926].
 
 **Results**:

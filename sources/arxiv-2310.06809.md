@@ -20,11 +20,26 @@ The paper investigates two classical, unresolved conjectures in analytic number 
 6. **Conditional Non-Vanishing Proofs:** Leverage the infinitude of primes avoiding specific divisibility conditions (regularity or non-Wieferich status) to demonstrate that products or powers of constructed zeta values must be non-zero in $\mathcal{A}$, thereby guaranteeing at least one non-vanishing element per weight.
 
 **Key Formulas**
-$$\zeta_{p,N}^{\boldsymbol{\alpha}}(\boldsymbol{k}) := \sum_{\substack{0 < m_1 < \dots < m_r < p \\ m_i \in \alpha_i \text{ for all } 1 \le i \le r}} \frac{1}{m_1^{k_1} \cdots m_r^{k_r}}$$
-$$\zeta_{\mathcal{A},N}^c(\boldsymbol{k}) := \left( \zeta_{p,N}^{c(\overline{p})}(\boldsymbol{k}) \bmod p \right)_{p \in \mathcal{P}}$$
-$$\mathfrak{Z}(k) := \left( \frac{B_{p-k}}{k} \bmod p \right)_{p \in \mathcal{P}}$$
-$$\zeta_{\mathcal{A}}(k_1, k_2) = (-1)^{k_2} \binom{k_1 + k_2}{k_1} \mathfrak{Z}(k_1 + k_2)$$
-$$\log_{\mathcal{A}}(2) = - \frac{2N}{N + 1} \sum_{0 \leq j < N/2} \zeta_{\mathcal{A}, 2N}^{[2j]}(1)$$
+
+$$
+\zeta_{p,N}^{\boldsymbol{\alpha}}(\boldsymbol{k}) := \sum_{\substack{0 < m_1 < \dots < m_r < p \\ m_i \in \alpha_i \text{ for all } 1 \le i \le r}} \frac{1}{m_1^{k_1} \cdots m_r^{k_r}}
+$$
+
+$$
+\zeta_{\mathcal{A},N}^c(\boldsymbol{k}) := \left( \zeta_{p,N}^{c(\overline{p})}(\boldsymbol{k}) \bmod p \right)_{p \in \mathcal{P}}
+$$
+
+$$
+\mathfrak{Z}(k) := \left( \frac{B_{p-k}}{k} \bmod p \right)_{p \in \mathcal{P}}
+$$
+
+$$
+\zeta_{\mathcal{A}}(k_1, k_2) = (-1)^{k_2} \binom{k_1 + k_2}{k_1} \mathfrak{Z}(k_1 + k_2)
+$$
+
+$$
+\log_{\mathcal{A}}(2) = - \frac{2N}{N + 1} \sum_{0 \leq j < N/2} \zeta_{\mathcal{A}, 2N}^{[2j]}(1)
+$$
 
 **Key Quantitative Results**
 The algebraic analysis establishes explicit structural and analytic bounds. The FMZV vector spaces vanish for low weights: $\mathcal{Z}_{\mathcal{A}, 1} = \mathcal{Z}_{\mathcal{A}, 2} = \mathcal{Z}_{\mathcal{A}, 4} = 0$. For the least odd integer $k \geq 3$ such that $p \nmid B_{p-k}$ (denoted $\partial_p$), the paper proves $\partial_p \leq \frac{p-3}{2}$ when $p \equiv 1 \pmod 4$ and $\partial_p \leq \frac{p-5}{2}$ when $p \equiv 3 \pmod 4$, valid for all $p \geq 11$. Regarding Fermat quotients, the least base $N$ not dividing $q_p(N)$ (denoted $\ell_p$) satisfies $\ell_p \leq 4(\log p)^2$ (Lenstra) and $\ell_p \leq (\log p)^{463/252+o(1)}$ (Bourgain et al.). The lower bound for irregular prime density is given by $\#\{p \leq x : p \text{ irregular}\} \geq (1 + o(1)) \frac{\log \log x}{\log \log \log x}$.

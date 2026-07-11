@@ -16,7 +16,11 @@ The standard RLHF workflow proceeds through three numerically isolated phases. F
 
 **Key Formulas**
 The reward model is trained using a logistic pairwise loss function designed to maximize the margin between preferred and dispreferred completions:
-$$L = \log\left(1 + e^{r_{\text{chosen}} - r_{\text{rejected}}}\right)$$
+
+$$
+L = \log\left(1 + e^{r_{\text{chosen}} - r_{\text{rejected}}}\right)
+$$
+
 where $r_{\text{chosen}}$ and $r_{\text{rejected}}$ are the raw logit outputs from the reward model's value head for the selected and rejected responses, respectively. The language generation task is cast as a contextual bandit within a POMDP framework $\mathcal{M} = (\mathcal{S}, \mathcal{A}, \mathcal{O}, \mathcal{T}, \mathcal{Z}, \mu_0, \mathcal{R}, \gamma)$, where the observation $h_t$ is the token history, the action $a_t$ is the next token, and the reward $\mathcal{R}$ is provided post-sequence by the reward model.
 
 **Key Quantitative Results and Numbers**

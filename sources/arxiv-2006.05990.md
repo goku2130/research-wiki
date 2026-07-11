@@ -21,13 +21,29 @@ To systematically isolate the impact of these choices, the authors developed a u
 
 **Key Formulas**
 The study formalizes core RL components used in the experiments. Advantage estimation relies on the N-step return:
-$$\hat{V}_t^{(N)} = \sum_{i=t}^{t+N-1} \gamma^{i-t} r_i + \gamma^N V(s_{t+N})$$
+
+$$
+\hat{V}_t^{(N)} = \sum_{i=t}^{t+N-1} \gamma^{i-t} r_i + \gamma^N V(s_{t+N})
+$$
+
 and the Generalized Advantage Estimator (GAE):
-$$\hat{V}_t^{\text{GAE}} = (1 - \lambda) \sum_{N>0} \lambda^{N-1} \hat{V}_t^{(N)}$$
+
+$$
+\hat{V}_t^{\text{GAE}} = (1 - \lambda) \sum_{N>0} \lambda^{N-1} \hat{V}_t^{(N)}
+$$
+
 The PPO policy loss enforces a trust region via clipping:
-$$\mathcal{L}_{\text{PPO}}^\epsilon = -\min \left[ \frac{\pi(a_t|s_t)}{\mu(a_t|s_t)} \hat{A}_t^\pi, \text{clip} \left( \frac{\pi(a_t|s_t)}{\mu(a_t|s_t)}, \frac{1}{1+\epsilon}, 1+\epsilon \right) \hat{A}_t^\pi \right]$$
+
+$$
+\mathcal{L}_{\text{PPO}}^\epsilon = -\min \left[ \frac{\pi(a_t|s_t)}{\mu(a_t|s_t)} \hat{A}_t^\pi, \text{clip} \left( \frac{\pi(a_t|s_t)}{\mu(a_t|s_t)}, \frac{1}{1+\epsilon}, 1+\epsilon \right) \hat{A}_t^\pi \right]
+$$
+
 Action distributions are parameterized as:
-$$T_u(\mathcal{N}(x_\mu, T_\rho(x_\rho + c_\rho) + \epsilon_\rho))$$
+
+$$
+T_u(\mathcal{N}(x_\mu, T_\rho(x_\rho + c_\rho) + \epsilon_\rho))
+$$
+
 where $T_u$ and $T_\rho$ denote transformations for bounding actions and ensuring non-negative standard deviations, respectively.
 
 **Key Quantitative Results**

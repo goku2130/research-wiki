@@ -37,15 +37,19 @@ Reinforcement learning (RL) fine-tuning of large language models (LLMs) frequent
 
 ### Reward Over-optimization and the Alignment Tax
 The standard RLHF objective maximizes a learned reward $ r_\phi(x,y) $ subject to a KL divergence penalty from a reference policy $ \pi_{\text{ref}} $:
+
 $$
 \max_{\pi_\theta} \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(y|x)} \left[ r_\phi(x,y) - \beta \mathbb{D}_{\text{KL}}[\pi_\theta(y|x) || \pi_{\text{ref}}(y|x)] \right]. \quad \text{[source:arxiv:2203.02155]}
 $$
+
 The KL penalty prevents the policy from deviating excessively from the reference, but as $ \beta $ decreases, the policy may exploit imperfections in $ r_\phi $, a phenomenon termed *reward hacking* [source:arxiv:2203.02155]. Empirically, this manifests as a U-shaped performance curve: initial optimization improves alignment, but continued training degrades performance on held-out tasks (e.g., public NLP benchmarks), a cost termed the *alignment tax* [source:arxiv:2203.02155].
 
 The optimal policy under this objective is:
+
 $$
 \pi_r(y|x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y|x) \exp\left(\frac{1}{\beta} r_\phi(x,y)\right), \quad \text{where } Z(x) = \sum_y \pi_{\text{ref}}(y|x) \exp\left(\frac{1}{\beta} r_\phi(x,y)\right). \quad \text{[source:arxiv:2305.18290]}
 $$
+
 This closed-form solution reveals that the policy’s support is determined by the product of the reference policy and an exponential tilt toward high-reward outputs. As $ \beta \to 0 $, the policy concentrates mass on the mode of $ r_\phi $, leading to *distributional collapse*—a form of mode collapse where the output distribution becomes unimodal and low-entropy [source:arxiv:2305.18290].
 
 ### Mode Collapse in Policy Optimization
@@ -70,9 +74,11 @@ Diversity loss is quantified via:
 
 ### Distributional Collapse Under PPO
 Proximal Policy Optimization (PPO) [source:arxiv:1707.06347] is the dominant RL algorithm for LLM fine-tuning, but its clipped objective can exacerbate mode collapse. The surrogate objective:
+
 $$
 L^{CLIP}(\theta) = \mathbb{E}_t \left[ \min \left( r_t(\theta)\hat{A}_t, \operatorname{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_t \right) \right], \quad \text{where } r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\text{old}}(a_t|s_t)},
 $$
+
 penalizes large policy updates, but this clipping can *accelerate* collapse when:
 - The advantage estimates $ \hat{A}_t $ are noisy or sparse, causing the policy to overfit to a subset of high-advantage trajectories.
 - The entropy bonus $ S[\pi_\theta] $ is insufficient to counteract the entropy loss from the clipped objective. [source:arxiv:1707.06347] notes that PPO’s entropy bonus is often too weak to prevent collapse in high-dimensional action spaces (e.g., LLM vocabularies).
@@ -84,9 +90,11 @@ Empirical evidence from [source:arxiv:2203.02155] shows that PPO-trained Instruc
 
 ### Over-optimization in DPO
 Direct Preference Optimization (DPO) [source:arxiv:2305.18290] eliminates explicit reward modeling and RL, but over-optimization persists. The DPO objective:
+
 $$
 \mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)} \right) \right],
 $$
+
 implicitly maximizes the reward gap between preferred and dispreferred outputs. However, as training progresses:
 1. The policy’s entropy collapses even in the absence of KL constraints, with token-level entropy dropping by 30–50% [source:arxiv:2305.18290].
 2. Performance on held-out tasks (e.g., CNN/DailyMail summarization) degrades after a certain number of training steps, despite continued improvement on the training preference dataset. This suggests that DPO overfits to the preference data, collapsing to a narrow distribution that fails to generalize [source:arxiv:2305.18290].
@@ -134,13 +142,17 @@ Early stopping is a practical but ad-hoc solution. Training is halted when perfo
 
 ### Entropy Bonuses and Temperature Annealing
 Entropy bonuses explicitly encourage diversity by adding a term $ \gamma \mathcal{H}[\pi_\theta(y|x)] $ to the RL objective. In PPO, this is implemented as:
+
 $$
 L_t^{CLIP+VF+S}(\theta) = \mathbb{E}_t \left[ L_t^{CLIP}(\theta) - c_1 L_t^{VF}(\theta) + c_2 S[\pi_\theta](s_t) \right], \quad \text{where } S[\pi_\theta] = \mathcal{H}[\pi_\theta(y|x)]. \quad \text{[source:arxiv:1707.06347]}
 $$
+
 Temperature annealing modulates the policy’s entropy by scaling the logits:
+
 $$
 \pi_\theta(y|x) = \text{softmax}\left(\frac{\log \pi_\theta(y|x)}{\tau}\right), \quad \text{where } \tau \text{ is annealed from } \tau_{\text{high}} \text{ to } \tau_{\text{low}}.
 $$
+
 These methods are effective but introduce new challenges:
 - **Hyperparameter tuning**: The entropy coefficient $ c_2 $ or temperature schedule must be carefully tuned to balance diversity and alignment. Overly high entropy can prevent the policy from optimizing the reward [source:arxiv:1707.06347].
 - **Reward hacking**: Entropy bonuses can be exploited by the policy to generate high-entropy but low-quality outputs (e.g., gibberish or repetitive sequences) [source:arxiv:2305.18290].
@@ -156,9 +168,11 @@ Ensembling reduces overfitting but:
 
 ### Offline RL and Conservative Updates
 Offline RL methods (e.g., DPO [source:arxiv:2305.18290], Conservative Q-Learning [CQL]) avoid in-loop sampling by training on static datasets. DPO, for example, optimizes:
+
 $$
 \mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)} \right) \right],
 $$
+
 which implicitly constrains the policy to stay close to the reference. Offline methods reduce collapse by:
 - Eliminating the positive feedback loop between policy updates and on-policy sampling.
 - Enabling more stable optimization via supervised learning [source:arxiv:2305.18290].

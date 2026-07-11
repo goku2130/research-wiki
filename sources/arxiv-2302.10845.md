@@ -16,8 +16,15 @@ The authors propose TherapyView, a demonstration system that applies neural topi
 
 **Key Formulas**
 The TTM pipeline calculates topic scores using cosine similarity between embedded vectors. For each turn $i$ and topic $j$, the scores are computed as:
-$$W_{j}^{p_{i}} = \text{similarity}(Emb(T_{j}), Emb(S_{i}^{p}))$$
-$$W_{j}^{t_{i}} = \text{similarity}(Emb(T_{j}), Emb(S_{i}^{t}))$$
+
+$$
+W_{j}^{p_{i}} = \text{similarity}(Emb(T_{j}), Emb(S_{i}^{p}))
+$$
+
+$$
+W_{j}^{t_{i}} = \text{similarity}(Emb(T_{j}), Emb(S_{i}^{t}))
+$$
+
 where $Emb(\cdot)$ denotes Word2Vec embeddings. The authors note that the Embedded Topic Model (ETM) further models each word via a categorical distribution whose natural parameter is the inner product between word and topic embeddings.
 
 **Quantitative Results**

@@ -21,7 +21,11 @@ The authors propose a structured pipeline centered on measuring "progress" rathe
 
 **Key Formulas and Mathematical Concepts**
 While the abstract does not provide explicit mathematical notation, it formally characterizes progress as the difference in the likelihood of producing a correct response before and after a step, aligning with step-level advantages in RL:
-$$A_{\text{step}} = P(\text{correct} \mid \text{after step}) - P(\text{correct} \mid \text{before step})$$
+
+$$
+A_{\text{step}} = P(\text{correct} \mid \text{after step}) - P(\text{correct} \mid \text{before step})
+$$
+
 This formulation ensures that the verifier rewards transitions that demonstrably increase the trajectory's probability of reaching a correct outcome, directly mapping to the step-level advantages required for effective policy optimization.
 
 **Key Quantitative Results**

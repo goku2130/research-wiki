@@ -16,10 +16,21 @@ The authors employ a synthetic experimental pipeline to bypass human labeling co
 
 **Key Formulas**
 The gold reward $R$ as a function of $d$ follows distinct functional forms for each optimization method:
-$$R_{\mathrm{bon}}(d) = d(\alpha_{\mathrm{bon}} - \beta_{\mathrm{bon}}d)$$
-$$R_{\mathrm{RL}}(d) = d(\alpha_{\mathrm{RL}} - \beta_{\mathrm{RL}}\log d)$$
+
+$$
+R_{\mathrm{bon}}(d) = d(\alpha_{\mathrm{bon}} - \beta_{\mathrm{bon}}d)
+$$
+
+$$
+R_{\mathrm{RL}}(d) = d(\alpha_{\mathrm{RL}} - \beta_{\mathrm{RL}}\log d)
+$$
+
 The coefficients $\alpha$ and $\beta$ scale smoothly with proxy RM parameters and dataset size. For regressional Goodhart effects, the expected gold reward given a proxy score $\hat{x}$ is modeled as:
-$$\mathbb{E}[X \mid \hat{X} = \hat{x}] = \mathbb{E}[X] + (\hat{x} - \mathbb{E}[X] - \mathbb{E}[Z]) \frac{\text{Var}(X)}{\text{Var}(X) + \text{Var}(Z)} + \varepsilon$$
+
+$$
+\mathbb{E}[X \mid \hat{X} = \hat{x}] = \mathbb{E}[X] + (\hat{x} - \mathbb{E}[X] - \mathbb{E}[Z]) \frac{\text{Var}(X)}{\text{Var}(X) + \text{Var}(Z)} + \varepsilon
+$$
+
 where $X$ is the gold reward, $\hat{X}$ is the proxy, and $Z$ is independent noise. For iterated RLHF over $k$ iterations, the final gold score scales as $R_{\text{RL}}(d) = d(\alpha_{\text{RL}} - \beta_{\text{RL}} \log(d) + \beta_{\text{RL}} \log(k))$.
 
 **Quantitative Results**

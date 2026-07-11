@@ -21,11 +21,23 @@ The tutorial formalizes native reasoning as a Markov Decision Process (MDP) wher
 
 **Key Formulas**
 The autoregressive foundation remains $P(\mathbf{x}) = \prod_{t=1}^{T} P(x_t \mid x_1, \ldots, x_{t-1})$. State transitions are deterministic: $s_{t+1} = s_t + a_t$. The PRM value function is updated via the Bellman equation:
-$$V_{\theta}(s) = r(s) + \gamma \max_{a} V_{\theta}(a + s),$$
+
+$$
+V_{\theta}(s) = r(s) + \gamma \max_{a} V_{\theta}(a + s),
+$$
+
 with the temporal difference loss:
-$$L(\theta) = \sum_{i=1}^{N} \left( V_{\theta}(s_i) - \left[ r(s_i) + \gamma \max_{a} V_{\theta}(s_i + a) \right] \right)^2.$$
+
+$$
+L(\theta) = \sum_{i=1}^{N} \left( V_{\theta}(s_i) - \left[ r(s_i) + \gamma \max_{a} V_{\theta}(s_i + a) \right] \right)^2.
+$$
+
 GRPO optimization maximizes:
-$$J_{\text{GRPO}}(\theta) = \mathbb{E}_{q \sim P(Q), \{o_i\}_{i=1}^G \sim \pi_{\theta_{old}}(O|q)} \left[ \frac{1}{G} \sum_{i=1}^G \frac{1}{K_i} \sum_{t=1}^{K_i} \min(\hat{\rho}_{i,t} A_{i,t}, \text{clip}(\hat{\rho}_{i,t}, 1 - \epsilon, 1 + \epsilon) A_{i,t}) - \beta D_{\text{KL}}(\pi_{\theta} \| \pi_{\theta_{old}}) \right],$$
+
+$$
+J_{\text{GRPO}}(\theta) = \mathbb{E}_{q \sim P(Q), \{o_i\}_{i=1}^G \sim \pi_{\theta_{old}}(O|q)} \left[ \frac{1}{G} \sum_{i=1}^G \frac{1}{K_i} \sum_{t=1}^{K_i} \min(\hat{\rho}_{i,t} A_{i,t}, \text{clip}(\hat{\rho}_{i,t}, 1 - \epsilon, 1 + \epsilon) A_{i,t}) - \beta D_{\text{KL}}(\pi_{\theta} \| \pi_{\theta_{old}}) \right],
+$$
+
 where the advantage $A_{i,t} = \sum_{j=t}^{K_i} \bar{r}_i^{(j)}$ and normalized rewards are $\bar{r}_i^{(t)} = \frac{r_i^{(t)} - \text{mean}(R)}{\text{std}(R)}$.
 
 **Quantitative Results**

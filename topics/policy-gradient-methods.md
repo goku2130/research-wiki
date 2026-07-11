@@ -25,7 +25,11 @@ Policy gradient methods optimize the expected reward of a language model by adju
 ## Core Mechanics of Policy Gradients
 
 The fundamental goal of policy gradient methods is to maximize the expected cumulative reward $\eta(\pi) = \mathbb{E}_{\pi} [\sum_{t=0}^{\infty} \gamma^t r_t]$. The gradient of this objective takes the general form:
-$$g = \mathbb{E} \left[ \sum_{t=0}^{\infty} \Psi_t \nabla_\theta \log \pi_\theta(a_t \mid s_t) \right]$$
+
+$$
+g = \mathbb{E} \left[ \sum_{t=0}^{\infty} \Psi_t \nabla_\theta \log \pi_\theta(a_t \mid s_t) \right]
+$$
+
 where $\pi_\theta$ is the policy (the LLM), and $\Psi_t$ is a scalar representing the "goodness" of the action $a_t$ taken at time $t$ [source:arxiv:1506.02438].
 
 ### The Bias-Variance Tradeoff
@@ -37,7 +41,11 @@ To mitigate the bias-variance tradeoff, researchers use the **Advantage Function
 
 ### Generalized Advantage Estimation (GAE)
 GAE provides a parameterized way to interpolate between low-bias/high-variance and high-bias/low-variance estimates [source:arxiv:1506.02438]. The GAE estimator is defined as an exponentially weighted sum of Temporal Difference (TD) residuals:
-$$\hat{A}_{t}^{\mathrm{GAE}(\gamma,\lambda)} = \sum_{l=0}^{\infty}(\gamma\lambda)^{l}\delta_{t+l}^{V}$$
+
+$$
+\hat{A}_{t}^{\mathrm{GAE}(\gamma,\lambda)} = \sum_{l=0}^{\infty}(\gamma\lambda)^{l}\delta_{t+l}^{V}
+$$
+
 where $\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)$ is the TD residual [source:arxiv:1506.02438][source:arxiv:1707.06347].
 
 The hyperparameters control the tradeoff:
@@ -53,7 +61,11 @@ LLM alignment typically employs an actor-critic framework where two separate (or
 
 ### Trust Region Policy Optimization (TRPO)
 To prevent unstable updates and ensure monotonic improvement, TRPO enforces a hard constraint on the average KL divergence between the old and new policy:
-$$\underset{\theta}{\text{maximize }} L_{\theta_{\text{old}}}(\theta) \quad \text{subject to } \overline{D}_{\mathrm{KL}}^{\rho_{\theta_{\text{old}}}}(\theta_{\text{old}}, \theta) \leq \delta$$
+
+$$
+\underset{\theta}{\text{maximize }} L_{\theta_{\text{old}}}(\theta) \quad \text{subject to } \overline{D}_{\mathrm{KL}}^{\rho_{\theta_{\text{old}}}}(\theta_{\text{old}}, \theta) \leq \delta
+$$
+
 TRPO uses a second-order optimization method involving the Fisher Information Matrix and conjugate gradient descent to solve this constrained problem [source:arxiv:1502.05477].
 
 ### Proximal Policy Optimization (PPO)
@@ -80,9 +92,17 @@ In the RLHF pipeline, policy gradient methods are used to align an SFT (Supervis
 
 ### The RLHF Objective
 The objective is to maximize the reward $r_\theta(x, y)$ while penalizing the model for drifting too far from the SFT reference policy $\pi^{\text{SFT}}$ to prevent "reward hacking" [source:arxiv:2203.02155]:
-$$\text{objective} (\phi) = E _ {(x, y) \sim D _ {\pi_ {\phi} ^ {\mathrm{RL}}}} \left[ r _ {\theta} (x, y) - \beta \log \left(\frac{\pi_ {\phi} ^ {\mathrm{RL}} (y \mid x)}{\pi^ {\mathrm{SFT}} (y \mid x)}\right) \right]$$
+
+$$
+\text{objective} (\phi) = E _ {(x, y) \sim D _ {\pi_ {\phi} ^ {\mathrm{RL}}}} \left[ r _ {\theta} (x, y) - \beta \log \left(\frac{\pi_ {\phi} ^ {\mathrm{RL}} (y \mid x)}{\pi^ {\mathrm{SFT}} (y \mid x)}\right) \right]
+$$
+
 To combat the "alignment tax" (performance degradation on general tasks), the **PPO-ptx** variant mixes in pretraining distribution gradients:
-$$\text{objective} (\phi) = E _ {(x, y) \sim D _ {\pi_ {\phi} ^ {\mathrm{RL}}}} \left[ r _ {\theta} (x, y) - \beta \log \left(\frac{\pi_ {\phi} ^ {\mathrm{RL}} (y \mid x)}{\pi^ {\mathrm{SFT}} (y \mid x)}\right) \right] + \gamma E _ {x \sim D _ {\text {pretrain}}} \left[ \log \left(\pi_ {\phi} ^ {\mathrm{RL}} (x)\right) \right]$$
+
+$$
+\text{objective} (\phi) = E _ {(x, y) \sim D _ {\pi_ {\phi} ^ {\mathrm{RL}}}} \left[ r _ {\theta} (x, y) - \beta \log \left(\frac{\pi_ {\phi} ^ {\mathrm{RL}} (y \mid x)}{\pi^ {\mathrm{SFT}} (y \mid x)}\right) \right] + \gamma E _ {x \sim D _ {\text {pretrain}}} \left[ \log \left(\pi_ {\phi} ^ {\mathrm{RL}} (x)\right) \right]
+$$
+
 where $\gamma$ controls the strength of the pretraining gradient [source:arxiv:2203.02155].
 
 ## Modern Evolutions: DPO and GRPO
@@ -91,7 +111,11 @@ Recent methods seek to remove the instability and overhead of the actor-critic l
 
 ### Direct Preference Optimization (DPO)
 DPO eliminates the explicit reward model and the PPO loop entirely. It uses a mathematical reparameterization to express the reward function in terms of the optimal policy $\pi_r$ and a reference policy $\pi_{\text{ref}}$ [source:arxiv:2305.18290]:
-$$\pi_r(y \mid x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y \mid x) \exp \left( \frac{1}{\beta} r(x, y) \right)$$
+
+$$
+\pi_r(y \mid x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y \mid x) \exp \left( \frac{1}{\beta} r(x, y) \right)
+$$
+
 By substituting this into a Bradley-Terry preference model, DPO optimizes the policy using a simple binary cross-entropy loss on preferred ($y_w$) and dispreferred ($y_l$) pairs [source:arxiv:2305.18290].
 
 ### Group Relative Policy Optimization (GRPO)

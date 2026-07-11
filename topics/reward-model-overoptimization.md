@@ -61,21 +61,27 @@ This metric is central to scaling laws, where $ d $ acts as a proxy for "optimiz
 Empirical scaling laws describe how ground-truth reward $ R $ degrades as a function of $ d $. Two distinct functional forms emerge for different optimization methods:
 
 1. **Best-of-$ n $ (BoN) sampling**:
-   $$
-   R_{\text{bon}}(d) = d(\alpha_{\text{bon}} - \beta_{\text{bon}} d),
-   $$
+
+$$
+R_{\text{bon}}(d) = d(\alpha_{\text{bon}} - \beta_{\text{bon}} d),
+$$
+
    where $ \alpha_{\text{bon}} $ and $ \beta_{\text{bon}} $ scale logarithmically with proxy RM parameter count [source:arxiv:2210.10760].
 
 2. **Reinforcement learning (PPO)**:
-   $$
-   R_{\text{RL}}(d) = d(\alpha_{\text{RL}} - \beta_{\text{RL}} \log d).
-   $$
+
+$$
+R_{\text{RL}}(d) = d(\alpha_{\text{RL}} - \beta_{\text{RL}} \log d).
+$$
+
    Here, $ \alpha_{\text{RL}} $ is nearly constant across RM sizes, while $ \beta_{\text{RL}} $ captures the rate of degradation [source:arxiv:2210.10760].
 
 For **iterated RLHF**, the scaling law generalizes to:
+
 $$
 R_{\text{RL}}(d) = d(\alpha_{\text{RL}} - \beta_{\text{RL}} \log(d) + \beta_{\text{RL}} \log(k)),
 $$
+
 where $ k $ is the number of training iterations [source:arxiv:2210.10760].
 
 ### Direct Alignment Algorithms (DAAs)

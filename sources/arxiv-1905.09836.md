@@ -16,11 +16,23 @@ The analysis extends the Einstein-Hilbert action with curvature couplings $\xi \
 
 **Key Formulas**
 The scalar action and homogeneous equation of motion are:
-$$S = \int \mathrm{d}^4x \sqrt{-g} \left( \frac{1}{2} \left( M_{\mathrm{pl}}^2 - \xi \phi^2 \right) R - \frac{1}{2} \partial_\mu \phi \partial^\mu \phi - \frac{1}{2} m_\phi^2 \phi^2 \right), \quad \ddot {\phi} + 3 H \dot {\phi} + \left(m _ {\phi} ^ {2} + \xi R\right) \phi = 0.$$
+
+$$
+S = \int \mathrm{d}^4x \sqrt{-g} \left( \frac{1}{2} \left( M_{\mathrm{pl}}^2 - \xi \phi^2 \right) R - \frac{1}{2} \partial_\mu \phi \partial^\mu \phi - \frac{1}{2} m_\phi^2 \phi^2 \right), \quad \ddot {\phi} + 3 H \dot {\phi} + \left(m _ {\phi} ^ {2} + \xi R\right) \phi = 0.
+$$
+
 Evolution exponents are $\alpha_\pm = 3 \pm \sqrt{9 - 48\xi}$ (scalars) and $\beta_\pm \equiv 3 \pm \sqrt{1+8\kappa}$ (vectors). The relic density relative to observed dark matter is:
-$$\frac {\Omega_ {\phi}}{\Omega_ {\mathrm{DM}}} \simeq 5 \mathcal {F} (T _ {\star}) \left(\frac {\phi_ {e}}{1 0 ^ {1 2} \mathrm{GeV}} \right) ^ {2} \sqrt {\frac {m _ {\phi}}{\mathrm{eV}}}.$$
+
+$$
+\frac {\Omega_ {\phi}}{\Omega_ {\mathrm{DM}}} \simeq 5 \mathcal {F} (T _ {\star}) \left(\frac {\phi_ {e}}{1 0 ^ {1 2} \mathrm{GeV}} \right) ^ {2} \sqrt {\frac {m _ {\phi}}{\mathrm{eV}}}.
+$$
+
 Field suppression during inflation follows $\phi_e \simeq \phi_s \mathrm{e}^{-\frac{1}{2}\alpha_- N_{\mathrm{tot}}}$, while the fluctuation power spectrum evolves as $\mathcal {P} _ {\phi} (k, a) = \mathcal {P} _ {\phi} (k, a _ {k}) \left(\frac {k}{a H _ {I}} \right) ^ {\alpha_ {-}}$. The CMB isocurvature power spectrum is:
-$$\mathcal {P} _ {\delta_ {\phi}} \left(k _ {\mathrm{CMB}}\right) = \frac {4}{\phi_ {c} ^ {2} \mathrm{e} ^ {\alpha_ {-} N _ {\mathrm{CMB}}}} \left(\frac {H _ {I}}{2 \pi}\right) ^ {2} F (\alpha_ {-}), \quad F(\alpha_-) \equiv \frac {2 ^ {2 - \alpha_ {-}}}{\pi} \Gamma^ {2} \left(\frac {3 - \alpha_ {-}}{2}\right).$$
+
+$$
+\mathcal {P} _ {\delta_ {\phi}} \left(k _ {\mathrm{CMB}}\right) = \frac {4}{\phi_ {c} ^ {2} \mathrm{e} ^ {\alpha_ {-} N _ {\mathrm{CMB}}}} \left(\frac {H _ {I}}{2 \pi}\right) ^ {2} F (\alpha_ {-}), \quad F(\alpha_-) \equiv \frac {2 ^ {2 - \alpha_ {-}}}{\pi} \Gamma^ {2} \left(\frac {3 - \alpha_ {-}}{2}\right).
+$$
+
 For vector longitudinal modes, the numerical matching coefficient is fitted as $| f (\kappa) | = 0. 5 0 2 \kappa^ {- 0. 5} - 0. 2 2 4 + 0. 2 6 2 \kappa - 0. 0 4 1 1 \kappa^ {2} + 0. 0 0 6 5 4 \kappa^ {3}$.
 
 **Key Quantitative Results**

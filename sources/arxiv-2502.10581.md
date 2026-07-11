@@ -16,7 +16,11 @@ The authors propose a theoretical transformation pipeline that converts outcome-
 
 **Key Formulas & Theoretical Machinery**
 The analysis formalizes coverage conditions using the Markov Decision Process tuple $(\mathcal{S}, \mathcal{A}, H, P, r)$. The authors contrast trajectory concentrability, $C_{\text{traj}} = \sup_{\pi} \sup_{\tau} \frac{\rho^\pi(\tau)}{\rho^{\pi_{\text{ref}}}(\tau)}$, with state-action concentrability, $C_{\text{sa}} = \sup_{\pi} \sup_{h, s, a} \frac{\rho^\pi_h(s, a)}{\rho^{\pi_{\text{ref}}}_h(s, a)}$. The central technical contribution is the Change of Trajectory Measure Lemma, which establishes that trajectory-level distribution shifts can be bounded using only state-action concentrability:
-$$\mathbb{E}_{\tau \sim \pi} \left[ \left( \sum_{h=1}^H f_h(s_h, a_h) \right)^2 \right] \leq C_{\text{sa}} \cdot \mathbb{E}_{\tau \sim \pi'} \left[ \left( \sum_{h=1}^H f_h(s_h, a_h) \right)^2 \right] + \text{poly}(H) \cdot \log(\cdot)$$
+
+$$
+\mathbb{E}_{\tau \sim \pi} \left[ \left( \sum_{h=1}^H f_h(s_h, a_h) \right)^2 \right] \leq C_{\text{sa}} \cdot \mathbb{E}_{\tau \sim \pi'} \left[ \left( \sum_{h=1}^H f_h(s_h, a_h) \right)^2 \right] + \text{poly}(H) \cdot \log(\cdot)
+$$
+
 This inequality demonstrates that controlling the second moment of state-action values under a reference policy implicitly controls prefix and suffix variances across the trajectory, up to polynomial horizon factors. The authors further prove that for any policy, its advantage function serves as an optimal process reward model, whereas Q-functions may yield suboptimal results. In preference-based RL settings governed by the Bradley-Terry model, the transformation similarly maps trajectory-level preferences to per-step rewards.
 
 **Quantitative Results & Bounds**

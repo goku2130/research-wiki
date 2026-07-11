@@ -21,21 +21,29 @@ The proposed Accurate Post-training Quantization for Diffusion Models (APQ-DM) a
 
 **Key Formulas**
 The group-specific quantization function is defined as:
-\[
+
+$$
 \hat{x} = s_{g(i)} \cdot \Phi([x/s_{g(i)}], z_{min}^{g(i)}, z_{max}^{g(i)})
-\]
+$$
+
 The differentiable relaxation sums all group outputs:
-\[
+
+$$
 \hat{x} = \sum_{g=1}^{G} \sigma_g s_g \cdot \Phi([x/s_g], z_{min}^g, z_{max}^g)
-\]
+$$
+
 The joint optimization objective minimizes the noise estimation loss $J_d$ and entropy loss $J_e$:
-\[
+
+$$
 \min_{t, \boldsymbol{x}_0, \boldsymbol{\epsilon}} J = ||\boldsymbol{\epsilon} - \boldsymbol{\epsilon}_\theta||_2^2 + \lambda \sum_{g=1}^{G} -\sigma_g^t \log \sigma_g^t
-\]
+$$
+
 The SRM-based timestep selection criterion maximizes:
-\[
+
+$$
 \max_t s = \sum_{g=1}^G -\sigma_g^t \log \sigma_g^t + \frac{\eta}{N_t + 1}
-\]
+$$
+
 where $N_t$ is the sampling count for timestep $t$, and $\lambda, \eta$ are hyperparameters.
 
 **Quantitative Results**

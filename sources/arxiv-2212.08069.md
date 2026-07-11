@@ -16,12 +16,27 @@ The authors employ a parametric reconstruction approach. First, they establish t
 
 **Key Formulas**
 The theoretical framework relies on several critical expressions. The non-metricity scalar is defined as $Q = -Q_{\sigma\alpha\beta}P^{\sigma\alpha\beta}$, where $P_{\mu\nu}^{\lambda}$ is the superpotential tensor. The FLRW Friedmann equations in $f(Q)$ gravity are given by:
-$$3H^2 = \frac{1}{2f_Q}\left(-\rho + \frac{1}{2}f\right), \quad \dot{H} + 3H^2 + \frac{\dot{f}_Q}{f_Q}H = \frac{1}{2f_Q}\left(p + \frac{1}{2}f\right).$$
+
+$$
+3H^2 = \frac{1}{2f_Q}\left(-\rho + \frac{1}{2}f\right), \quad \dot{H} + 3H^2 + \frac{\dot{f}_Q}{f_Q}H = \frac{1}{2f_Q}\left(p + \frac{1}{2}f\right).
+$$
+
 The parametrized deceleration parameter yields the Hubble evolution:
-$$H(z) = H_0(z + 1)^{q_0 + 1} e^{\frac{q_1 z^2}{2(z+1)^2}}.$$
+
+$$
+H(z) = H_0(z + 1)^{q_0 + 1} e^{\frac{q_1 z^2}{2(z+1)^2}}.
+$$
+
 Substituting this into the field equations produces the energy density and pressure:
-$$\rho = \alpha (-2^{n-1}) 3^n (2n - 1) \left( H_0^2 (z + 1)^{2q_0 + 2} e^{\frac{q_1 z^2}{(z+1)^2}} \right)^n,$$
-$$p = \alpha 6^{n-1} \left( H_0^2 (z + 1)^{2q_0 + 2} e^{\frac{q_1 z^2}{(z+1)^2}} \right)^n \left( -\frac{2n(q_0(z+1)^2 + z(q_1+z+2)+1)}{(z+1)^2} - \frac{4(n-1)n(z+1)^{-q_0 - 3} e^{-\frac{q_1 z^2}{2(z+1)^2}} (q_0(z+1)^2 + z(q_1+z+2)+1)}{H_0} + 6n - 3 \right).$$
+
+$$
+\rho = \alpha (-2^{n-1}) 3^n (2n - 1) \left( H_0^2 (z + 1)^{2q_0 + 2} e^{\frac{q_1 z^2}{(z+1)^2}} \right)^n,
+$$
+
+$$
+p = \alpha 6^{n-1} \left( H_0^2 (z + 1)^{2q_0 + 2} e^{\frac{q_1 z^2}{(z+1)^2}} \right)^n \left( -\frac{2n(q_0(z+1)^2 + z(q_1+z+2)+1)}{(z+1)^2} - \frac{4(n-1)n(z+1)^{-q_0 - 3} e^{-\frac{q_1 z^2}{2(z+1)^2}} (q_0(z+1)^2 + z(q_1+z+2)+1)}{H_0} + 6n - 3 \right).
+$$
+
 The EoS parameter follows as $w = p/\rho$, with the full redshift-dependent expression provided in Eq. (17). The statistical fitting utilizes the likelihood function $\mathcal{L} \propto \exp(-\chi^2/2)$.
 
 **Quantitative Results**

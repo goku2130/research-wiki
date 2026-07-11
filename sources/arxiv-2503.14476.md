@@ -16,7 +16,11 @@ The authors introduce DAPO (Decoupled Clip and Dynamic sAmpling Policy Optimizat
 
 **Key Formulas**
 The DAPO objective maximizes:
-$$\max_{\theta} \mathbb{E}_{q, o_i} \left[ \frac{1}{G} \sum_{i=1}^G \frac{1}{|o_i|} \sum_{t=1}^{|o_i|} \min\left( r_{i,t} \hat{A}_{i,t}, \text{clip}(r_{i,t}, 1-\epsilon_l, \epsilon_h) \hat{A}_{i,t} \right) \right]$$
+
+$$
+\max_{\theta} \mathbb{E}_{q, o_i} \left[ \frac{1}{G} \sum_{i=1}^G \frac{1}{|o_i|} \sum_{t=1}^{|o_i|} \min\left( r_{i,t} \hat{A}_{i,t}, \text{clip}(r_{i,t}, 1-\epsilon_l, \epsilon_h) \hat{A}_{i,t} \right) \right]
+$$
+
 where $r_{i,t}$ is the importance sampling ratio, $\hat{A}_{i,t}$ is the group-normalized advantage, and $\epsilon_l = 0.2$, $\epsilon_h = 0.28$. Dynamic Sampling filters samples where $r_i \in \{0, 1\}$. The token-level loss explicitly averages over $|o_i|$ before aggregation. Overlong punishment applies $R_{total} = R_{rule} - \lambda \cdot \max(0, |o_i| - L_{max} - \Delta)$, where $L_{max}=16,384$ and $\Delta=4,096$.
 
 **Quantitative Results**

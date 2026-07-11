@@ -16,11 +16,23 @@ The study first evaluates base models (Qwen2.5, Llama-3.1, DeepSeek-V3-Base) acr
 
 **Key Formulas**
 The training objective is framed as an entropy-regularized policy optimization:
-$$J(\theta) = \mathbb{E}_{\tau \sim \pi_\theta} \left[ \sum_{t=1}^T r_t - \beta \log \frac{\pi_\theta(a_t|s_t)}{\pi_{\text{ref}}(a_t|s_t)} \right]$$
+
+$$
+J(\theta) = \mathbb{E}_{\tau \sim \pi_\theta} \left[ \sum_{t=1}^T r_t - \beta \log \frac{\pi_\theta(a_t|s_t)}{\pi_{\text{ref}}(a_t|s_t)} \right]
+$$
+
 where $r_t$ is the trajectory return and $\pi_{\text{ref}}$ is a reference policy. Standard PPO optimizes a surrogate objective:
-$$J_{\text{PPO}}(\theta) = \mathbb{E}_{\tau \sim \pi_{\theta_{\text{old}}}} \left[ \sum_{t=1}^T \min\left( \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)} \hat{A}_t, \text{clip}\left(\frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}, 1-\epsilon, 1+\epsilon\right) \hat{A}_t \right) \right]$$
+
+$$
+J_{\text{PPO}}(\theta) = \mathbb{E}_{\tau \sim \pi_{\theta_{\text{old}}}} \left[ \sum_{t=1}^T \min\left( \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)} \hat{A}_t, \text{clip}\left(\frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}, 1-\epsilon, 1+\epsilon\right) \hat{A}_t \right) \right]
+$$
+
 GRPO modifies this by introducing two biases in its loss formulation:
-$$\mathcal{L}_{\text{GRPO}} \propto \frac{r_i - \mu_i}{\sigma_i} \cdot \frac{1}{|\tau_i|}$$
+
+$$
+\mathcal{L}_{\text{GRPO}} \propto \frac{r_i - \mu_i}{\sigma_i} \cdot \frac{1}{|\tau_i|}
+$$
+
 where $|\tau_i|$ is the response length and $\sigma_i$ is the question-level standard deviation of returns. Dr. GRPO eliminates the $1/|\tau_i|$ and $\sigma_i$ terms to restore the unbiased PPO objective.
 
 **Key Quantitative Results**

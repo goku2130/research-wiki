@@ -21,11 +21,23 @@ The paper addresses the historical difficulty of constructing a fundamental poly
 
 **Key Formulas**
 The order of the automorphism group (and dart count) for $\mathcal{M}_3(n)$ is:
-$$\mu(n) = \frac{n^3}{2} \prod_{p|n} \left(1 - \frac{1}{p^2}\right).$$
+
+$$
+\mu(n) = \frac{n^3}{2} \prod_{p|n} \left(1 - \frac{1}{p^2}\right).
+$$
+
 The genus of the associated surface follows from the Euler-Poincaré formula:
-$$g(n) = 1 + \frac{n^2}{24} (n - 6) \prod_{p|n} \left(1 - \frac{1}{p^2}\right). \tag{1}$$
+
+$$
+g(n) = 1 + \frac{n^2}{24} (n - 6) \prod_{p|n} \left(1 - \frac{1}{p^2}\right). \tag{1}
+$$
+
 For prime levels $p$, the graph-theoretic distance between distinct vertices $\frac{a}{c}$ and $\frac{b}{d}$ is:
-$$\delta \left( \frac{a}{c}, \frac{b}{d} \right) = \begin{cases} 1 & \text{if } |\Delta| = 1, \\ 2 & \text{if } |\Delta| \neq 0, \pm 1, \\ 3 & \text{if } \Delta = 0, \end{cases}$$
+
+$$
+\delta \left( \frac{a}{c}, \frac{b}{d} \right) = \begin{cases} 1 & \text{if } |\Delta| = 1, \\ 2 & \text{if } |\Delta| \neq 0, \pm 1, \\ 3 & \text{if } \Delta = 0, \end{cases}
+$$
+
 where $\Delta = ad-bc$. The circuit lengths are $|S_1(p)| = p$ and $|S_2(p)| = p(p-4)$.
 
 **Key Quantitative Results**

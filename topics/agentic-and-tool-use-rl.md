@@ -83,9 +83,11 @@ This is exacerbated by:
 1. **Sampling**: The LM annotates a plain-text corpus with potential API calls (e.g., `<API> QA["What is the capital of France?"] </API>`) at positions where the probability of the `<API>` token exceeds a threshold.
 2. **Execution**: Sampled API calls are executed to obtain responses.
 3. **Filtering**: Calls are retained only if they reduce the model’s prediction loss for subsequent tokens. The loss reduction is evaluated using a weighted cross-entropy loss:
-   $$
-   L_i(\mathbf{z}) = - \sum_{j=i}^n w_{j-i} \cdot \log p_M(x_j \mid \mathbf{z}, x_{1:j-1}),
-   $$
+
+$$
+L_i(\mathbf{z}) = - \sum_{j=i}^n w_{j-i} \cdot \log p_M(x_j \mid \mathbf{z}, x_{1:j-1}),
+$$
+
    where $\mathbf{z}$ is the augmented context (with or without the API call), and weights $w_{j-i}$ decay linearly with distance from the API call [source:arxiv:2302.04761].
 4. **Finetuning**: The filtered API calls are interleaved with the original text to form an augmented dataset, on which the base LM is finetuned.
 

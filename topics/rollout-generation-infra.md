@@ -23,10 +23,6 @@ open_questions:
   be optimized for distributed settings to minimize inter-GPU communication overhead?'
 ---
 
-Here is the fully revised wiki article, with all grounding issues addressed and invalid citations removed or replaced:
-
----
-
 # Rollout Generation Infrastructure: vLLM/SGLang, KV Reuse, and Throughput Optimization
 
 Autoregressive rollout generation in large language models (LLMs) is a memory-bound process dominated by the dynamic growth of the key-value (KV) cache and the sequential nature of token-by-token decoding. Modern serving systems like vLLM and SGLang have redefined this infrastructure by introducing virtual memory abstractions, block-level sharing, and hybrid scheduling to maximize throughput while minimizing fragmentation and recomputation overhead. This deep dive dissects the architectural innovations, trade-offs, and unresolved tensions in rollout generation infrastructure, with a focus on KV cache management, attention computation, and system-level optimizations.
@@ -37,9 +33,11 @@ Autoregressive rollout generation in large language models (LLMs) is a memory-bo
 
 ### Memory Fragmentation and KV Cache Growth
 Autoregressive generation factorizes sequence probability as:
+
 $$
 P(x) = \prod_{i=1}^n P(x_i \mid x_{<i}),
 $$
+
 where each token $x_i$ requires access to all preceding key-value pairs $\{k_j, v_j\}_{j=1}^{i-1}$ for attention computation [source:arxiv:2309.06180]. In multi-request batching, this leads to two critical inefficiencies:
 
 1. **External Fragmentation**: Pre-allocating contiguous memory for each request based on a maximum sequence length (e.g., 2048 tokens) wastes 61.8%–79.6% of allocated memory, as most requests terminate early [source:arxiv:2309.06180].
@@ -69,13 +67,17 @@ vLLM introduces *PagedAttention*, a block-based virtual memory system for KV cac
 
 2. **Block-Wise Attention**:
    Standard attention computes:
-   $$
-   o_i = \sum_{j=1}^i \frac{\exp(q_i^T k_j / \sqrt{d})}{\sum_{t=1}^i \exp(q_i^T k_t / \sqrt{d})} v_j.
-   $$
+
+$$
+o_i = \sum_{j=1}^i \frac{\exp(q_i^T k_j / \sqrt{d})}{\sum_{t=1}^i \exp(q_i^T k_t / \sqrt{d})} v_j.
+$$
+
    PagedAttention reformulates this into block-wise operations:
-   $$
-   A_{ij} = \frac{\exp(q_i^T K_j / \sqrt{d})}{\sum_{t=1}^{\lceil i/B \rceil} \exp(q_i^T K_t 1 / \sqrt{d})}, \quad o_i = \sum_{j=1}^{\lceil i/B \rceil} V_j A_{ij}^T,
-   $$
+
+$$
+A_{ij} = \frac{\exp(q_i^T K_j / \sqrt{d})}{\sum_{t=1}^{\lceil i/B \rceil} \exp(q_i^T K_t 1 / \sqrt{d})}, \quad o_i = \sum_{j=1}^{\lceil i/B \rceil} V_j A_{ij}^T,
+$$
+
    where $B$ is the block size, and $K_j, V_j$ are the key/value vectors in block $j$. This avoids materializing the full $L \times L$ attention matrix.
 
 3. **Copy-on-Write (CoW) Sharing**:
@@ -104,13 +106,16 @@ SARATHI (xLLM) addresses the prefill-decode mismatch via two complementary techn
 
 **Key Formulas**:
 - Maximum batch size $B$ is constrained by GPU memory $M_G$, model parameters $M_S$, sequence length $L$, and per-token KV cache size $m_{kv}$:
-  $$
-  B = \left\lfloor \frac{M_G - M_S}{L \cdot m_{kv}} \right\rfloor.
-  $$
+
+$$
+B = \left\lfloor \frac{M_G - M_S}{L \cdot m_{kv}} \right\rfloor.
+$$
+
 - Optimal prefill-to-decode ratio $P:D$ aligns with chunk size $C$ and batch size $B$:
-  $$
-  P:D = \frac{C}{B - 1}.
-  $$
+
+$$
+P:D = \frac{C}{B - 1}.
+$$
 
 **Throughput Gains**:
 - On LLaMA-13B (A6000), decode throughput improves by 10× and end-to-end throughput by 1.33× [source:arxiv:2308.16369].

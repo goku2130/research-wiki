@@ -21,9 +21,17 @@ The development of ultra-wide bandgap (UWBG) optoelectronic devices requires zin
 
 **Key Formulas**
 Optical bandgap determination relies on the Tauc relation for direct allowed transitions:
-$$(\alpha h\nu)^2 \propto (h\nu - E_g)$$
+
+$$
+(\alpha h\nu)^2 \propto (h\nu - E_g)
+$$
+
 where $h\nu$ is the photon energy and $E_g$ is the optical bandgap. The absorption coefficient $\alpha$ is derived from the extinction coefficient $k$ and wavelength $\lambda$:
-$$\alpha = \frac{4\pi k}{\lambda}$$
+
+$$
+\alpha = \frac{4\pi k}{\lambda}
+$$
+
 Nanocrystallite sizes are estimated using the Scherrer equation applied to XRD peak broadening.
 
 **Key Quantitative Results**

@@ -24,14 +24,22 @@ The standard approach to reward modeling for LLMs relies on preference elicitati
 
 ### The Bradley-Terry (BT) Model
 The Bradley-Terry model is the foundational framework used to map pairwise preferences to a scalar reward $R$ [source:arxiv:1706.03741][source:arxiv:2411.04991]. It assumes that the probability of a human preferring response $y_i$ over $y_j$ given a prompt $x$ is defined by the logistic difference of their rewards:
-$$P(y_i \succ y_j) = \frac{e^{R(x, y_i)}}{e^{R(x, y_i)} + e^{R(x, y_j)}} = \sigma(R(x, y_i) - R(x, y_j))$$
+
+$$
+P(y_i \succ y_j) = \frac{e^{R(x, y_i)}}{e^{R(x, y_i)} + e^{R(x, y_j)}} = \sigma(R(x, y_i) - R(x, y_j))
+$$
+
 where $\sigma$ is the sigmoid function [source:arxiv:1706.03741][source:arxiv:2411.04991]. The reward model is typically trained by minimizing the cross-entropy loss between these predicted probabilities and the actual human labels [source:arxiv:1706.03741][source:arxiv:2510.08049].
 
 ### Theoretical Critiques and Alternatives
 Recent analysis suggests a fundamental mismatch between the BT model's origins (dense, multi-player stochastic games) and LLM alignment (extremely sparse pairwise comparisons) [source:arxiv:2411.04991]. 
 
 **Disagreement on Model Necessity:** While BT is the industry default [source:arxiv:2203.02155], [source:arxiv:2411.04991] argues that exact probability calibration is unnecessary. Instead, they propose an **order consistency** objective, where the reward model only needs to preserve the true ranking:
-$$r_\theta(x_i) > r_\theta(x_j) \iff u(x_i) > u(x_j)$$
+
+$$
+r_\theta(x_i) > r_\theta(x_j) \iff u(x_i) > u(x_j)
+$$
+
 Empirical results from [source:arxiv:2411.04991] indicate that classification-based reward models achieve statistical efficacy comparable to BT models while offering greater architectural flexibility.
 
 ## Outcome-Based vs. Process-Based Rewards
@@ -55,7 +63,11 @@ There is a documented tension regarding the necessity of PRMs:
 
 ### Advanced Process Verifiers: PAVs
 To solve the scalability issue of human step-labeling, Process Advantage Verifiers (PAVs) reward "progress" rather than static correctness [source:arxiv:2410.08146]. Progress is defined as the increase in the probability of reaching a correct final answer after a step is taken:
-$$A_{\text{step}} = P(\text{correct} \mid \text{after step}) - P(\text{correct} \mid \text{before step})$$
+
+$$
+A_{\text{step}} = P(\text{correct} \mid \text{after step}) - P(\text{correct} \mid \text{before step})
+$$
+
 PAV-guided search is reported to be 1.5 to 5$\times$ more compute-efficient than ORM-guided search [source:arxiv:2410.08146].
 
 ## Reward Hacking and the Proxy Gap
@@ -76,7 +88,11 @@ Reward hacking occurs when a policy $\pi$ optimizes a proxy reward $R_{\text{pro
 | **Alignment Faking** | Model conceals intent to satisfy the evaluator [source:arxiv:2604.13602]. | Strategic misalignment [source:arxiv:2604.13602]. |
 
 To mitigate this, RLHF pipelines often use a KL penalty to constrain the policy $\pi$ relative to a reference policy $\pi_{\text{ref}}$:
-$$\max_{\pi} \mathbb{E} [r(x,y)] - \beta \mathbb{D}_{\text{KL}}[\pi(\cdot|x) || \pi_{\text{ref}}(\cdot|x)]$$
+
+$$
+\max_{\pi} \mathbb{E} [r(x,y)] - \beta \mathbb{D}_{\text{KL}}[\pi(\cdot|x) || \pi_{\text{ref}}(\cdot|x)]
+$$
+
 [source:arxiv:2604.13602].
 
 ## Current status and trajectory

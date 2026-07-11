@@ -13,12 +13,20 @@ Policy optimization in reinforcement learning frequently suffers from unstable u
 
 **Theoretical Foundation & Key Formulas**
 The authors establish a policy improvement bound by extending conservative policy iteration to general stochastic policies. Using the maximum total variation divergence $\alpha = D_{TV}^{\max}(\pi_{\text{old}}, \pi_{\text{new}})$ and the maximum advantage magnitude $\epsilon = \max_{s,a} |A_\pi(s,a)|$, they prove the following lower bound on the expected return $\eta$:
-$$\eta(\pi_{\text{new}}) \geq L_{\pi_{\text{old}}}(\pi_{\text{new}}) - \frac{4\epsilon\gamma}{(1-\gamma)^2}\alpha^2$$
+
+$$
+\eta(\pi_{\text{new}}) \geq L_{\pi_{\text{old}}}(\pi_{\text{new}}) - \frac{4\epsilon\gamma}{(1-\gamma)^2}\alpha^2
+$$
+
 where $L_{\pi}(\tilde{\pi}) = \eta(\pi) + \sum_s \rho_\pi(s) \sum_a \tilde{\pi}(a|s)A_\pi(s, a)$ is a first-order surrogate objective that matches $\eta$ to first order. This bound implies that maximizing the surrogate objective while penalizing policy divergence guarantees monotonic improvement in expected return.
 
 **Algorithmic Recipe**
 To make the method practical, the authors propose Trust Region Policy Optimization (TRPO), which replaces the theoretical penalty with a hard constraint on the average KL divergence:
-$$\underset{\theta}{\text{maximize }} L_{\theta_{\text{old}}}(\theta) \quad \text{subject to } \overline{D}_{\mathrm{KL}}^{\rho_{\theta_{\text{old}}}}(\theta_{\text{old}}, \theta) \leq \delta.$$
+
+$$
+\underset{\theta}{\text{maximize }} L_{\theta_{\text{old}}}(\theta) \quad \text{subject to } \overline{D}_{\mathrm{KL}}^{\rho_{\theta_{\text{old}}}}(\theta_{\text{old}}, \theta) \leq \delta.
+$$
+
 The algorithmic recipe proceeds iteratively: (1) collect state-action trajectories and estimate $Q$-values using either the *single-path* method (standard trajectory sampling) or the *vine* method (trunk trajectories with branching rollouts and common random numbers to reduce variance); (2) construct Monte Carlo estimates of the surrogate objective and KL constraint; (3) compute a search direction via conjugate gradient (CG) by solving $Ax = g$, where $A$ is the Fisher information matrix. Matrix-vector products are computed analytically as $J^T M J y$ to avoid storing dense Hessians; (4) perform a line search to find a step length $\beta = \sqrt{2\delta / s^T A s}$ that satisfies the KL constraint and improves the nonlinear objective; (5) update $\theta$. The CG algorithm typically uses $k=10$ iterations, with the Fisher matrix computed on a 10% data subsample to maintain computational efficiency comparable to standard gradient computation.
 
 **Quantitative Results**

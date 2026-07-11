@@ -39,7 +39,11 @@ topic: grpo
    *Method/Recipe:* The authors propose a two-phase approach. First, **DeepSeek-R1-Zero** is trained via pure reinforcement learning starting from the DeepSeek-V3 Base checkpoint, explicitly bypassing conventional supervised fine-tuning. The training employs Group Relative Policy Optimization (GRPO) with a rule-based reward system that evaluates only the correctness of final predictions against ground-truth answers, alongside a format reward enforcing `<think>...</think>` and `<answer>...</answer>` tags. No content-specific constraints are imposed to allow natural reasoning evolution. Second, to address R1-Zero’s poor readability and language mixing, **DeepSeek-R1** undergoes a multistage pipeline: (1) cold-start conversational data collection followed by RL for language consistency; (2) rejection sampling and supervised fine-tuning on mixed reasoning and non-reasoning datasets; and (3) a secondary RL stage aligning the model with human preferences for helpfulness and harmlessness using model-based rewards for general data, while retaining rule-based rewards for reasoning tasks.
 
    *Key Formulas:* The GRPO algorithm optimizes the policy $\pi_\theta$ by maximizing an objective that balances advantage-weighted policy updates with a KL divergence penalty relative to a reference policy $\pi_{\text{ref}}$:
-   $$J(\theta) = \mathbb{E}_{q \sim P(Q), \{o_i\}_{i=1}^G \sim \pi_{\theta_{\text{old}}}(O|q)} \left[ \frac{1}{G} \sum_{i=1}^G \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)} A_i - \beta \mathbb{D}_{\text{KL}}[\pi_\theta || \pi_{\text{ref}}] \right]$$
+
+$$
+J(\theta) = \mathbb{E}_{q \sim P(Q), \{o_i\}_{i=1}^G \sim \pi_{\theta_{\text{old}}}(O|q)} \left[ \frac{1}{G} \sum_{i=1}^G \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)} A_i - \beta \mathbb{D}_{\text{KL}}[\pi_\theta || \pi_{\text{ref}}] \right]
+$$
+
    where the advantage $A_i$ is computed from a group of rewards $\{r_1, \dots, r_G\}$ corresponding to sampled outputs. Accuracy and format rewards are combined with equal weights, and neural reward models are explicitly avoided for reasoning tasks to prevent reward hacking.
 
    *Quantitative Results:* During pure RL training, DeepSeek-R1-Zero’s pass@1 score on the AIME 2024 benchmark surged from 15.6% to 77.9%, reaching 86.7% with self-consistency decoding, surpassing average human competitors. The multistage DeepSeek-R1 pipeline yielded progressive gains: Dev1 improved instruction-following but slightly degraded AIME performance; Dev2 markedly enhanced STEM and coding benchmarks; Dev3 significantly boosted AlpacaEval 2.0 and Aider-Polyglot scores. The final DeepSeek-R1 achieved a 25% improvement on AlpacaEval 2.0 and a 17% gain on Arena-Hard, with only marginal additional gains on math and code benchmarks. Safety evaluations place the model at a moderate risk level, comparable to GPT-4o (May 2024), which elevates to a superior standard when coupled with external risk control systems.
@@ -70,7 +74,11 @@ topic: grpo
    All constraints met. I will generate the response. 
    Self-Correction/Verification during thought: 
    I need to make sure I don't invent the formula if it's missing in the prompt. The prompt actually has a formatting glitch where the LaTeX is missing. I will state the formula exactly as described in the text's narrative, or use the standard GRPO formulation but explicitly tie it to the text's variables. I'll write: 
-   $$J(\theta) = \mathbb{E}\left[ \frac{1}{G} \sum_{i=1}^G \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)} A_i - \beta \mathbb{D}_{\text{KL}}[\pi_\theta || \pi_{\text{ref}}] \right]$$
+
+$$
+J(\theta) = \mathbb{E}\left[ \frac{1}{G} \sum_{i=1}^G \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)} A_i - \beta \mathbb{D}_{\text{KL}}[\pi_\theta || \pi_{\text{ref}}] \right]
+$$
+
    This matches the text's description of the components. I'll proceed. 
    Output matches the draft.✅
    Word count: ~615. Within 400-800.
@@ -103,7 +111,11 @@ The authors implement a two-stage training pipeline. First, **DeepSeek-R1-Zero**
 
 **Key Formulas**
 The GRPO algorithm optimizes the policy $\pi_\theta$ by maximizing an objective that balances advantage-weighted policy updates with a KL divergence penalty relative to a reference policy $\pi_{\text{ref}}$:
-$$J(\theta) = \mathbb{E}_{q \sim P(Q), \{o_i\}_{i=1}^G \sim \pi_{\theta_{\text{old}}}(O|q)} \left[ \frac{1}{G} \sum_{i=1}^G \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)} A_i - \beta \mathbb{D}_{\text{KL}}[\pi_\theta || \pi_{\text{ref}}] \right]$$
+
+$$
+J(\theta) = \mathbb{E}_{q \sim P(Q), \{o_i\}_{i=1}^G \sim \pi_{\theta_{\text{old}}}(O|q)} \left[ \frac{1}{G} \sum_{i=1}^G \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)} A_i - \beta \mathbb{D}_{\text{KL}}[\pi_\theta || \pi_{\text{ref}}] \right]
+$$
+
 where the advantage $A_i$ is computed from a group of rewards $\{r_1, \dots, r_G\}$ corresponding to sampled outputs. Accuracy and format rewards are combined with equal weights, and neural reward models are explicitly avoided for reasoning tasks to prevent reward hacking.
 
 **Key Quantitative Results**

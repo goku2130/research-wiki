@@ -25,13 +25,29 @@ AVSPO is a lightweight, plug-and-play extension of GRPO that restores reward div
 
 **Key Formulas**
 The GRPO advantage estimator:
-$$\hat{A}_i = \frac{r_i - \mu_r}{\sigma_r + \epsilon}$$
+
+$$
+\hat{A}_i = \frac{r_i - \mu_r}{\sigma_r + \epsilon}
+$$
+
 The ACR diagnostic metric:
-$$\text{ACR} = \frac{1}{N} \sum_{j=1}^N \mathbb{I}(\sigma_{r_j} \le \epsilon)$$
+
+$$
+\text{ACR} = \frac{1}{N} \sum_{j=1}^N \mathbb{I}(\sigma_{r_j} \le \epsilon)
+$$
+
 The adaptive virtual sample count:
-$$N_v = \lceil \text{ACR} \cdot N \cdot \alpha \rceil$$
+
+$$
+N_v = \lceil \text{ACR} \cdot N \cdot \alpha \rceil
+$$
+
 The AVSPO advantage computation:
-$$\hat{A}_i^{\text{AVSPO}} = \frac{r_i - \mu_{r}^{\text{aug}}}{\sigma_{r}^{\text{aug}} + \epsilon}$$
+
+$$
+\hat{A}_i^{\text{AVSPO}} = \frac{r_i - \mu_{r}^{\text{aug}}}{\sigma_{r}^{\text{aug}} + \epsilon}
+$$
+
 where $\mu_{r}^{\text{aug}}$ and $\sigma_{r}^{\text{aug}}$ denote the mean and standard deviation of the augmented reward set.
 
 **Quantitative Results**

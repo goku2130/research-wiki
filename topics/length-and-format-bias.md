@@ -24,10 +24,6 @@ open_questions:
   in a task-specific way?
 ---
 
-Here is the fully revised wiki article with all issues addressed, fabricated claims removed, and citations corrected to reflect the provided source summaries:
-
----
-
 # Length and Format Bias in Large Language Models
 
 Length and format bias refer to the systematic preference of language models (LMs) for responses that are longer, more verbose, or adhere to specific structural formats—even when these characteristics are not intrinsically tied to correctness or quality. This phenomenon is particularly problematic in reinforcement learning from human feedback (RLHF) and other preference-based fine-tuning paradigms, where reward models (RMs) may inadvertently incentivize verbosity or rigid formatting over substantive accuracy. Such biases emerge from two primary sources: (1) **length bias**, where RMs assign higher scores to longer responses due to superficial correlations in training data, and (2) **format bias**, where RMs favor responses that match the stylistic or structural conventions of high-reward examples, even if those conventions are arbitrary or suboptimal [source:arxiv:2305.14345].
@@ -55,9 +51,11 @@ Length bias arises when reward models (RMs) or human evaluators systematically a
 
 #### Mathematical Formulation
 Let $r(y)$ denote the reward assigned to response $y$, and let $|y|$ denote its length (e.g., in tokens). Length bias can be formalized as a correlation between $r(y)$ and $|y|$ [source:arxiv:2305.14345]:
+
 $$
 \text{Corr}(r(y), |y|) > 0,
 $$
+
 where the correlation is measured across a dataset of responses. In extreme cases, this correlation may dominate the reward signal, though the exact functional form (e.g., linear, logarithmic) is task-dependent.
 
 ### Format Bias: Why Structure May Matter More Than Substance
@@ -190,18 +188,22 @@ Several techniques have been proposed for length-controlled evaluation [source:a
 #### a. **Length Penalization**
    - **Approach**: Add a length penalty to the reward signal during RLHF to discourage verbosity [source:arxiv:2305.14345].
    - **Implementation**: Modify the reward as:
-     $$
-     r'(y) = r(y) - \beta \cdot |y|,
-     $$
+
+$$
+r'(y) = r(y) - \beta \cdot |y|,
+$$
+
      where $\beta > 0$ is a hyperparameter.
    - **Limitations**: Requires careful tuning of $\beta$; may harm performance on tasks where longer responses are genuinely better (e.g., detailed explanations).
 
 #### b. **KL Regularization with Length Control**
    - **Approach**: Use KL regularization to constrain the policy’s deviation from a reference model, while explicitly controlling for length [source:arxiv:2305.14345]. For example, penalize the policy for producing responses that are significantly longer than the reference model’s responses.
    - **Implementation**: Modify the RLHF objective to include a length-aware KL term:
-     $$
-     \mathcal{L}_{\text{RLHF}} = \mathbb{E}_{y \sim \pi}[r(y)] - \tau \cdot \text{KL}(\pi \parallel \pi_{\text{ref}}) - \gamma \cdot \text{Var}(|y|),
-     $$
+
+$$
+\mathcal{L}_{\text{RLHF}} = \mathbb{E}_{y \sim \pi}[r(y)] - \tau \cdot \text{KL}(\pi \parallel \pi_{\text{ref}}) - \gamma \cdot \text{Var}(|y|),
+$$
+
      where $\text{Var}(|y|)$ is the variance of response lengths under the policy.
 
 #### c. **Best-of-N with Length Control**

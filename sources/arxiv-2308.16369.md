@@ -21,9 +21,16 @@ SARATHI addresses these bottlenecks through a structured, step-by-step schedulin
 
 **Key Formulas**
 The maximum permissible batch size $B$ is constrained by available GPU memory $M_G$, model parameter memory $M_S$, maximum sequence length $L$, and per-token KV cache size $m_{kv}$:
-$$B = \lfloor \left( \frac{M_G - M_S}{L * m_{kv}} \right) \rfloor$$
+
+$$
+B = \lfloor \left( \frac{M_G - M_S}{L * m_{kv}} \right) \rfloor
+$$
+
 Peak throughput is achieved when the prefill-to-decode token ratio ($P:D$) aligns with the chunk size $C$ and batch size $B$:
-$$P:D = \frac{C}{B - 1}$$
+
+$$
+P:D = \frac{C}{B - 1}
+$$
 
 **Quantitative Results**
 Empirical evaluations demonstrate substantial performance gains across diverse hardware and model scales. On an A6000 GPU with LLaMA-13B, SARATHI improves decode throughput by up to 10× and end-to-end throughput by up to 1.33×. For LLaMA-33B on an A100 GPU, decode throughput increases by up to 4.25× with a 1.25× end-to-end speedup. In a simulated 64-GPU GPT-3 deployment using 8-way pipeline parallelism, the system reduces pipeline bubble time by 6.29×, yielding a 1.91× improvement in end-to-end throughput. Ablation studies confirm that decode-maximal batching reduces per-token decode time from 12.49 ms to 1.2 ms, while chunked-prefills incur manageable overheads, limiting prefill efficiency loss to under 20% for optimal chunk sizes.

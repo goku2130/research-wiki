@@ -20,13 +20,17 @@ The Self-Taught Reasoner (STaR) addresses this through an iterative bootstrappin
 
 **Key Formulas**
 STaR approximates a reinforcement learning policy gradient objective. The model is treated as a discrete latent variable model $p_M(y|x) = \sum_r p(r|x)p(y|x,r)$. The expected reward across the dataset is defined as:
-\[
+
+$$
 J(M, X, Y) = \sum_i \mathbb{E}_{\hat{r}_i, \hat{y}_i \sim p_M(\cdot|x_i)} \mathbb{1}(\hat{y}_i = y_i),
-\]
+$$
+
 with the gradient computed via the log-derivative trick:
-\[
+
+$$
 \nabla J(M, X, Y) = \sum_i \mathbb{E}_{\hat{r}_i, \hat{y}_i \sim p_M(\cdot|x_i)} \left[ \mathbb{1}(\hat{y}_i = y_i) \cdot \nabla \log p_M(\hat{y}_i, \hat{r}_i | x_i) \right].
-\]
+$$
+
 The indicator function $\mathbb{1}(\hat{y}_i = y_i)$ acts as a reward filter, discarding gradients for incorrect rationales, which corresponds to STaR’s filtering step.
 
 **Quantitative Results**

@@ -23,10 +23,6 @@ open_questions:
   [source:arxiv:2402.04792] does not address this.'
 ---
 
-Here is the fully revised wiki article, with all grounding issues addressed, fabricated numbers removed, and misattributions corrected. The article now strictly adheres to the cited sources and explicitly documents disagreements or conflicting conclusions.
-
----
-
 # Nash and Game-Theoretic Preference Optimization
 
 Large language models (LLMs) are increasingly fine-tuned to align with complex, multi-dimensional human preferences. Standard Reinforcement Learning from Human Feedback (RLHF) and Direct Preference Optimization (DPO) methods treat alignment as a single-agent optimization problem, which can lead to reward hacking, preference collapse, and off-policy drift. Nash and game-theoretic preference optimization reframes alignment as a *multi-player game* in which policies compete or cooperate to satisfy diverse, potentially conflicting preferences, enabling equilibrium solutions that balance trade-offs and mitigate these failure modes.
@@ -37,14 +33,19 @@ Large language models (LLMs) are increasingly fine-tuned to align with complex, 
 
 ### 1.1 The Single-Agent RLHF Objective
 Standard RLHF optimizes a policy $\pi_\theta$ to maximize an expected reward $r(x,y)$ while constraining divergence from a reference policy $\pi_{\text{ref}}$ via KL regularization [source:arxiv:2305.18290]:
+
 $$
 \max_{\pi_\theta} \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(y|x)} \left[ r(x,y) \right] - \beta \mathbb{D}_{\text{KL}} \left[ \pi_\theta(y|x) \|\pi_{\text{ref}}(y|x) \right].
 $$
+
 The optimal policy under this objective has the closed-form solution:
+
 $$
 \pi_r(y|x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y|x) \exp \left( \frac{1}{\beta} r(x,y) \right),
 $$
+
 where $Z(x)$ is the partition function. DPO reparameterizes this solution to eliminate the explicit reward model, yielding a binary cross-entropy loss over preference pairs $(y_w, y_l)$ [source:arxiv:2305.18290]:
+
 $$
 \mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w \mid x)}{\pi_{\text{ref}}(y_w \mid x)} - \beta \log \frac{\pi_\theta(y_l \mid x)}{\pi_{\text{ref}}(y_l \mid x)} \right) \right].
 $$
@@ -63,15 +64,18 @@ Single-agent RLHF and DPO suffer from three critical limitations:
 
 ### 2.1 Nash Equilibria for Preference Alignment
 A Nash equilibrium (NE) is a strategy profile $\{\pi_i^*\}_{i=1}^N$ in which no agent can unilaterally improve its utility by deviating from $\pi_i^*$. In preference alignment, agents correspond to *preference dimensions* (e.g., helpfulness, harmlessness), and utilities are defined over these dimensions. Formally, let $\mathcal{P} = \{P_1, \dots, P_N\}$ be a set of preference dimensions, and let $u_i(\pi_1, \dots, \pi_N)$ be the utility of agent $i$ under the joint policy profile. A NE satisfies:
+
 $$
 u_i(\pi_i^*, \pi_{-i}^*) \geq u_i(\pi_i, \pi_{-i}^*) \quad \forall \pi_i, \forall i.
 $$
 
 #### 2.1.1 Regularized Nash Equilibria
 KL regularization can be used to ensure uniqueness and improve convergence. The regularized utility for agent $i$ is:
+
 $$
 u_i^\text{reg}(\pi_i, \pi_{-i}) = u_i(\pi_i, \pi_{-i}) - \beta \mathbb{D}_{\text{KL}} \left[ \pi_i(y|x) \|\pi_{\text{ref}}(y|x) \right].
 $$
+
 The regularized NE is the unique fixed point of the best-response dynamics under $u_i^\text{reg}$.
 
 ### 2.2 Online AI Feedback (OAIF) as a Game-Theoretic Framework
@@ -88,17 +92,22 @@ OAIF proceeds iteratively:
 **Key Formulas**:
 OAIF is compatible with any differentiable DAP loss. The primary loss functions are:
 - **DPO loss**:
-  $$
-  - \log \sigma \left(\beta \log \frac {\pi_ {\theta} (\boldsymbol {y} ^ {+} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {-} | \boldsymbol {x})}{\pi_ {\theta^ {0}} (\boldsymbol {y} ^ {+} | \boldsymbol {x}) \pi_ {\theta} (\boldsymbol {y} ^ {-} | \boldsymbol {x})}\right)
-  $$
+
+$$
+- \log \sigma \left(\beta \log \frac {\pi_ {\theta} (\boldsymbol {y} ^ {+} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {-} | \boldsymbol {x})}{\pi_ {\theta^ {0}} (\boldsymbol {y} ^ {+} | \boldsymbol {x}) \pi_ {\theta} (\boldsymbol {y} ^ {-} | \boldsymbol {x})}\right)
+$$
+
 - **IPO loss**:
-  $$
-  \left(\log \left(\frac {\pi_ {\theta} (\boldsymbol {y} ^ {+} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {-} | \boldsymbol {x})}{\pi_ {\theta} (\boldsymbol {y} ^ {-} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {+} | \boldsymbol {x})}\right) - \frac {1}{2 \beta}\right) ^ {2}
-  $$
+
+$$
+\left(\log \left(\frac {\pi_ {\theta} (\boldsymbol {y} ^ {+} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {-} | \boldsymbol {x})}{\pi_ {\theta} (\boldsymbol {y} ^ {-} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {+} | \boldsymbol {x})}\right) - \frac {1}{2 \beta}\right) ^ {2}
+$$
+
 - **SLiC loss**:
-  $$
-  \max \left(0, 1 - \beta \log \left(\frac {\pi_ {\theta} (\boldsymbol {y} ^ {+} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {-} | \boldsymbol {x})}{\pi_ {\theta} (\boldsymbol {y} ^ {-} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {+} | \boldsymbol {x})}\right)\right)
-  $$
+
+$$
+\max \left(0, 1 - \beta \log \left(\frac {\pi_ {\theta} (\boldsymbol {y} ^ {+} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {-} | \boldsymbol {x})}{\pi_ {\theta} (\boldsymbol {y} ^ {-} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {+} | \boldsymbol {x})}\right)\right)
+$$
 
 ---
 

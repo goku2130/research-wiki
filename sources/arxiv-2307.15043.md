@@ -13,9 +13,11 @@ Aligned large language models (LLMs) are fine-tuned to refuse harmful or objecti
 
 **Methodology**
 The proposed Greedy Coordinate Gradient (GCG) attack constructs a single adversarial suffix appended to user queries through a structured three-step optimization process. First, the attack targets affirmative model responses rather than specific harmful outputs. The loss function forces the model to begin its completion with a compliant prefix (e.g., "Sure, here is...") followed by the original query, effectively switching the model into a generative mode. This objective is formalized by minimizing the negative log-likelihood of a target sequence $x_{n+1:n+H}^{\star}$:
-\[
+
+$$
 \mathcal{L}(x_{1:n}) = -\log p(x_{n+1:n+H}^{\star} | x_{1:n}) = -\log \prod_{i=1}^H p(x_{n+i} | x_{1:n+i-1}),
-\]
+$$
+
 where the optimization problem is $\underset{x_{\mathcal{I}} \in \{1, \dots, V\}^{|\mathcal{I}|}}{\text{minimize}} \mathcal{L}(x_{1:n})$. Second, discrete token optimization is performed via GCG. At each iteration, gradients with respect to one-hot token embeddings are computed: $\nabla_{e_{x_i}} \mathcal{L}(x_{1:n}) \in \mathbb{R}^{|V|}$. The top-$k$ tokens with the largest negative gradients are identified as candidates. A batch of candidates is evaluated via forward passes, and the substitution yielding the lowest loss is permanently applied. Third, to ensure universality, gradients and losses are aggregated across multiple harmful prompts and multiple models. Gradients are clipped to unit norm before aggregation. Prompts are added incrementally only after a candidate suffix succeeds on previously optimized queries, preventing early overfitting to a single instruction.
 
 **Quantitative Results**

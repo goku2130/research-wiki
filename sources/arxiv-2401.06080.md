@@ -16,15 +16,34 @@ The authors propose a dual-pronged approach addressing data quality and algorith
 
 **Key Formulas**
 The preference distribution follows the Bradley-Terry model:
-$$P(y_w | x, y_l, y_w) = \frac{\exp(R(x, y_w))}{\exp(R(x, y_w)) + \exp(R(x, y_l))}$$
+
+$$
+P(y_w | x, y_l, y_w) = \frac{\exp(R(x, y_w))}{\exp(R(x, y_w)) + \exp(R(x, y_l))}
+$$
+
 Training minimizes the negative log-likelihood:
-$$\mathcal{L} = -\log P(y_w | x, y_l, y_w)$$
+
+$$
+\mathcal{L} = -\log P(y_w | x, y_l, y_w)
+$$
+
 The RL objective maximizes reward while penalizing divergence from the reference policy:
-$$\max_\theta \mathbb{E}_{x \sim D, y \sim \pi_\theta} [R(x, y)] - \beta \mathbb{D}_{KL}[\pi_\theta || \pi_{ref}]$$
+
+$$
+\max_\theta \mathbb{E}_{x \sim D, y \sim \pi_\theta} [R(x, y)] - \beta \mathbb{D}_{KL}[\pi_\theta || \pi_{ref}]
+$$
+
 Preference strength is computed across $N$ ensemble models as:
-$$\mu = \frac{1}{N}\sum_{i=1}^{N} R_i, \quad \sigma = \text{std}(R_i)$$
+
+$$
+\mu = \frac{1}{N}\sum_{i=1}^{N} R_i, \quad \sigma = \text{std}(R_i)
+$$
+
 Label smoothing modifies the target distribution to $q = (1-\epsilon)y + \epsilon/2$, minimizing cross-entropy between $q$ and model outputs $p$. Finally, the adaptive margin loss incorporates a continuous strength measure:
-$$\mathcal{L}_{total} = \mathcal{L}_{NLL} + \lambda \cdot \text{margin}(\mu)$$
+
+$$
+\mathcal{L}_{total} = \mathcal{L}_{NLL} + \lambda \cdot \text{margin}(\mu)
+$$
 
 **Key Quantitative Results**
 Using an ensemble of 10 reward models, the method partitions training data by preference strength. Experiments demonstrate that training exclusively on the bottom 10% of data negatively impacts validation performance, while the middle 40% yields approximately 80% prediction accuracy. The top 10% of strong-preference data significantly improves performance but exhibits rapid training loss decay, indicating overfitting risk. Denoising strategies (label flipping, smoothing, and adaptive margins) stabilize PPO optimization, producing linear KL divergence growth compared to the baseline’s rapid increase and fluctuations. GPT-4 evaluations confirm substantial improvements in harmlessness, though gains for helpfulness are more modest.

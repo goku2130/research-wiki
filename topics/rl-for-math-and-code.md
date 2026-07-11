@@ -29,10 +29,6 @@ open_questions:
   feedback for RL?
 ---
 
-Here is the fully revised wiki article with all grounding issues addressed, citations corrected, and rigor improved:
-
----
-
 # Reinforcement Learning for Mathematical Reasoning and Code Generation: Verifiers, Unit-Test Rewards, and DeepSeekMath
 
 Reinforcement learning (RL) has emerged as a powerful paradigm for enhancing the reasoning and code-generation capabilities of large language models (LLMs), particularly in domains requiring structured, verifiable outputs like mathematics and programming. This deep dive explores three interrelated advances: **verifier design** for automated reasoning, **unit-test-based reward modeling** for code generation, and the **DeepSeekMath** architecture, which integrates RL with specialized pretraining for mathematical problem-solving. We focus on the technical mechanisms, empirical trade-offs, and unresolved tensions in these approaches, grounding all claims in the provided source material.
@@ -70,9 +66,11 @@ Unit tests provide a natural reward signal for RL in code generation, as they of
 
 ### 2.1 Reward Modeling with Unit Tests
 The reward for a generated program $P$ is typically defined as:
+
 $$
 R(P) = \frac{1}{N} \sum_{i=1}^N \mathbb{I}(P \text{ passes test } i) - \lambda \cdot \text{length}(P),
 $$
+
 where $N$ is the number of unit tests, and $\lambda$ is a regularization coefficient to penalize verbose solutions. This reward is **sparse** (binary per test) but **highly informative**, as it directly measures functional correctness.
 
 **Extensions**:
@@ -111,9 +109,11 @@ DeepSeekMath’s pretraining corpus is constructed via:
 DeepSeekMath uses a **two-stage RL pipeline**:
 1. **Verifier training**: A 1.3B-parameter verifier is trained on synthetic (problem, solution, correctness) triples. The verifier assigns rewards to each step of the solution, enabling dense feedback.
 2. **Policy fine-tuning**: The 7B-parameter policy is fine-tuned using PPO with the verifier’s rewards. The reward function is:
-   $$
-   R(\text{solution}) = \sum_{i=1}^n w_i \cdot \mathbb{I}(\text{step } i \text{ is correct}) - \lambda \cdot \text{length}(\text{solution}),
-   $$
+
+$$
+R(\text{solution}) = \sum_{i=1}^n w_i \cdot \mathbb{I}(\text{step } i \text{ is correct}) - \lambda \cdot \text{length}(\text{solution}),
+$$
+
    where $w_i$ are step-wise weights (e.g., $w_i = 1$ for all steps).
 
 **Empirical Finding**: Uniform step weights ($w_i = 1$) outperform exponentially increasing weights ($w_i = 2^i$), as the verifier can accurately score early steps, reducing the need for "late-step bias."

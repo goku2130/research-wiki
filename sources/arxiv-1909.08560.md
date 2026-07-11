@@ -21,11 +21,22 @@ The methodology follows a structured decomposition-composition pipeline:
 
 **Key Formulas**
 The continuous dynamics under dual toe contact are:
-$$D(q) \ddot{q} + H(q, \dot{q}) = B u + J_1^\top \lambda_1 + J_2^\top \lambda_2, \quad J_\star \ddot{q} + \dot{J}_\star \dot{q} = 0$$
+
+$$
+D(q) \ddot{q} + H(q, \dot{q}) = B u + J_1^\top \lambda_1 + J_2^\top \lambda_2, \quad J_\star \ddot{q} + \dot{J}_\star \dot{q} = 0
+$$
+
 Impact dynamics at contact transitions follow:
-$$D (\dot{q}^+ - \dot{q}^-) = J_0^\top \Lambda_0 + J_3^\top \Lambda_3, \quad J_0 \dot{q}^+ = 0, \ J_3 \dot{q}^+ = 0$$
+
+$$
+D (\dot{q}^+ - \dot{q}^-) = J_0^\top \Lambda_0 + J_3^\top \Lambda_3, \quad J_0 \dot{q}^+ = 0, \ J_3 \dot{q}^+ = 0
+$$
+
 The decomposed front biped closed-loop dynamics incorporate virtual constraints $\ddot{y}_f = k_1 \dot{y}_f + k_2 y_f \equiv 0$ and connection wrenches $\lambda_c$. Biped symmetry is enforced via $\mathcal{B}_r(t) = M \mathcal{B}_f(t) + b$ and $q_r \equiv A q_f + b$. The gait optimization solves:
-$$\min_{\mathbf{Z}} \sum_{j=1}^{2N+1} \|\dot{q}_{b_j}\|_2^2 \quad \text{s.t. dynamics, collocation, impact, periodicity, and feasibility constraints.}$$
+
+$$
+\min_{\mathbf{Z}} \sum_{j=1}^{2N+1} \|\dot{q}_{b_j}\|_2^2 \quad \text{s.t. dynamics, collocation, impact, periodicity, and feasibility constraints.}
+$$
 
 **Quantitative Results**
 Validated on the Vision 60 V3.2 quadruped (18 DOF, 12 control inputs, 36 state variables), the method generated four stepping-in-place gaits and one diagonally symmetric ambling gait at 0.35 m/s. Average computation time was 3.96 seconds (0.039 seconds per iteration), yielding an order-of-magnitude speedup over full-model optimization methods that require minutes to hours. Stepping gaits achieved frequencies of 2.2–2.6 Hz with foot clearances of 11–15 cm. Experimental torque averages remained within hardware limits: hip roll (4.16–5.14 N·m), hip pitch (3.77–5.26 N·m), and knee (16.45–18.36 N·m). The composed gaits demonstrated dynamic stability and robustness to rough outdoor terrain using a unified open-loop PD controller.

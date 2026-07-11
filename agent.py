@@ -423,7 +423,12 @@ def fix_latex(text: str) -> str:
     # a bare % inside a math span is a LaTeX comment (eats the line) -> escape it
     def esc_pct(m):
         return m.group(1) + re.sub(r"(?<!\\)%", r"\\%", m.group(2)) + m.group(1)
-    return re.sub(r"(\${1,2})(.+?)\1", esc_pct, text, flags=re.DOTALL)
+    text = re.sub(r"(\${1,2})(.+?)\1", esc_pct, text, flags=re.DOTALL)
+    # GitHub renders $$...$$ display math ONLY as a standalone block with BLANK lines
+    # around it — otherwise it shows raw LaTeX. Normalize every display block.
+    text = re.sub(r"[ \t]*\${2}[ \t]*\n?(.+?)\n?[ \t]*\${2}[ \t]*",
+                  lambda m: f"\n\n$$\n{m.group(1).strip()}\n$$\n\n", text, flags=re.DOTALL)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
 def check_formulas(text: str) -> list[str]:

@@ -21,9 +21,17 @@ The proposed framework integrates four sequential, interdependent components:
 
 **Key Formulas**
 The framework formalizes reward design and value estimation using two core equations. Potential-based reward shaping ensures policy invariance while transforming sparse outcome rewards into dense process rewards:
-$$F(s_t, a_t) = r(s_t, a_t) + \gamma\phi(s_{t+1}) - \phi(s_t)$$
+
+$$
+F(s_t, a_t) = r(s_t, a_t) + \gamma\phi(s_{t+1}) - \phi(s_t)
+$$
+
 where $F$ and $r$ are reward functions, $\gamma$ is the discount factor, and $\phi$ is a potential function. Additionally, the value function quantifies long-term expected returns to guide search and policy updates:
-$$v_\pi(s) \doteq \mathbb{E}_\pi[G_t \mid S_t = s] = \mathbb{E}_\pi \left[ \sum_{k=0}^\infty \gamma^k R_{t+k+1} \mid S_t = s \right]$$
+
+$$
+v_\pi(s) \doteq \mathbb{E}_\pi[G_t \mid S_t = s] = \mathbb{E}_\pi \left[ \sum_{k=0}^\infty \gamma^k R_{t+k+1} \mid S_t = s \right]
+$$
+
 where $v_\pi(s)$ represents the state value under policy $\pi$, and $G_t$ is the discounted cumulative reward.
 
 **Quantitative Context**

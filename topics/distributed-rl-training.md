@@ -22,10 +22,6 @@ open_questions:
   to correct for staleness in asynchronous PPO?'
 ---
 
-Here is the fully revised wiki article, grounded in the provided source summaries and addressing all identified issues:
-
----
-
 # Distributed RL Training for LLMs: Rollout/Learner Split, Sharding, and PPO at Scale
 
 Reinforcement learning (RL) has emerged as the dominant paradigm for aligning large language models (LLMs) with human preferences, but its computational demands scale superlinearly with model size, batch size, and sequence length. Distributed RL training architectures decompose the problem into specialized, sharded components—decoupling rollout generation from policy optimization—while preserving algorithmic correctness under asynchronous, off-policy conditions. This deep dive dissects the system design, mathematical trade-offs, and empirical scaling behaviors that enable PPO and its variants to train models with tens to hundreds of billions of parameters across thousands of accelerators.
@@ -51,16 +47,19 @@ This architecture is inspired by distributed RL designs like IMPALA, adapted for
 
 ### 1.3 Mathematical Correctness Under Asynchrony
 The split introduces off-policy bias because actors sample from a stale policy $\pi_{\theta_{\text{old}}}$ while the learner optimizes $\pi_{\theta_{\text{new}}}$. For PPO, this manifests as a mismatch in the clipped objective:
+
 $$
 \mathcal{L}^{\text{CLIP}}(\theta) = \mathbb{E}_{(x,y) \sim \pi_{\theta_{\text{old}}}} \left[ \min \left( \frac{\pi_\theta(y|x)}{\pi_{\theta_{\text{old}}}(y|x)} A^{\theta_{\text{old}}}(x,y), \text{clip}\left(\frac{\pi_\theta(y|x)}{\pi_{\theta_{\text{old}}}(y|x)}, 1-\epsilon, 1+\epsilon\right) A^{\theta_{\text{old}}}(x,y) \right) \right].
 \tag{1}
 $$
+
 Here, $A^{\theta_{\text{old}}}$ is computed using rollouts from $\pi_{\theta_{\text{old}}}$, but $\pi_\theta$ may have drifted. To bound the bias, practitioners:
 - Limit the policy update magnitude via $\epsilon$ (typically 0.1–0.2).
 - Use short synchronization intervals (e.g., 1000 steps) to minimize staleness.
 - Employ importance weighting for advantage estimation:
-  $$
-  A^{\text{corrected}}(x,y) = \frac{\pi_\theta(y|x)}{\pi_{\theta_{\text{old}}}(y|x)} A^{\theta_{\text{old}}}(x,y).
+
+$$
+A^{\text{corrected}}(x,y) = \frac{\pi_\theta(y|x)}{\pi_{\theta_{\text{old}}}(y|x)} A^{\theta_{\text{old}}}(x,y).
   \tag{2}
 $$
 
@@ -117,10 +116,12 @@ The AIME 2023 paper [source:arxiv:2306.04925] introduces the Prefer-to-Classify 
 
 ### 3.1 Scaling the PPO Objective
 The PPO objective combines policy, value, and entropy terms:
+
 $$
 \mathcal{L}(\theta) = \mathbb{E}_{(x,y) \sim \pi_{\theta_{\text{old}}}} \left[ \mathcal{L}^{\text{CLIP}}(\theta) - c_1 \mathcal{L}^{\text{VF}}(\psi) + c_2 \mathcal{H}(\pi_\theta(x)) \right],
 \tag{3}
 $$
+
 where:
 - $\mathcal{L}^{\text{CLIP}}$ is the clipped policy loss (Equation 1).
 - $\mathcal{L}^{\text{VF}} = (V_\psi(x,y_{<t}) - R_t)^2$ is the value function loss.
@@ -133,10 +134,12 @@ where:
 
 ### 3.2 Distributed Advantage Estimation
 PPO’s advantage estimation uses Generalized Advantage Estimation (GAE):
+
 $$
 A_t^{\text{GAE}} = \sum_{l=0}^{\infty} (\gamma \lambda)^l \delta_{t+l}, \quad \delta_t = r_t + \gamma V_\psi(x,y_{<t+1}) - V_\psi(x,y_{<t}).
 \tag{4}
 $$
+
 **Distributed Implementation**:
 - Each actor computes GAE locally using its rollouts.
 - Learners aggregate GAE estimates across actors to compute the advantage mean/variance for normalization.

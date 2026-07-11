@@ -17,10 +17,6 @@ open_questions:
   research, and how can this balance be operationalized in practice?
 ---
 
-Here is the fully revised article with all issues addressed, including the unbalanced LaTeX delimiter and grounding in the provided sources:
-
----
-
 # Alignment and Win-Rate Evaluations: AlpacaEval, Arena, MT-Bench, and Pairwise Win Rates
 
 Instruction-tuned and RLHF-aligned large language models (LLMs) require scalable, reliable evaluation protocols to measure alignment with human preferences. Pairwise win-rate benchmarks—such as AlpacaEval, Chatbot Arena, and MT-Bench—have emerged as the dominant paradigm for assessing model quality in open-ended, multi-turn, and instruction-following settings, where traditional accuracy-based metrics fail to capture nuanced user preferences.
@@ -81,14 +77,19 @@ AlpacaFarm’s fidelity is validated by comparing method rankings under simulate
 
 #### Key Formulas
 Surrogate reward models are trained by maximizing the Bradley–Terry likelihood:
+
 $$
 \text{maximize}_\phi \sum_j \log \frac{\exp(\hat{R}_\phi(x^{(j)}, y_z^{(j)}))}{\exp(\hat{R}_\phi(x^{(j)}, y_0^{(j)})) + \exp(\hat{R}_\phi(x^{(j)}, y_1^{(j)}))}.
 $$
+
 DPO optimizes an implicit reward via:
+
 $$
 \mathbb{E}_{(x, y_0, y_1, z) \sim \mathcal{D}_{\text{pairwise}}} \left[ \log \sigma \left( \beta \log \frac{p_\theta(y_z \mid x)}{p_{\text{SFT}}(y_z \mid x)} - \beta \log \frac{p_\theta(y_{1-z} \mid x)}{p_{\text{SFT}}(y_{1-z} \mid x)} \right) \right].
 $$
+
 PPO maximizes a KL-regularized objective:
+
 $$
 \mathbb{E}_{x \sim p(x), y \sim p_\theta(y|x)} \left[ \hat{R}_\phi(x, y) - \beta \log \frac{p_\theta(y \mid x)}{p_{\text{SFT}}(y \mid x)} \right].
 $$
@@ -130,13 +131,17 @@ LLM judges exhibit three primary biases:
 ### Key Formulas
 The study formalizes evaluation metrics as follows:
 - **Agreement Metric**: The probability that two randomly selected, non-identical judges from different types agree on a randomly selected question:
-  $$
-  \text{Agreement} = P(\text{Judge}_A \text{ agrees with } \text{Judge}_B \mid \text{random question}).
-  $$
+
+$$
+\text{Agreement} = P(\text{Judge}_A \text{ agrees with } \text{Judge}_B \mid \text{random question}).
+$$
+
 - **MT-Bench Scoring**: Using single-answer grading on a 1–10 scale per turn, the composite score is calculated as:
-  $$
-  \text{Total Score} = \sum_{q=1}^{80} \sum_{t=1}^{2} \text{Rating}_{q,t},
-  $$
+
+$$
+\text{Total Score} = \sum_{q=1}^{80} \sum_{t=1}^{2} \text{Rating}_{q,t},
+$$
+
   where $ q $ indexes the 80 questions and $ t $ indexes the two conversational turns.
 
 ### Limitations
@@ -156,14 +161,18 @@ The debiasing framework uses observational causal inference to model the relatio
    - **Length Difference**: Normalized difference in response lengths, transformed via $ \tanh $ to model diminishing returns.
    - **Instruction Difficulty**: A latent variable estimated jointly across all models.
 3. **GLM Fitting**: Fit a Generalized Linear Model (GLM) with a logistic link function:
-   $$
-   q_{\theta,\phi,\psi}(y = 1|z_m, z_b, m, b, x) = \text{logistic}\left(\underbrace{\theta_m - \theta_b}_{\text{Model}} + \underbrace{\phi_{m,b} \cdot \tanh\left(\frac{\text{len}(z_m) - \text{len}(z_b)}{\text{std}(\text{len}(z_m) - \text{len}(z_b))}\right)}_{\text{Length}} + \underbrace{(\psi_m - \psi_b)\gamma_x}_{\text{Instruction}}\right),
-   $$
+
+$$
+q_{\theta,\phi,\psi}(y = 1|z_m, z_b, m, b, x) = \text{logistic}\left(\underbrace{\theta_m - \theta_b}_{\text{Model}} + \underbrace{\phi_{m,b} \cdot \tanh\left(\frac{\text{len}(z_m) - \text{len}(z_b)}{\text{std}(\text{len}(z_m) - \text{len}(z_b))}\right)}_{\text{Length}} + \underbrace{(\psi_m - \psi_b)\gamma_x}_{\text{Instruction}}\right),
+$$
+
    where $ \theta $ and $ \psi $ are model and instruction coefficients, $ \phi_{m,b} $ captures the length effect, and $ \gamma_x $ denotes instruction difficulty.
 4. **Length Control**: Compute the LC win rate by nullifying the length component:
-   $$
-   \text{winrate}^{LC}(m, b) = 100 \cdot \mathbb{E}_x \left[ \text{logistic}(\theta_m - \theta_b + (\psi_m - \psi_b)\gamma_x) \right].
-   $$
+
+$$
+\text{winrate}^{LC}(m, b) = 100 \cdot \mathbb{E}_x \left[ \text{logistic}(\theta_m - \theta_b + (\psi_m - \psi_b)\gamma_x) \right].
+$$
+
    This formulation preserves symmetry ($ \text{winrate}^{LC}(m, b) = 100 - \text{winrate}^{LC}(b, m) $) and identity ($ \text{winrate}^{LC}(m, m) = 50 $).
 
 ### Empirical Results

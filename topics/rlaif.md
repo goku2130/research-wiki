@@ -21,10 +21,6 @@ open_questions:
   evolving human values?
 ---
 
-Here is the fully revised article with all requested fixes, grounded strictly in the provided sources, and maintaining the rigorous technical style:
-
----
-
 # RLAIF (Reinforcement Learning from AI Feedback)
 
 Reinforcement Learning from AI Feedback (RLAIF) is a paradigm for aligning large language models (LLMs) by replacing or augmenting human preference labels with AI-generated feedback. This approach addresses the scalability, cost, and iteration-speed limitations of Reinforcement Learning from Human Feedback (RLHF) while enabling continuous, self-improving alignment loops. RLAIF encompasses methods such as Constitutional AI (CAI), self-rewarding models, and online AI feedback (OAIF), each leveraging LLMs as annotators, critics, or reward models to guide policy optimization.
@@ -67,7 +63,11 @@ Constitutional AI [source:arxiv:2212.08073] replaces human harmlessness labels w
    - The SL-CAI model generates response pairs for each prompt.
    - A feedback model evaluates the pairs using a multiple-choice prompt guided by constitutional principles, optionally employing Chain-of-Thought (CoT) reasoning.
    - The feedback model’s log-probabilities for each option are normalized to produce soft preference targets:
-     $$ \hat{y}_A = \frac{\exp(\log p(A))}{\exp(\log p(A)) + \exp(\log p(B))}. $$
+
+$$
+\hat{y}_A = \frac{\exp(\log p(A))}{\exp(\log p(A)) + \exp(\log p(B))}.
+$$
+
    - These targets are used to train a hybrid preference model (PM), which combines AI-generated harmlessness labels with human helpfulness labels. The PM provides the reward signal for PPO-style RL, yielding the final RL-CAI policy.
 
 **Key Design Choices**:
@@ -83,6 +83,7 @@ Self-rewarding models [source:arxiv:2401.10020] eliminate the fixed reward model
 4. **Training**: The model is updated via DPO on the augmented dataset to produce $M_{t+1}$.
 
 The iterative sequence is formally defined as:
+
 $$
 \begin{aligned}
 M_0 &: \text{Base pretrained LLM} \\
@@ -90,6 +91,7 @@ M_1 &: \text{SFT on IFT + EFT} \\
 M_{t+1} &: \text{DPO on IFT + EFT + AIFT}(M_t) \text{ for } t \geq 1,
 \end{aligned}
 $$
+
 where $\text{AIFT}(M_t)$ denotes the AI-generated preference pairs from iteration $t$.
 
 ### 3. Online AI Feedback (OAIF)
@@ -110,32 +112,62 @@ OAIF [source:arxiv:2402.04792] injects online, on-policy feedback into DAP metho
 
 ### 1. Preference Modeling
 All RLAIF methods rely on a preference model to compare responses. The standard Bradley-Terry model [source:arxiv:1706.03741] defines the probability of preferring response $y^1$ over $y^2$ as:
-$$ P[y^1 \succ y^2] = \frac{\exp(r(x, y^1))}{\exp(r(x, y^1)) + \exp(r(x, y^2))}, $$
+
+$$
+P[y^1 \succ y^2] = \frac{\exp(r(x, y^1))}{\exp(r(x, y^1)) + \exp(r(x, y^2))},
+$$
+
 where $r(x, y)$ is a latent reward function. In RLAIF, $r(x, y)$ is either:
 - **Implicitly modeled** via the policy’s log-probabilities (e.g., in DPO [source:arxiv:2305.18290]).
 - **Explicitly generated** by an LLM-as-a-Judge (e.g., in self-rewarding models [source:arxiv:2401.10020]).
 
 ### 2. Direct Preference Optimization (DPO)
 DPO [source:arxiv:2305.18290] eliminates the need for an explicit reward model by directly optimizing the policy via a classification objective. The DPO loss is derived from the optimal RLHF policy under a KL constraint:
-$$ \pi_r(y|x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y|x) \exp\left(\frac{1}{\beta} r(x,y)\right), $$
+
+$$
+\pi_r(y|x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y|x) \exp\left(\frac{1}{\beta} r(x,y)\right),
+$$
+
 where $Z(x)$ is a partition function. Inverting this relationship yields the implicit reward:
-$$ r(x,y) = \beta \log \frac{\pi_r(y|x)}{\pi_{\text{ref}}(y|x)} + \beta \log Z(x). $$
+
+$$
+r(x,y) = \beta \log \frac{\pi_r(y|x)}{\pi_{\text{ref}}(y|x)} + \beta \log Z(x).
+$$
+
 Substituting into the Bradley-Terry model and canceling $Z(x)$ yields the DPO loss:
-$$ \mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)} \right) \right]. $$
+
+$$
+\mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)} \right) \right].
+$$
 
 **PPO Clip Equation**:
 For completeness, the PPO clip objective used in RLHF is:
-$$ \mathcal{L}^{\text{CLIP}}(\theta) = \mathbb{E}_t \left[ \min \left( r_t(\theta) \hat{A}_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right], $$
+
+$$
+\mathcal{L}^{\text{CLIP}}(\theta) = \mathbb{E}_t \left[ \min \left( r_t(\theta) \hat{A}_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right],
+$$
+
 where $r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}$ is the probability ratio, $\hat{A}_t$ is the advantage estimate, and $\epsilon$ is a hyperparameter (typically 0.1 or 0.2) [source:arxiv:1706.03741].
 
 ### 3. Online AI Feedback (OAIF) Losses
 OAIF adapts DAP losses to online settings. The key variants are:
 - **DPO**:
-  $$ -\log \sigma \left(\beta \log \frac{\pi_\theta(y^+|x) \pi_{\theta^0}(y^-|x)}{\pi_{\theta^0}(y^+|x) \pi_\theta(y^-|x)}\right) $$
+
+$$
+-\log \sigma \left(\beta \log \frac{\pi_\theta(y^+|x) \pi_{\theta^0}(y^-|x)}{\pi_{\theta^0}(y^+|x) \pi_\theta(y^-|x)}\right)
+$$
+
 - **IPO** (Identity Preference Optimization):
-  $$ \left(\log \left(\frac{\pi_\theta(y^+|x) \pi_{\theta^0}(y^-|x)}{\pi_\theta(y^-|x) \pi_{\theta^0}(y^+|x)}\right) - \frac{1}{2\beta}\right)^2 $$
+
+$$
+\left(\log \left(\frac{\pi_\theta(y^+|x) \pi_{\theta^0}(y^-|x)}{\pi_\theta(y^-|x) \pi_{\theta^0}(y^+|x)}\right) - \frac{1}{2\beta}\right)^2
+$$
+
 - **SLiC** (Sequence Likelihood Calibration):
-  $$ \max \left(0, 1 - \beta \log \left(\frac{\pi_\theta(y^+|x) \pi_{\theta^0}(y^-|x)}{\pi_\theta(y^-|x) \pi_{\theta^0}(y^+|x)}\right)\right) $$
+
+$$
+\max \left(0, 1 - \beta \log \left(\frac{\pi_\theta(y^+|x) \pi_{\theta^0}(y^-|x)}{\pi_\theta(y^-|x) \pi_{\theta^0}(y^+|x)}\right)\right)
+$$
 
 ---
 

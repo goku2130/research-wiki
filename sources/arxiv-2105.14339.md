@@ -23,13 +23,33 @@ The study establishes well-f-coveredness through a sequence of structural operat
 
 **Key Formulas**
 The quantitative relationships governing these constructions are formalized as:
-$$f(G \cup H) = f(G) + f(H)$$
-$$f(A) = f(G) + f(H) + d - 1$$
-$$f(G^*) = f(G) + d - 1$$
-$$f(L) = f(G) - |V(H)| + n$$
+
+$$
+f(G \cup H) = f(G) + f(H)
+$$
+
+$$
+f(A) = f(G) + f(H) + d - 1
+$$
+
+$$
+f(G^*) = f(G) + d - 1
+$$
+
+$$
+f(L) = f(G) - |V(H)| + n
+$$
+
 For join operations, the necessary condition is:
-$$f(G) = f(H) = \alpha(G) + 1 = \alpha(H) + 1$$
-$$f(G \vee H) = n + 1$$
+
+$$
+f(G) = f(H) = \alpha(G) + 1 = \alpha(H) + 1
+$$
+
+$$
+f(G \vee H) = n + 1
+$$
+
 where $\alpha(G)$ denotes the independence number, $d$ is path length, $n$ is the number of identified vertices along a path, and $|V(H)|$ is the vertex count of a forest component.
 
 **Key Quantitative Results**

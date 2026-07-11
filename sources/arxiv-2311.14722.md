@@ -20,9 +20,11 @@ The ZS-FinDSL pipeline employs a dual-prompt sequence. The initial reasoning ext
 
 **Key Formulas**
 To accommodate formatting variations in LLM outputs (e.g., "7 million" versus "7,000,000"), evaluation employs a relative tolerance metric. A generated answer ($\hat{a}$) is considered correct if it satisfies:
-\[
+
+$$
 \operatorname{abs} (\hat {a} - \tilde {a}) \leq \operatorname{rel} _ {-} \operatorname{tol} * \max (\operatorname{abs} (\hat {a}), \operatorname{abs} (\tilde {a}))
-\]
+$$
+
 where $\tilde{a}$ represents the gold answer and the relative tolerance (`rel_tol`) is fixed at 0.001.
 
 **Quantitative Results**

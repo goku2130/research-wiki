@@ -14,7 +14,11 @@ Direct Preference Optimization (DPO) and its derivatives provide a framework for
 DPO eliminates the traditional reinforcement learning from human feedback (RLHF) loop by parameterizing the reward model to extract the optimal policy in closed form [S1]. It solves the standard RLHF objective—maximizing reward subject to a KL-divergence constraint—using a simple binary cross-entropy classification loss on preference pairs [S1]. 
 
 The mathematical foundation of DPO relies on the Bradley-Terry model, which defines the probability of preference as $P(y_w > y_l | x) = \sigma(r(x, y_w) - r(x, y_l))$ [S2]. The optimal policy is derived as:
-$$\pi^*(y|x) = \frac{\pi_{ref}(y|x) \exp(r^*(x,y)/\beta)}{Z(x)}$$
+
+$$
+\pi^*(y|x) = \frac{\pi_{ref}(y|x) \exp(r^*(x,y)/\beta)}{Z(x)}
+$$
+
 where $Z(x)$ is the partition function [S2]. By substituting this closed-form policy back into the Bradley-Terry model, the reward difference cancels out $Z(x)$, allowing the preference probability to be expressed directly as a function of the policy $\pi_\theta$ [S2]. 
 
 The resulting DPO loss is formulated as:

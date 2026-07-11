@@ -24,10 +24,6 @@ open_questions:
   mitigate this?'
 ---
 
-Here is the fully revised wiki article, with all grounding issues addressed, equations added, and rigorous technical depth preserved. Every claim is now supported by its cited source.
-
----
-
 # DPO Variants Deep-Dive: IPO, KTO, ORPO, SimPO — Losses and Trade-offs
 
 Direct Preference Optimization (DPO) [source:arxiv:2305.18290] established a paradigm shift in aligning large language models (LLMs) with human preferences by eliminating explicit reward modeling and reinforcement learning (RL) loops. However, its success has spurred a proliferation of variants, each addressing perceived limitations of DPO while introducing new trade-offs. This deep-dive dissects the core innovations, mathematical foundations, empirical performance, and unresolved tensions among four prominent variants: Identity Preference Optimization (IPO), Kahneman-Tversky Optimization (KTO), Odds Ratio Preference Optimization (ORPO), and Simple Preference Optimization (SimPO).
@@ -56,9 +52,11 @@ DPO’s elegance stems from its closed-form reparameterization of the KL-constra
 
 ### 2.1 Unified Objective Framework
 All variants optimize a KL-regularized objective of the form:
+
 $$
 \mathcal{L}(\pi_\theta) = \mathbb{E}_{(x,y) \sim \mathcal{D}} \left[ f \left( r_\theta(x,y) - \beta \cdot \text{KL}(\pi_\theta \| \pi_{\text{ref}}) \right) \right],
 $$
+
 where $f$ is a loss-specific transformation, and $r_\theta(x,y)$ is an *implicit reward* derived from $\pi_\theta$ and (optionally) $\pi_{\text{ref}}$. The variants differ in:
 1. The definition of $r_\theta(x,y)$,
 2. The functional form of $f$, and
@@ -67,32 +65,40 @@ where $f$ is a loss-specific transformation, and $r_\theta(x,y)$ is an *implicit
 ### 2.2 Variant-Specific Losses
 
 #### **DPO (Baseline)**
+
 $$
 \mathcal{L}_{\text{DPO}} = -\mathbb{E}_{(x,y_w,y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)} \right) \right].
 $$
+
 **Key Properties**:
 - Implicit reward: $r_\theta(x,y) = \beta \log \frac{\pi_\theta(y|x)}{\pi_{\text{ref}}(y|x)}$.
 - Loss: Binary cross-entropy under Bradley-Terry assumptions.
 
 #### **IPO**
+
 $$
 \mathcal{L}_{\text{IPO}} = \mathbb{E}_{(x,y_w,y_l) \sim \mathcal{D}} \left[ \left( \log \frac{\pi_\theta(y_w|x) \pi_{\text{ref}}(y_l|x)}{\pi_\theta(y_l|x) \pi_{\text{ref}}(y_w|x)} - \frac{\beta^{-1}}{2} \right)^2 \right].
 $$
+
 **Key Properties**:
 - Replaces the logistic function $\sigma$ with a squared loss to penalize large deviations from the optimal reward gap [source:arxiv:2404.14365].
 - Avoids the "reward hacking" pathology where DPO overfits to preference pairs by driving $\pi_\theta(y_l|x) \to 0$.
 
 #### **KTO**
+
 $$
 \mathcal{L}_{\text{KTO}} = \mathbb{E}_{x,y \sim \mathcal{D}} \left[ \lambda_y - v(x,y) \right],
 $$
+
 where $v(x,y)$ is the Kahneman-Tversky value function:
+
 $$
 v(x,y) = \begin{cases}
 \lambda_D \sigma(\beta (r_\theta(x,y) - z_0)) & \text{if } y \text{ is desirable}, \\
 \lambda_U \sigma(\beta (z_0 - r_\theta(x,y))) & \text{if } y \text{ is undesirable}.
 \end{cases}
 $$
+
 **Key Properties**:
 - Implicit reward: $r_\theta(x,y) = \log \frac{\pi_\theta(y|x)}{\pi_{\text{ref}}(y|x)}$ (same as DPO).
 - Reference point $z_0$: Estimated as the average KL divergence $\text{KL}(\pi_\theta \| \pi_{\text{ref}})$ over a microbatch [source:arxiv:2402.01306].
@@ -100,17 +106,21 @@ $$
 
 #### **ORPO**
 ORPO abandons the reference model entirely, defining the implicit reward as the log-odds of the policy’s output probability. The loss combines a negative log-likelihood term with an odds-ratio preference term:
+
 $$
 \mathcal{L}_{\text{ORPO}} = \mathbb{E}_{(x,y_w,y_l) \sim \mathcal{D}} \left[ -\log \pi_\theta(y_w|x) - \lambda \log \sigma \left( \log \frac{\pi_\theta(y_w|x)}{1 - \pi_\theta(y_w|x)} - \log \frac{\pi_\theta(y_l|x)}{1 - \pi_\theta(y_l|x)} \right) \right].
 $$
+
 **Key Properties**:
 - No $\pi_{\text{ref}}$: The log-odds reward is self-referential.
 - $\lambda$: Balances supervised fine-tuning (SFT) and preference learning (typical range: 0.1–1.0) [source:arxiv:2402.14740].
 
 #### **SimPO**
+
 $$
 \mathcal{L}_{\text{SimPO}} = -\mathbb{E}_{(x,y_w,y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \frac{\beta}{|y_w|} \log \pi_\theta(y_w|x) - \frac{\beta}{|y_l|} \log \pi_\theta(y_l|x) - \gamma \right) \right].
 $$
+
 **Key Properties**:
 - Implicit reward: $r_\theta(x,y) = \frac{\beta}{|y|} \log \pi_\theta(y|x)$ (length-normalized).
 - Target margin $\gamma$: Enforces a minimum reward gap (typical range: 0.1–0.5) [source:arxiv:2405.14734].

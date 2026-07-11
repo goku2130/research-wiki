@@ -16,9 +16,17 @@ The authors propose a reward-robust RLHF framework that balances nominal perform
 
 **Key Formulas**
 The standard RLHF objective maximizes:
-$$\max_{\pi_\theta} \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(\cdot|x)} [r(x,y)] - \beta \mathbb{D}_{KL}[\pi_\theta(\cdot|x) || \pi_{ref}(\cdot|x)] \quad (4)$$
+
+$$
+\max_{\pi_\theta} \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(\cdot|x)} [r(x,y)] - \beta \mathbb{D}_{KL}[\pi_\theta(\cdot|x) || \pi_{ref}(\cdot|x)] \quad (4)
+$$
+
 The proposed robust framework introduces a trade-off objective:
-$$\max_{\pi_\theta} \alpha \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(\cdot|x)} [r_{nom}(x,y)] + (1-\alpha) \min_{r \in \mathcal{R}} \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(\cdot|x)} [r(x,y)] - \beta \mathbb{D}_{KL}[\pi_\theta(\cdot|x) || \pi_{ref}(\cdot|x)] \quad (7)$$
+
+$$
+\max_{\pi_\theta} \alpha \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(\cdot|x)} [r_{nom}(x,y)] + (1-\alpha) \min_{r \in \mathcal{R}} \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(\cdot|x)} [r(x,y)] - \beta \mathbb{D}_{KL}[\pi_\theta(\cdot|x) || \pi_{ref}(\cdot|x)] \quad (7)
+$$
+
 where $\alpha \in [0,1]$ controls the performance-robustness trade-off, $r_{nom}$ is the nominal reward, and $\mathcal{R}$ is the uncertainty set.
 
 **Quantitative Results**

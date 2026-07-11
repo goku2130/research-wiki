@@ -25,10 +25,6 @@ open_questions:
   to unbounded reward functions and infinite policy classes?'
 ---
 
-Here is the fully revised article, addressing all grounding issues while preserving rigor and factual accuracy:
-
----
-
 # KL Regularization in RLHF: Reference Model, Per-Token KL, and the Boltzmann Optimum
 
 KL regularization is the cornerstone of modern Reinforcement Learning from Human Feedback (RLHF), ensuring that fine-tuned language models remain anchored to their pretrained knowledge while optimizing for human preferences. This deep dive dissects the mathematical foundations, implementation nuances, and theoretical guarantees of KL regularization, focusing on the reference model, per-token penalties, and the optimal policy structure.
@@ -112,13 +108,16 @@ where $\gamma$ is the inverse temperature. For FKL, the solution is implicit and
 The per-token KL penalty is computed as follows during training:
 1. **Forward Pass**: For a sampled completion $y \sim \pi_\phi(\cdot|x)$, compute the log-probabilities $\log \pi_\phi(y_t|x, y_{<t})$ and $\log \pi_{\text{ref}}(y_t|x, y_{<t})$ for each token $y_t$.
 2. **KL Calculation**: Sum the per-token log-ratio differences:
-   $$
-   \text{KL}_{\text{sampled}} = \sum_{t=1}^T \left( \log \pi_\phi(y_t|x, y_{<t}) - \log \pi_{\text{ref}}(y_t|x, y_{<t}) \right). \tag{6}
-   $$
+
+$$
+\text{KL}_{\text{sampled}} = \sum_{t=1}^T \left( \log \pi_\phi(y_t|x, y_{<t}) - \log \pi_{\text{ref}}(y_t|x, y_{<t}) \right). \tag{6}
+$$
+
 3. **Reward Adjustment**: Subtract $\beta \cdot \text{KL}_{\text{sampled}}$ from the reward $r_\theta(x, y)$ to form the adjusted reward:
-   $$
-   \tilde{r}(x, y) = r_\theta(x, y) - \beta \cdot \text{KL}_{\text{sampled}}. \tag{7}
-   $$
+
+$$
+\tilde{r}(x, y) = r_\theta(x, y) - \beta \cdot \text{KL}_{\text{sampled}}. \tag{7}
+$$
 
 This adjusted reward is used in the PPO objective [source:iclr-blogposts:the-n-implementation-details-of-rlhf-wit].
 

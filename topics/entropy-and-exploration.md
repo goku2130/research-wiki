@@ -21,10 +21,6 @@ open_questions:
   achieve better trade-offs between reward and diversity?
 ---
 
-Here is the fully revised article, addressing all grounding issues, adding inline citations, empirical numbers, and correcting the misattribution while preserving the original structure and high-quality content:
-
----
-
 # Entropy and Exploration in RL Fine-Tuning
 
 Reinforcement learning (RL) fine-tuning of large language models (LLMs) faces a fundamental tension: maximizing reward while preserving the diversity of generations to avoid mode collapse and ensure robust generalization. Entropy regularization and exploration bonuses have emerged as key tools to navigate this trade-off, but their application in LLM fine-tuning introduces unique challenges, including high-dimensional action spaces, non-stationary dynamics, and the risk of "entropy collapse" during training.
@@ -47,16 +43,21 @@ In the context of LLMs, the "state" $s_t$ is the sequence of tokens generated so
 #### 1.1.1 Soft Policy Iteration
 MaxEnt RL can be derived via soft policy iteration, which alternates between:
 1. **Soft policy evaluation**: Compute the soft Q-function $Q^\pi(s, a)$ and soft value function $V^\pi(s)$ for a fixed policy $\pi$:
-   $$
-   Q^\pi(s_t, a_t) = r(s_t, a_t) + \gamma \mathbb{E}_{s_{t+1} \sim p} \left[ V^\pi(s_{t+1}) \right],
-   $$
-   $$
-   V^\pi(s_t) = \mathbb{E}_{a_t \sim \pi} \left[ Q^\pi(s_t, a_t) - \alpha \log \pi(a_t | s_t) \right].
-   $$
+
+$$
+Q^\pi(s_t, a_t) = r(s_t, a_t) + \gamma \mathbb{E}_{s_{t+1} \sim p} \left[ V^\pi(s_{t+1}) \right],
+$$
+
+$$
+V^\pi(s_t) = \mathbb{E}_{a_t \sim \pi} \left[ Q^\pi(s_t, a_t) - \alpha \log \pi(a_t | s_t) \right].
+$$
+
 2. **Soft policy improvement**: Update the policy to minimize the KL divergence between $\pi$ and the Boltzmann distribution induced by $Q^\pi$:
-   $$
-   \pi_{\text{new}} = \arg\min_{\pi'} \mathbb{E}_{s \sim \mathcal{D}} \left[ \text{KL} \left( \pi'(\cdot | s) \| \frac{\exp \left( \frac{1}{\alpha} Q^\pi(s, \cdot) \right)}{Z(s)} \right) \right],
-   $$
+
+$$
+\pi_{\text{new}} = \arg\min_{\pi'} \mathbb{E}_{s \sim \mathcal{D}} \left[ \text{KL} \left( \pi'(\cdot | s) \| \frac{\exp \left( \frac{1}{\alpha} Q^\pi(s, \cdot) \right)}{Z(s)} \right) \right],
+$$
+
    where $Z(s)$ is the partition function. For discrete action spaces (e.g., LLMs), this reduces to minimizing the following loss for the policy $\pi_\theta$:
 
 $$
@@ -90,9 +91,10 @@ Prediction-based methods, such as the Intrinsic Curiosity Module (ICM) [source:a
 1. An **inverse dynamics model** that predicts the action $a_t$ given consecutive states $s_t$ and $s_{t+1}$, forcing the model to learn a compressed feature embedding $\phi(s)$.
 2. A **forward dynamics model** that predicts the next state's feature representation $\hat{\phi}(s_{t+1})$ given $\phi(s_t)$ and $a_t$.
 3. An **intrinsic reward** proportional to the forward model's prediction error:
-   $$
-   r^i_t = \frac{\eta}{2} \|\hat{\phi}(s_{t+1}) - \phi(s_{t+1})\|_2^2.
-   $$
+
+$$
+r^i_t = \frac{\eta}{2} \|\hat{\phi}(s_{t+1}) - \phi(s_{t+1})\|_2^2.
+$$
 
 For LLMs, the "state" $s_t$ is the sequence of tokens generated so far, and the "action" $a_t$ is the next token. The ICM can be adapted by:
 - Using a transformer-based encoder to compute $\phi(s_t)$.
@@ -184,9 +186,11 @@ The Intrinsic Curiosity Module (ICM) [source:arxiv:1705.05363] can be adapted fo
 2. **Inverse dynamics model**: Train a model to predict the action $a_t$ given $\phi(s_t)$ and $\phi(s_{t+1})$.
 3. **Forward dynamics model**: Train a model to predict $\hat{\phi}(s_{t+1})$ given $\phi(s_t)$ and $a_t$.
 4. **Intrinsic reward**: Compute the prediction error of the forward model and scale it to produce an intrinsic reward:
-   $$
-   r^i_t = \frac{\eta}{2} \|\hat{\phi}(s_{t+1}) - \phi(s_{t+1})\|_2^2,
-   $$
+
+$$
+r^i_t = \frac{\eta}{2} \|\hat{\phi}(s_{t+1}) - \phi(s_{t+1})\|_2^2,
+$$
+
    where $\eta$ is typically set to **0.1-0.5** in LLM adaptations.
 5. **Policy optimization**: Train the policy to maximize the sum of extrinsic and intrinsic rewards (e.g., using PPO).
 

@@ -16,15 +16,19 @@ The authors propose Online AI Feedback (OAIF), a framework that injects online, 
 
 **Key Formulas**
 The DAP loss functions adapted within OAIF are defined as:
-\[
+
+$$
 \text{DPO: } - \log \sigma \left(\beta \log \frac {\pi_ {\theta} (\boldsymbol {y} ^ {+} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {-} | \boldsymbol {x})}{\pi_ {\theta^ {0}} (\boldsymbol {y} ^ {+} | \boldsymbol {x}) \pi_ {\theta} (\boldsymbol {y} ^ {-} | \boldsymbol {x})}\right)
-\]
-\[
+$$
+
+$$
 \text{IPO: } \left(\log \left(\frac {\pi_ {\theta} (\boldsymbol {y} ^ {+} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {-} | \boldsymbol {x})}{\pi_ {\theta} (\boldsymbol {y} ^ {-} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {+} | \boldsymbol {x})}\right) - \frac {1}{2 \beta}\right) ^ {2}
-\]
-\[
+$$
+
+$$
 \text{SLiC: } \max \left(0, 1 - \beta \log \left(\frac {\pi_ {\theta} (\boldsymbol {y} ^ {+} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {-} | \boldsymbol {x})}{\pi_ {\theta} (\boldsymbol {y} ^ {-} | \boldsymbol {x}) \pi_ {\theta^ {0}} (\boldsymbol {y} ^ {+} | \boldsymbol {x})}\right)\right)
-\]
+$$
+
 where $\pi_{\theta^0}$ denotes the supervised finetuning baseline, $\sigma$ is the logistic function, and $\beta$ is a scalar hyperparameter.
 
 **Quantitative Results**

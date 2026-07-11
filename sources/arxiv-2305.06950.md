@@ -20,12 +20,15 @@ The research employs a sequential observational and analytical pipeline:
 
 **Key Formulas**
 The internal structure decomposition relies on two explicit definitions:
-\[
+
+$$
 f_{\text{env}} = \frac{M_{\text{env}}}{M_{p}} = \frac{M_{p} - M_{\text{core}}}{M_{p}}
-\]
-\[
+$$
+
+$$
 R_{\text{env}} = R_{p} - R_{\text{core}}
-\]
+$$
+
 These relations are coupled with rocky core mass-radius relations and an envelope structure model to solve for core mass, core radius, envelope thickness, and envelope mass fraction.
 
 **Quantitative Results**

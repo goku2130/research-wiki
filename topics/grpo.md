@@ -29,13 +29,21 @@ In traditional Proximal Policy Optimization (PPO), a separate value network (the
 The algorithm operates through a three-step iterative process [source:huggingface:advanced-understanding-of-group-relative]:
 1. **Group Sampling:** For each input prompt $q$, the model samples a group of $G$ distinct completions $\{o_1, o_2, \dots, o_G\}$ from the current policy $\pi_\theta$ [source:huggingface:advanced-understanding-of-group-relative].
 2. **Relative Advantage Calculation:** Each output is assigned a reward $r_i$ (e.g., via a rule-based verifier for math correctness) [source:huggingface:advanced-understanding-of-group-relative]. The advantage $\hat{A}_i$ is then computed by standardizing the reward within the group:
-   $$\hat{A}_i = \frac{r_i - \mu_{group}}{\sigma_{group} + \epsilon}$$
+
+$$
+\hat{A}_i = \frac{r_i - \mu_{group}}{\sigma_{group} + \epsilon}
+$$
+
    where $\mu_{group}$ and $\sigma_{group}$ are the mean and standard deviation of rewards within the group, and $\epsilon$ (e.g., $10^{-8}$) ensures numerical stability [source:huggingface:advanced-understanding-of-group-relative][source:arxiv:2605.21125].
 3. **Policy Update:** The policy is updated using a clipped surrogate objective that incorporates a Kullback-Leibler (KL) divergence penalty to prevent the model from diverging too far from a reference policy $\pi_{ref}$ [source:huggingface:advanced-understanding-of-group-relative][source:arxiv:2501.12948].
 
 ## Mathematical Framework
 The GRPO objective function $\mathcal{J}(\theta)$ maximizes the following:
-$$\mathcal{J}(\theta) = \mathbb{E}_{q \sim P(Q), \{o_i\}_{i=1}^G \sim \pi_{\theta_{old}}} \left[ \frac{1}{G} \sum_{i=1}^G \min \left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} \hat{A}_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\epsilon, 1+\epsilon\right) \hat{A}_i \right) - \beta D_{KL}(\pi_\theta \| \pi_{ref}) \right]$$
+
+$$
+\mathcal{J}(\theta) = \mathbb{E}_{q \sim P(Q), \{o_i\}_{i=1}^G \sim \pi_{\theta_{old}}} \left[ \frac{1}{G} \sum_{i=1}^G \min \left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} \hat{A}_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\epsilon, 1+\epsilon\right) \hat{A}_i \right) - \beta D_{KL}(\pi_\theta \| \pi_{ref}) \right]
+$$
+
 where $\epsilon$ is the clipping hyperparameter and $\beta$ is the KL penalty coefficient [source:arxiv:2501.12948].
 
 ### Theoretical Properties

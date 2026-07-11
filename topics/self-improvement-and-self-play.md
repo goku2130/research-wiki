@@ -20,10 +20,6 @@ open_questions:
 - 'Safety and Alignment in Autonomous Systems**:'
 ---
 
-Here is the fully revised article with all grounding issues addressed, claims corrected to match sources, and fabricated content removed:
-
----
-
 # Self-Improvement and Self-Play in Reinforcement Learning for LLMs
 
 Self-improvement and self-play in reinforcement learning (RL) for large language models (LLMs) enable autonomous, iterative refinement by leveraging the model’s own outputs as training signals. These methods address key limitations of static, human-supervised alignment—such as data scarcity, reward hacking, and scalability—through algorithmic innovations like bootstrapping, growing-batch RL, and self-generated task synthesis.
@@ -55,13 +51,17 @@ STaR iteratively refines a model’s reasoning by alternating between *forward r
 
 **Mathematical Formulation**:
 STaR approximates a policy gradient objective with a discrete latent variable model:
+
 $$
 J(M, X, Y) = \sum_i \mathbb{E}_{\hat{r}_i, \hat{y}_i \sim p_M(\cdot|x_i)} \mathbb{1}(\hat{y}_i = y_i),
 $$
+
 where the gradient is computed via the log-derivative trick:
+
 $$
 \nabla J(M, X, Y) = \sum_i \mathbb{E}_{\hat{r}_i, \hat{y}_i \sim p_M(\cdot|x_i)} \left[ \mathbb{1}(\hat{y}_i = y_i) \cdot \nabla \log p_M(\hat{y}_i, \hat{r}_i | x_i) \right].
 $$
+
 The indicator function $\mathbb{1}(\hat{y}_i = y_i)$ acts as a reward filter, discarding gradients for incorrect rationales.
 
 **Key Results**:
@@ -86,9 +86,11 @@ ReST decouples data generation (*Grow*) from policy optimization (*Improve*) in 
 
 **Mathematical Formulation**:
 The policy $\pi_\theta(y \mid x) = \prod_{t=1}^T \pi_\theta(y_t \mid y_{1:t-1}, x)$ is optimized via:
+
 $$
 J(\theta) = \mathbb{E}_{(x, y) \sim \mathcal{D}_g} \left[ F(x, y; \tau) \mathcal{L}(x, y; \theta) \right],
 $$
+
 where $F(x, y; \tau) = \mathbb{1}_{R(x, y) > \tau}$ and $\mathcal{L}$ is typically the NLL loss.
 
 **Key Results**:
@@ -114,9 +116,11 @@ Absolute Zero eliminates external data by enabling a model to autonomously gener
 
 **Mathematical Formulation**:
 The composite objective generalizes RLVR to self-generated tasks:
+
 $$
 \mathcal{J}(\theta) = \max_\theta \mathbb{E}_{z \sim p(z)} \left[ \mathbb{E}_{(x, y^*) \sim f_e(\cdot | \tau), \tau \sim \pi_\theta^{\text{propose}}(\cdot | z)} \left[ \lambda r_e^{\text{propose}}(\tau, \pi_\theta) + \mathbb{E}_{y \sim \pi_\theta^{\text{solve}}(\cdot | x)} \left[ r_e^{\text{solve}}(y, y^*) \right] \right] \right],
 $$
+
 where the proposer reward is $r_{\text{propose}} = 1 - \bar{r}_{\text{solve}}$ if $\bar{r}_{\text{solve}} > 0$, else $0$.
 
 **Key Results**:
@@ -138,16 +142,20 @@ where the proposer reward is $r_{\text{propose}} = 1 - \bar{r}_{\text{solve}}$ i
 Iterated amplification (as formalized in [source:arxiv:1809.02923]) addresses one-dimensional stochastic convex optimization where only binary comparisons are observable. The **Comparison-Based Algorithm (CBA)**:
 1. Samples $\xi_t$ from the underlying distribution and compares it to the current decision point $x_t$.
 2. Uses auxiliary sampling densities $f_-(x, z)$ and $f_+(x, z)$ to construct an unbiased gradient estimate:
-   $$
-   \hat{g}_t = \frac{\mathbb{1}_{\xi_t > x_t}}{f_+(\xi_t, x_t)} - \frac{\mathbb{1}_{\xi_t < x_t}}{f_-(\xi_t, x_t)}.
-   $$
+
+$$
+\hat{g}_t = \frac{\mathbb{1}_{\xi_t > x_t}}{f_+(\xi_t, x_t)} - \frac{\mathbb{1}_{\xi_t < x_t}}{f_-(\xi_t, x_t)}.
+$$
+
 3. Updates $x_{t+1} = \text{Proj}_{[\ell, u]}(x_t - \eta_t \hat{g}_t)$.
 
 **Mathematical Formulation**:
 The gradient estimate is unbiased:
+
 $$
 \mathbb{E}[\hat{g}_t \mid x_t] = \nabla H(x_t),
 $$
+
 where $H(x) = \mathbb{E}_{\xi}[h(x, \xi)]$.
 
 **Key Results**:
@@ -169,10 +177,13 @@ SCoRe trains a model to revise its own errors via a two-stage RL framework [sour
 
 **Mathematical Formulation**:
 Stage I objective:
+
 $$
 \max_\theta \mathbb{E} \left[ \hat{r}(y_2, y^*) - \beta_2 D_{\text{KL}}(\pi_\theta(\cdot | x_1) || \pi_{\text{ref}}(\cdot | x_1)) \right].
 $$
+
 Stage II objective:
+
 $$
 \max_\theta \mathbb{E} \left[ \sum_{i=1}^2 \hat{r}(y_i, y^*) - \beta_1 D_{\text{KL}}(\pi_\theta(\cdot | x_i) || \pi_{\text{ref}}(\cdot | x_i)) \right].
 $$
@@ -199,9 +210,11 @@ Self-Rewarding Language Models iteratively self-align by generating and evaluati
 
 **Mathematical Formulation**:
 The iterative training dynamics are:
+
 $$
 M_{t+1} = \text{DPO}(M_t, \text{AIFT}(M_t)),
 $$
+
 where $\text{AIFT}(M_t)$ is the self-generated preference dataset.
 
 **Key Results**:
@@ -225,6 +238,7 @@ Re-ReST introduces a *reflector model* to actively refine failed trajectories us
 
 **Mathematical Formulation**:
 The reflector is trained via:
+
 $$
 \mathcal{L}_{MLE}(\theta_{\mathcal{R}}) = - \mathbb{E}_{(x, y^l, y^w) \sim \mathcal{D}_{\mathcal{M}}^{\mathcal{R}} \cup \mathcal{D}_{\mathcal{R}}^{\mathcal{R}}} \log p_{\theta_{\mathcal{R}}}(y^w \mid x, y^l).
 $$

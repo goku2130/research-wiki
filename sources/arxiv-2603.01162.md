@@ -17,9 +17,17 @@ GRPO operates as a critic-free policy-based algorithm. For each input prompt, th
 
 **Key Formulas**
 The theoretical foundation rests on two central expressions. First, a U-statistic of order $m$ is defined as:
-$$U_n = \binom{n}{m}^{-1} \sum_{1 \le i_1 < \dots < i_m \le n} h(X_{i_1}, \dots, X_{i_m})$$
+
+$$
+U_n = \binom{n}{m}^{-1} \sum_{1 \le i_1 < \dots < i_m \le n} h(X_{i_1}, \dots, X_{i_m})
+$$
+
 where $h$ is a symmetric kernel function. Second, the Hoeffding decomposition expresses the estimator’s deviation from its mean as:
-$$U_n - \theta = \frac{2}{n} \sum_{i=1}^n h_1(X_i) + R_n$$
+
+$$
+U_n - \theta = \frac{2}{n} \sum_{i=1}^n h_1(X_i) + R_n
+$$
+
 where $\theta = \mathbb{E}[h(X_1, X_2)]$ and $h_1(x) = \mathbb{E}[h(x, X_2)] - \theta$ denotes the first-order projection. In the non-degenerate case, the first-order term governs the variance at rate $O(n^{-1})$, while the remainder decays faster at $O(n^{-2})$. This decomposition directly characterizes GRPO’s gradient behavior and establishes its asymptotic equivalence to a simple average of independent samples.
 
 **Quantitative Results & Theoretical Properties**

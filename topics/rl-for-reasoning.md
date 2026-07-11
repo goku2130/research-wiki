@@ -51,7 +51,11 @@ There is a significant theoretical disagreement regarding the effect of RL with 
 Process Reward Models (PRMs) provide granular, step-level feedback to mitigate the "credit assignment" problem in long-chain reasoning [source:arxiv:2406.06592].
 * **Automated Generation:** OmegaPRM uses a divide-and-conquer MCTS algorithm and binary search to locate the first incorrect step in a trajectory, reducing error localization complexity from $O(kM)$ to $O(k \log M)$ [source:arxiv:2406.06592].
 * **Value Iteration:** PRMs can be optimized via the Bellman equation to predict cumulative rewards:
-  $$V_{\theta}(s) = r(s) + \gamma \max_{a} V_{\theta}(a + s)$$
+
+$$
+V_{\theta}(s) = r(s) + \gamma \max_{a} V_{\theta}(a + s)
+$$
+
   where $V_{\theta}(s)$ is the state value and $r(s)$ is the immediate reward [source:arxiv:2502.10867].
 
 ### Internalizing Supervision (IOP)

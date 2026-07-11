@@ -17,11 +17,23 @@ The authors formalize GRPO iterations by replacing Monte Carlo advantage estimat
 
 **Key Formulas**
 The stabilized whitened advantage is defined as:
-$$A_t^{smooth} = \frac{R_t - \mu_t}{\sqrt{\sigma_t^2 + \epsilon}}$$
+
+$$
+A_t^{smooth} = \frac{R_t - \mu_t}{\sqrt{\sigma_t^2 + \epsilon}}
+$$
+
 The no-clip GRPO objective becomes:
-$$\max_{\pi_t} \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_{t-1}} \left[ \frac{\pi_t(y|x)}{\pi_{t-1}(y|x)} A_t^{smooth} \right] - \beta D_{KL}(\pi_t || \pi_{ref})$$
+
+$$
+\max_{\pi_t} \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_{t-1}} \left[ \frac{\pi_t(y|x)}{\pi_{t-1}(y|x)} A_t^{smooth} \right] - \beta D_{KL}(\pi_t || \pi_{ref})
+$$
+
 This formulation reveals GRPO as an adaptive weighted contrastive loss. The resulting PoS recurrence for the standard variant follows Theorem 2:
-$$p_t = \sigma\left( \log \frac{p_{t-1}}{1-p_{t-1}} + \log \frac{1-p_{ref}}{p_{ref}} + \log \frac{p_{t-1}}{1-p_{t-1}} \cdot w(p_{t-1}) \right)$$
+
+$$
+p_t = \sigma\left( \log \frac{p_{t-1}}{1-p_{t-1}} + \log \frac{1-p_{ref}}{p_{ref}} + \log \frac{p_{t-1}}{1-p_{t-1}} \cdot w(p_{t-1}) \right)
+$$
+
 where $\sigma$ is the sigmoid function and $w(p_{t-1})$ encodes the non-linear weighting induced by reward whitening.
 
 **Key Quantitative Results**

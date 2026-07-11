@@ -21,7 +21,11 @@ SurgMAE modifies the MAE paradigm to prioritize high spatio-temporal information
 
 **Key Formula**
 The training objective utilizes a mean squared error formulation between normalized RGB pixel values:
-$$\mathcal{L} = \frac{1}{\omega} \sum_{p \in \omega} ||\mathbf{V}(p) - \hat{\mathbf{V}}(p)||_2$$
+
+$$
+\mathcal{L} = \frac{1}{\omega} \sum_{p \in \omega} ||\mathbf{V}(p) - \hat{\mathbf{V}}(p)||_2
+$$
+
 where $p$ is the token index, $\omega$ is the set of masked tokens, and $||\cdot||_2$ denotes the L2 norm.
 
 **Key Quantitative Results**

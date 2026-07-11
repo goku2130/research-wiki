@@ -22,9 +22,16 @@ Implementation details include using an ensemble of reward predictors trained wi
 
 **Key Formulas**
 The framework models human preferences using the Bradley-Terry model. The predicted probability that segment $\sigma^1$ is preferred over $\sigma^2$ is:
-$$\hat{P}[\sigma^1 \succ \sigma^2] = \frac{\exp \sum \hat{r}(o_t^1, a_t^1)}{\exp \sum \hat{r}(o_t^1, a_t^1) + \exp \sum \hat{r}(o_t^2, a_t^2)}.$$
+
+$$
+\hat{P}[\sigma^1 \succ \sigma^2] = \frac{\exp \sum \hat{r}(o_t^1, a_t^1)}{\exp \sum \hat{r}(o_t^1, a_t^1) + \exp \sum \hat{r}(o_t^2, a_t^2)}.
+$$
+
 The reward predictor is trained by minimizing the cross-entropy loss against human labels:
-$$\text{loss}(\hat{r}) = - \sum_{(\sigma^1, \sigma^2, \mu) \in \mathcal{D}} \mu(1) \log \hat{P}[\sigma^1 \succ \sigma^2] + \mu(2) \log \hat{P}[\sigma^2 \succ \sigma^1].$$
+
+$$
+\text{loss}(\hat{r}) = - \sum_{(\sigma^1, \sigma^2, \mu) \in \mathcal{D}} \mu(1) \log \hat{P}[\sigma^1 \succ \sigma^2] + \mu(2) \log \hat{P}[\sigma^2 \succ \sigma^1].
+$$
 
 **Key Quantitative Results and Numbers**
 The approach reduces human oversight requirements to less than 1% of the agent's interactions, cutting oversight costs by approximately three orders of magnitude. On eight MuJoCo simulated robotics tasks, 700 human labels nearly match full RL performance with true rewards, while 1,400 labels occasionally exceed them due to superior reward shaping. In seven Atari games, 5,500 human labels match or surpass standard RL baselines on BeamRider, Pong, and Enduro. The method successfully trains novel, complex behaviors requiring only about one hour of human time: a Hopper robot performing continuous backflips (900 queries), a Half-Cheetah walking on one leg (800 queries), and an Enduro agent maintaining pace with traffic (~1,300 queries). Total experimental costs are minimal, with compute averaging ~$25 per day and human labor ~$36 for 5,000 labels.

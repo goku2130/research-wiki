@@ -22,17 +22,22 @@ This recipe eliminates the need for a separate critic/value network and removes 
 
 **Key Formulas**
 The optimization objective maximizes the expected KL-shaped reward:
-\[
+
+$$
 R(x,y) = r_{\phi}(x,y) - \beta \log \frac{\pi_{\theta}(y|x)}{\pi_{\mathrm{ref}}(y|x)}
-\]
+$$
+
 The standard REINFORCE gradient with a baseline $b$ is:
-\[
+
+$$
 \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(.|x)} [(R(y, x) - b) \nabla_\theta \log \pi_\theta(y|x)]
-\]
+$$
+
 where a moving average baseline $b_{\mathrm{MA}} = \frac{1}{S} \sum_s R(x^s, y^s)$ can be used for single-sample updates. For multi-sample RLOO, the estimator is:
-\[
+
+$$
 \frac{1}{k} \sum_{i=1}^k \left[ R(y_{(i)}, x) - \frac{1}{k-1} \sum_{j \neq i} R(y_{(j)}, x) \right] \nabla \log \pi(y_{(i)}|x)
-\]
+$$
 
 **Key Quantitative Results & Numbers**
 Evaluated on the TL;DR Summarize and Anthropic Helpful & Harmless (HH) datasets using Pythia-6.9B and Llama-7B models, RLOO consistently outperforms PPO, DPO, RAFT, and Vanilla PG. RLOO improves win-rates over PPO by 3.2% to 20.3%, achieving final win-rates of 77.9 (TL;DR), 43.7 (HH/Pythia), and 64.1 (HH/Llama) with $k=4$, compared to PPO’s 67.6, 29.2, and 32.0. RLOO demonstrates superior sample efficiency; $\text{RLOO}_{k=2}$ matches or exceeds $\text{RAFT}_{k=4}$ despite using half the online sampling budget. Furthermore, RLOO maintains lower reward variance and exhibits greater robustness to reward noise ($\sigma=3.0, 5.0$) and KL penalty sensitivity ($\beta=0.25, 0.5, 1.0$) than iterative fine-tuning baselines. It also mitigates the alignment tax, preserving language fluency and n-gram diversity better than PPO and Vanilla PG.

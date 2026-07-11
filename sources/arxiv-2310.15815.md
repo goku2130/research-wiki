@@ -20,17 +20,40 @@ The proposed Self-Motivated Imitation LEarning (SMILE) framework addresses noisy
 
 **Key Formulas**
 The forward diffusion kernel adds Gaussian perturbations conditioned on state $s$:
-$$q(a_t|a_{t-1}, s) := \mathcal{N}(a_t; a_{t-1}, \beta_t^2\mathbf{I})$$
+
+$$
+q(a_t|a_{t-1}, s) := \mathcal{N}(a_t; a_{t-1}, \beta_t^2\mathbf{I})
+$$
+
 Using the reparameterization trick, actions at step $t$ are generated directly from the initial action $a_0$ via:
-$$q(a_t|a_0, s) := \mathcal{N}(a_t; a_0, \sigma_t^2\mathbf{I}), \quad \sigma_t = \sqrt{\sum_{k=1}^t \beta_k^2}$$
+
+$$
+q(a_t|a_0, s) := \mathcal{N}(a_t; a_0, \sigma_t^2\mathbf{I}), \quad \sigma_t = \sqrt{\sum_{k=1}^t \beta_k^2}
+$$
+
 The noise predictor minimizes:
-$$L(\theta) = \mathbb{E}_{s,a_0,t,\epsilon}[\|\epsilon - \epsilon_\theta(s, a_t, t)\|_2^2]$$
+
+$$
+L(\theta) = \mathbb{E}_{s,a_0,t,\epsilon}[\|\epsilon - \epsilon_\theta(s, a_t, t)\|_2^2]
+$$
+
 The one-step generator policy $\pi_\phi$ is optimized via:
-$$L(\phi) = \mathbb{E}_{(s,a_0)\sim\mathcal{D},a'_0\sim\pi_{\phi},t,\epsilon}[||\mu_t(a_t,a'_0) - \mu_t(a_t,a_t - \sigma_t\epsilon_{\theta}(s,a_t,t))||^2]$$
+
+$$
+L(\phi) = \mathbb{E}_{(s,a_0)\sim\mathcal{D},a'_0\sim\pi_{\phi},t,\epsilon}[||\mu_t(a_t,a'_0) - \mu_t(a_t,a_t - \sigma_t\epsilon_{\theta}(s,a_t,t))||^2]
+$$
+
 Filtering relies on a conditioned Q-function derived from energy-based modeling:
-$$Q_{\theta,t}(\pi|\tilde{\pi}) = -\frac{1}{2\sigma_t^2} \mathbb{E}[\|a - (\tilde{a} - \sigma_t \epsilon_\theta(s, \tilde{a}, t))\|^2]$$
+
+$$
+Q_{\theta,t}(\pi|\tilde{\pi}) = -\frac{1}{2\sigma_t^2} \mathbb{E}[\|a - (\tilde{a} - \sigma_t \epsilon_\theta(s, \tilde{a}, t))\|^2]
+$$
+
 The filtering decision for a trajectory $\tau$ is determined by:
-$$t(\tau) = \arg \max_{t' \in [0,T]} \frac{1}{|\tau|} \sum_i^{|\tau|} Q_{\theta,t'}(a^{(i)}|a^{\pi_\phi}, s^{(i)})$$
+
+$$
+t(\tau) = \arg \max_{t' \in [0,T]} \frac{1}{|\tau|} \sum_i^{|\tau|} Q_{\theta,t'}(a^{(i)}|a^{\pi_\phi}, s^{(i)})
+$$
 
 **Quantitative Results**
 Evaluated on continuous-control MuJoCo tasks (HalfCheetah, Walker2d, Hopper), SMILE consistently converges to expert-level performance with lower variance than baselines including Behavior Cloning, GAIL, ILEED, COIL, and RILCO. Ablation studies confirm the filtering module's necessity, as SMILE without filtering exhibits higher performance variance. Predicted diffusion steps correlate strongly with demonstration quality; for instance, in HalfCheetah, higher-return demonstration bins yield larger predicted diffusion steps as the agent improves. Compared to naive self-paced learning, SMILE achieves substantially higher returns (e.g., 3523.80 vs. 280.38 on Hopper). Additionally, the one-step generator reduces decision-making latency by approximately tenfold compared to naive multi-step reverse processes without compromising learning efficacy on most tasks.

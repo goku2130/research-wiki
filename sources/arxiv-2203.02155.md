@@ -19,9 +19,17 @@ The authors align GPT-3 architectures through a three-stage fine-tuning pipeline
 
 **Key Formulas**
 The reward model is trained using a cross-entropy loss over all pairwise comparisons within a batch of $K$ responses:
-$$\text{loss}(\theta) = -\frac{1}{\binom{K}{2}} \mathbb{E}_{(x,y_w,y_l)\sim D} [\log(\sigma(r_\theta(x,y_w) - r_\theta(x,y_l)))]$$
+
+$$
+\text{loss}(\theta) = -\frac{1}{\binom{K}{2}} \mathbb{E}_{(x,y_w,y_l)\sim D} [\log(\sigma(r_\theta(x,y_w) - r_\theta(x,y_l)))]
+$$
+
 where $r_\theta(x,y)$ is the scalar reward, $y_w$ and $y_l$ are the winning and losing completions, and $D$ is the comparison dataset. The RLHF objective combines the reward signal, a KL penalty, and the pretraining loss:
-$$\text{objective} (\phi) = \mathbb{E}_{(x, y) \sim D_{\pi_{\phi}^{\mathrm{RL}}}} \left[ r_{\theta} (x, y) - \beta \log \left(\pi_{\phi}^{\mathrm{RL}} (y \mid x) / \pi^{\mathrm{SFT}} (y \mid x)\right) \right] + \gamma \mathbb{E}_{x \sim D_{\text{pretrain}}} \left[ \log \left(\pi_{\phi}^{\mathrm{RL}} (x)\right) \right]$$
+
+$$
+\text{objective} (\phi) = \mathbb{E}_{(x, y) \sim D_{\pi_{\phi}^{\mathrm{RL}}}} \left[ r_{\theta} (x, y) - \beta \log \left(\pi_{\phi}^{\mathrm{RL}} (y \mid x) / \pi^{\mathrm{SFT}} (y \mid x)\right) \right] + \gamma \mathbb{E}_{x \sim D_{\text{pretrain}}} \left[ \log \left(\pi_{\phi}^{\mathrm{RL}} (x)\right) \right]
+$$
+
 Here, $\beta$ controls the KL penalty strength and $\gamma$ weights the pretraining gradient contribution.
 
 **Quantitative Results**

@@ -22,9 +22,17 @@ To automate preference evaluation, the authors introduce the "LLM-as-a-judge" fr
 **Key Formulas**
 The study formalizes evaluation metrics as follows:
 - **Agreement Metric:** The probability that two randomly selected, non-identical judges from different types agree on a randomly selected question:
-  $$\text{Agreement} = P(\text{Judge}_A \text{ agrees with } \text{Judge}_B \mid \text{random question})$$
+
+$$
+\text{Agreement} = P(\text{Judge}_A \text{ agrees with } \text{Judge}_B \mid \text{random question})
+$$
+
 - **MT-Bench Scoring:** Using single-answer grading on a 1–10 scale per turn, the composite score is calculated as:
-  $$\text{Total Score} = \sum_{q=1}^{80} \sum_{t=1}^{2} \text{Rating}_{q,t}$$
+
+$$
+\text{Total Score} = \sum_{q=1}^{80} \sum_{t=1}^{2} \text{Rating}_{q,t}
+$$
+
   where $q$ indexes the 80 questions and $t$ indexes the two conversational turns.
 
 **Key Quantitative Results**

@@ -21,10 +21,6 @@ open_questions:
   on tasks where longer responses are genuinely beneficial?
 ---
 
-Here is the fully revised wiki article with all issues addressed, empirical claims anchored, and citations standardized:
-
----
-
 # MDP Formulation of LLM Generation: Token-Level MDP vs Sequence Bandit, Terminal Rewards
 
 Large language model (LLM) generation is fundamentally an autoregressive process, yet its formulation as a reinforcement learning (RL) problem remains contentious. The core tension lies in whether to model generation as a *token-level Markov Decision Process (MDP)*, where each token is a decision step with its own reward, or as a *sequence-level contextual bandit*, where the entire response is treated as a single action with a terminal reward. This choice profoundly impacts credit assignment, training stability, and alignment efficacy.
@@ -43,6 +39,7 @@ In the token-level MDP formulation, LLM generation is modeled as a finite-horizo
 - **Horizon $H$**: The maximum sequence length, often truncated or padded to a fixed value during training.
 
 The policy $\pi_\theta(a_t \mid s_t)$ is the LLM itself, parameterized by $\theta$, and the objective is to maximize the expected return:
+
 $$
 J(\theta) = \mathbb{E}_{\tau \sim \pi_\theta} \left[ \sum_{t=1}^H \gamma^{t-1} r_t \right].
 $$
@@ -60,14 +57,18 @@ $$
 
 ### Mitigations and Variants
 1. **Dense reward shaping**: Replace sparse terminal rewards with dense, token-level rewards. For example, [source:arxiv:2404.18922] proposes *Reinforced Token Optimization (RTO)*, which derives token-level rewards from a Direct Preference Optimization (DPO) policy. The reward for token $t$ is:
-   $$
-   r_{\text{rto}}(t) = \log \frac{\pi_{\text{dpo}}(y_t \mid x, y_{<t})}{\pi_{\text{ref}}(y_t \mid x, y_{<t})} - \beta \log \frac{\pi(y_t \mid x, y_{<t})}{\pi_{\text{ref}}(y_t \mid x, y_{<t})},
-   $$
+
+$$
+r_{\text{rto}}(t) = \log \frac{\pi_{\text{dpo}}(y_t \mid x, y_{<t})}{\pi_{\text{ref}}(y_t \mid x, y_{<t})} - \beta \log \frac{\pi(y_t \mid x, y_{<t})}{\pi_{\text{ref}}(y_t \mid x, y_{<t})},
+$$
+
    where $\pi_{\text{dpo}}$ is the DPO policy, $\pi_{\text{ref}}$ is a reference policy, and $\beta$ is a KL regularization coefficient. At the terminal token, an additional MLE reward $r_{\text{MLE}}$ is appended to penalize extreme lengths. This approach provides non-zero rewards for all tokens, improving PPO's stability [source:arxiv:2404.18922].
 2. **Cumulative token importance sampling**: [source:arxiv:2605.07331] introduces *Cumulative Token Policy Optimization (CTPO)*, which computes IS ratios cumulatively up to each token $t$:
-   $$
-   \rho_t^{\text{cum}} = \prod_{t'=1}^t \frac{\pi_\theta(a_{t'} \mid s_{t'})}{\pi_b(a_{t'} \mid s_{t'})}.
-   $$
+
+$$
+\rho_t^{\text{cum}} = \prod_{t'=1}^t \frac{\pi_\theta(a_{t'} \mid s_{t'})}{\pi_b(a_{t'} \mid s_{t'})}.
+$$
+
    This ensures exact prefix correction for each token's gradient term while avoiding the extreme variance of full-sequence ratios. To further stabilize updates, CTPO uses *position-adaptive clipping*, where the clipping range scales with $\sqrt{t}$ to match the linear growth of the log-ratio's variance. Empirically, this reduces the clip rate for late tokens from ~20% (fixed clipping) to 5–10% (adaptive clipping) [source:arxiv:2605.07331].
 3. **Step-level alignment for agentic RL**: For agentic tasks, [source:arxiv:2604.18401] proposes *StepPO*, which reformulates the MDP at the *step* level (e.g., tool calls or multi-token actions) rather than the token level. StepPO computes advantages at the step granularity and uses the geometric mean of token-level IS ratios to stabilize updates. This reduces variance and aligns the MDP with the natural decision points of agentic behavior [source:arxiv:2604.18401].
 
@@ -83,6 +84,7 @@ In the sequence-level bandit formulation, LLM generation is modeled as a *contex
 - **Policy**: The LLM $\pi_\theta(y \mid x)$, which generates the full sequence autoregressively but is treated as a single action for optimization.
 
 The objective is to maximize the expected reward:
+
 $$
 J(\theta) = \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(\cdot \mid x)} \left[ R(x, y) \right].
 $$
@@ -103,15 +105,19 @@ This formulation collapses the temporal structure of generation, treating the re
 
 ### Mitigations and Variants
 1. **Uniform advantage broadcast**: [source:arxiv:2604.08865] proposes *SPPO*, which treats LLM reasoning as a sequence-level bandit and broadcasts the sequence-level advantage uniformly to all tokens. The advantage is computed as:
-   $$
-   A(s_p, a) = R - V_\phi(s_p),
-   $$
+
+$$
+A(s_p, a) = R - V_\phi(s_p),
+$$
+
    where $R \in \{0, 1\}$ is the binary reward and $V_\phi(s_p)$ is a scalar critic estimating the probability of success for prompt $s_p$. This approach eliminates temporal credit assignment ambiguity and reduces variance, enabling single-sample efficiency ($N=1$). SPPO outperforms GRPO on long-horizon reasoning tasks while achieving a 5.9× speedup in training time [source:arxiv:2604.08865].
 2. **Filtered iterative supervised fine-tuning (F-ISFT)**: [source:arxiv:2505.13697] demonstrates that GRPO (a sequence-level method) is mathematically equivalent to F-ISFT under the degenerate MDP assumptions of LLM generation. F-ISFT iteratively filters high-reward responses and fine-tunes the policy on them, avoiding the need for explicit RL updates. This equivalence suggests that sequence-level methods may not require RL at all, though they still suffer from length bias [source:arxiv:2505.13697].
 3. **Shapley credit assignment**: [source:arxiv:2512.04302] proposes *Shapley Credit Assignment Rewards (SCAR)*, which decomposes sequence-level rewards into token-level contributions using Shapley values. For a sequence $y$ segmented into units $u_1, \dots, u_N$, the Shapley value for unit $u_i$ is:
-   $$
-   \mathrm{SV}_{u_i}(v) = \sum_{S \subseteq \mathcal{P} \setminus \{u_i\}} \frac{|S|!(N - |S| - 1)!}{N!} [v(S \cup \{u_i\}) - v(S)],
-   $$
+
+$$
+\mathrm{SV}_{u_i}(v) = \sum_{S \subseteq \mathcal{P} \setminus \{u_i\}} \frac{|S|!(N - |S| - 1)!}{N!} [v(S \cup \{u_i\}) - v(S)],
+$$
+
    where $v(S)$ is the reward for the partial sequence $y_S$. SCAR interpolates these token-level credits with the terminal reward to provide dense feedback. Empirically, SCAR outperforms sparse RLHF and attention-based credit assignment on tasks like summarization and instruction tuning [source:arxiv:2512.04302].
 
 ---

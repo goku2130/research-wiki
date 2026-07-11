@@ -22,9 +22,17 @@ The study follows a sequential, multi-institutional assessment protocol:
 
 **Key Formulas**
 Conceptual gain is calculated as:
-$$Change = Post\text{-}test - Pre\text{-}test$$
+
+$$
+Change = Post\text{-}test - Pre\text{-}test
+$$
+
 Curriculum comparison is modeled via:
-$$Change = Curriculum + Institution$$
+
+$$
+Change = Curriculum + Institution
+$$
+
 where the curriculum coefficient quantifies the adjusted difference in mean percentage-point improvement, with significance assessed via standard errors (SE) and p-values.
 
 **Key Quantitative Results**

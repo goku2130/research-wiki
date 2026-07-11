@@ -17,21 +17,29 @@ The proposed Prefer-to-Classify (P2C) framework operates through a structured mu
 
 **Key Formulas**
 The preference predictor models the probability of $\mathbf{x}^1$ being preferred over $\mathbf{x}^0$ as:
-\[
+
+$$
 P_\psi[\mathbf{x}^1 \succ \mathbf{x}^0; y_{task}] = \frac{\exp(h_\psi(\mathbf{x}^1, y_{task}))}{\sum_{i \in \{0,1\}} \exp(h_\psi(\mathbf{x}^i, y_{task}))}
-\]
+$$
+
 The preference loss is formulated as binary cross-entropy:
-\[
+
+$$
 \mathcal{L}_{pref} = -\mathbb{E}\left[y_{pref}\log P_\psi[\mathbf{x}^1 \succ \mathbf{x}^0] + (1 - y_{pref})\log P_\psi[\mathbf{x}^0 \succ \mathbf{x}^1]\right]
-\]
+$$
+
 Diversity regularization maximizes KL-divergence across preference heads to maintain distinct learning signals:
-\[
+
+$$
 \mathcal{L}_{div} = \frac{-1}{T - 1} \sum_{j \neq i} D_{KL}\left(P_{\psi^{(i)}} \parallel P_{\psi^{(j)}}\right)
-\]
+$$
+
 Consistency regularization imposes a margin $m$ on classification confidence differences $\Delta p_y(\mathbf{x}^1, \mathbf{x}^0) = p_y(\mathbf{x}^0) - p_y(\mathbf{x}^1)$:
-\[
+
+$$
 \mathcal{L}_{cons} = y_{pref}\max\{0, m - \Delta p_y(\mathbf{x}^1, \mathbf{x}^0)\} + (1 - y_{pref})\max\{0, \Delta p_y(\mathbf{x}^1, \mathbf{x}^0) - m\}
-\]
+$$
+
 The total training objective aggregates these components: $\mathcal{L}_{train} = \mathcal{L}_{multi} + \lambda_{cons}\mathcal{L}_{cons}$.
 
 **Key Quantitative Results**
