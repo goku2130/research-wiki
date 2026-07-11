@@ -198,24 +198,75 @@ def ocr_pdf(pdf_url: str, cache_key: str) -> str | None:
     return None
 
 
+_FCK = os.getenv("FIRECRAWL_API_KEY")
+_FC = "https://api.firecrawl.dev/v1"
+
+
+def firecrawl_search(query: str, n: int) -> list[dict] | None:
+    if not _FCK:
+        return None
+    try:
+        r = requests.post(f"{_FC}/search",
+            headers={"Authorization": f"Bearer {_FCK}", "Content-Type": "application/json"},
+            json={"query": query, "limit": n}, timeout=60)
+        if r.status_code == 200:
+            return [{"title": x.get("title"), "url": x.get("url"),
+                     "snippet": (x.get("description") or "")[:300]}
+                    for x in r.json().get("data", [])[:n]] or None
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def firecrawl_scrape(url: str, cap: int) -> str | None:
+    if not _FCK:
+        return None
+    try:
+        r = requests.post(f"{_FC}/scrape",
+            headers={"Authorization": f"Bearer {_FCK}", "Content-Type": "application/json"},
+            json={"url": url, "formats": ["markdown"]}, timeout=180)
+        if r.status_code == 200:
+            md = r.json().get("data", {}).get("markdown", "")
+            return md[:cap] if md and len(md) > 200 else None
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def _cache_path(key: str):
+    return OCR_CACHE / (re.sub(r"[^a-z0-9.]+", "-", key.lower()) + ".md")
+
+
 def fetch_fulltext(url: str) -> str:
-    """Full source text. Prefer Mistral OCR of the complete PDF (faithful, no
-    truncation of the paper); fall back to arXiv HTML, then trafilatura."""
+    """Full source text, equations preserved. Firecrawl PDF scrape first (free
+    credits, matches OCR), then Mistral OCR, then Firecrawl/HTML. Disk-cached."""
     aid = arxiv_id(url)
-    # 1) Mistral OCR of the full paper — the highest-fidelity path.
-    if _MKEY and (aid or url.lower().endswith(".pdf") or "/pdf/" in url):
-        pdf_url = f"https://arxiv.org/pdf/{aid}" if aid else url
-        text = ocr_pdf(pdf_url, cache_key=aid or urlparse(url).path)
-        if text:
-            return text[:OCR_CHARS]
-    # 2) arXiv HTML (real LaTeX) / 3) trafilatura fallback.
-    if aid:
+    key = aid or urlparse(url).path
+    OCR_CACHE.mkdir(exist_ok=True)
+    cached = _cache_path(key)
+    if cached.exists():
+        return cached.read_text()[:OCR_CHARS]
+
+    pdf_url = (f"https://arxiv.org/pdf/{aid}" if aid else
+               (url if (url.lower().endswith(".pdf") or "/pdf/" in url) else None))
+    text = None
+    if pdf_url:
+        text = firecrawl_scrape(pdf_url, OCR_CHARS)      # 1) Firecrawl PDF (equations OK)
+        if not text:
+            text = ocr_pdf(pdf_url, cache_key=key)        # 2) Mistral OCR fallback
+    if not text:
+        text = firecrawl_scrape(url, FULLTEXT_CHARS)      # 3) Firecrawl scrape of the URL
+    if not text and aid:                                  # 4) HTML/trafilatura fallback
         for cand in (f"https://arxiv.org/html/{aid}",
                      f"https://ar5iv.labs.arxiv.org/html/{aid}"):
             t = _extract(cand, FULLTEXT_CHARS)
             if len(t) > 1500:
-                return t
-    return _extract(url, FULLTEXT_CHARS) or "[no extractable text]"
+                text = t
+                break
+    text = text or _extract(url, FULLTEXT_CHARS) or "[no extractable text]"
+    if len(text) > 2000:
+        cached.write_text(text)
+    return text[:OCR_CHARS]
 
 
 def source_id(url: str, title: str) -> str:
@@ -233,17 +284,24 @@ def id_to_filename(sid: str) -> str:
 
 # ----------------------------------------------------------------- stage 1: gather
 def search_web(query: str, max_results: int = 6) -> list[dict]:
-    r = requests.get(f"{SEARXNG}/search",
-                     params={"q": query, "format": "json", "categories": "general"},
-                     timeout=30)
-    r.raise_for_status()
-    return [{"title": i.get("title"), "url": i.get("url"),
-             "snippet": (i.get("content") or "")[:300]}
-            for i in r.json().get("results", [])[:max_results]]
+    fc = firecrawl_search(query, max_results)              # cloud search (Firecrawl)
+    if fc:
+        return fc
+    try:                                                  # fallback: local SearXNG
+        r = requests.get(f"{SEARXNG}/search",
+                         params={"q": query, "format": "json", "categories": "general"},
+                         timeout=30)
+        r.raise_for_status()
+        return [{"title": i.get("title"), "url": i.get("url"),
+                 "snippet": (i.get("content") or "")[:300]}
+                for i in r.json().get("results", [])[:max_results]]
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def read_url(url: str) -> str:
-    return _extract(url, SCAN_CHARS) or "[no extractable text]"
+    return (firecrawl_scrape(url, SCAN_CHARS) or _extract(url, SCAN_CHARS)
+            or "[no extractable text]")
 
 
 TOOLS = [
