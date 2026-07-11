@@ -1,32 +1,35 @@
 ---
 title: Policy gradient methods for LLMs
-maturity: developing
+maturity: comprehensive
 updated: '2026-07-11'
 sources:
-- link:simple-statistical-gradient-following-al
 - papers:policy-gradient-methods-for-reinforcemen
-- proceedings:actor-critic-algorithms
 - arxiv:1506.02438
-- arxiv:1707.06347
-- arxiv:1801.01290
+- proceedings:actor-critic-algorithms
+- link:simple-statistical-gradient-following-al
 - arxiv:2203.02155
 - arxiv:2507.17530
+- arxiv:1801.01290
+- arxiv:1707.06347
+- arxiv:1706.03741
 open_questions:
-- How does the discrete, massive action space of LLMs (vocabulary size ~100k) affect
-  the bias-variance tradeoff in GAE compared to continuous control, and does the standard
-  $\lambda \approx 0.95$ remain optimal?
-- The compatibility condition requires the critic to approximate the advantage function;
-  in PPO for LLMs, the value head predicts $V(s)$ not $A(s,a)$—does this mismatch
-  introduce systematic gradient bias, and how large is it in practice?
-- Distributional critics (DGAE) capture return distribution shape; for LLMs with sparse,
-  high-variance rewards (e.g., 0/1 correctness on math), could distributional advantages
-  provide more stable learning signals than scalar GAE?
-- The KL penalty in RLHF is typically applied per-token; does this induce a different
-  implicit constraint than the per-episode KL constraint analyzed in the policy gradient
-  convergence proofs (Konda & Tsitsiklis, 2000)?
+- How does the Christiano et al. (2017) finding that offline reward training fails
+  (leading to "bizarre" behaviors) map to modern LLM RLHF where reward models are
+  typically trained offline on static datasets? Are current LLM reward models suffering
+  from analogous distributional shift issues?
+- The 2017 paper used active querying based on ensemble variance. Modern LLM RLHF
+  almost never uses active querying—preference data is collected passively. What is
+  the efficiency gap, and could active querying reduce the human feedback needed for
+  LLM alignment?
+- 'Christiano et al. found that comparing single frames was far less effective than
+  short clips. For LLMs, what is the optimal "segment" for preference comparison:
+  single tokens, sentences, full completions, or multi-turn trajectories?'
+- The 2017 paper modeled human noise as a uniform 10% error rate. LLM preference annotation
+  has complex, structured biases (position bias, length bias, style bias). How should
+  reward modeling account for these?
 ---
 
-Policy gradient methods form the theoretical backbone of reinforcement learning from human feedback (RLHF) for large language models, providing the gradient estimators that enable direct optimization of non-differentiable reward signals. This article traces the lineage from the foundational REINFORCE estimator through actor-critic architectures, advantage estimation techniques including GAE, and their modern instantiations in LLM alignment pipelines.
+Policy gradient methods form the theoretical backbone of reinforcement learning from human feedback (RLHF) for large language models, providing the gradient estimators that enable direct optimization of non-differentiable reward signals. This article traces the lineage from the foundational REINFORCE estimator through actor-critic architectures, advantage estimation techniques including GAE, the seminal RLHF foundation of learning rewards from human preferences, and their modern instantiations in LLM alignment pipelines.
 
 ## Foundations: REINFORCE and the Policy Gradient Theorem
 
@@ -96,9 +99,61 @@ Empirically, on MuJoCo continuous control tasks, the best $\gamma$ values were i
 
 **Distributional extension**: A 2025 paper extends GAE to distributional RL by defining a Wasserstein-like directional metric $d(F_U, G_V) = \inf_{U,V}(U-V) = \int_0^1 L(F_U^{-1}(q) - G_V^{-1}(q)) dq$ that captures both distance and "superiority" between return distributions [source:arxiv:2507.17530]. The distributional TD error becomes $\delta^G(s_t,a_t) = r(s_t,a_t) + d(\gamma G(S_{t+1}), G(s_t))$, and DGAE is defined analogously. On MuJoCo tasks, distributional PPO (DPPO) and TRPO (DTRPO) outperformed their scalar baselines, though A2C/DA2C remained weak [source:arxiv:2507.17530]. The directional metric ignores shape similarity (e.g., variance differences), but this occurred in only ~0.093% of cases on Hopper [source:arxiv:2507.17530].
 
+## The RLHF Foundation: Learning Rewards from Human Preferences (Christiano et al., 2017)
+
+Christiano et al. (2017) established the **foundational RLHF paradigm** that directly preceded and enabled LLM alignment: learning a reward function from human preferences over trajectory segments, then optimizing a policy against this learned reward using standard policy gradient methods [source:arxiv:1706.03741]. This work addressed the core problem that complex real-world goals cannot be hand-engineered into reward functions, and that direct human feedback is too expensive for standard deep RL which requires millions of interactions.
+
+### Method: Three Asynchronous Processes
+
+The system operates via three asynchronous processes [source:arxiv:1706.03741]:
+
+1.  **Policy Optimization:** The policy $\pi$ interacts with the environment to produce trajectories. It is updated using traditional RL algorithms—specifically **Advantage Actor-Critic (A2C)** for Atari games and **Trust Region Policy Optimization (TRPO)** for MuJoCo robotics tasks—to maximize the sum of rewards predicted by $\hat{r}$.
+2.  **Preference Elicitation:** The system selects pairs of trajectory segments ($\sigma^1, \sigma^2$), typically 1–2 seconds long, and presents them as video clips to a human. The human indicates which segment is preferred, if they are equal, or if they are incomparable.
+3.  **Reward Function Fitting:** The reward predictor $\hat{r}$ (a deep neural network) is trained via supervised learning to fit the collected comparisons.
+
+### Reward Modeling Details
+
+The reward function $\hat{r}$ is treated as a preference-predictor using a **Bradley-Terry model**. The probability that a human prefers segment $\sigma^1$ over $\sigma^2$ is modeled as [source:arxiv:1706.03741]:
+
+$$
+\hat{P}[\sigma^1 \succ \sigma^2] = \frac{\exp \sum \hat{r}(o_t^1, a_t^1)}{\exp \sum \hat{r}(o_t^1, a_t^1) + \exp \sum \hat{r}(o_t^2, a_t^2)}
+$$
+
+The parameters of $\hat{r}$ are optimized by minimizing the cross-entropy loss [source:arxiv:1706.03741]:
+
+$$
+\text{loss}(\hat{r}) = - \sum_{(\sigma^1, \sigma^2, \mu) \in \mathcal{D}} \mu(1) \log \hat{P}[\sigma^1 \succ \sigma^2] + \mu(2) \log \hat{P}[\sigma^2 \succ \sigma^1]
+$$
+
+where $\mu$ is the distribution over the human's choice.
+
+**Key modifications for stability and performance** [source:arxiv:1706.03741]:
+*   **Ensembling:** An ensemble of predictors is trained on bootstrapped samples of the preference database; the final $\hat{r}$ is the average of these normalized predictors.
+*   **Regularization:** $\ell_2$ regularization is used, with coefficients adjusted to keep validation loss between 1.1 and 1.5 times the training loss.
+*   **Noise Modeling:** The model assumes a 10% probability that the human responds uniformly at random to account for human error.
+*   **Active Querying:** Pairs are selected for human labeling based on the highest variance in predictions across the ensemble members.
+
+### Quantitative Results
+
+The method was evaluated on MuJoCo robotics and Atari games, requiring feedback on **less than 1% of environment interactions** [source:arxiv:1706.03741]:
+
+*   **MuJoCo:** With 700 human queries, the agent nearly matched the performance of RL trained on the true reward. With 1,400 synthetic labels, the algorithm occasionally **outperformed RL with the true reward**, suggesting the learned reward function provided better shaping.
+*   **Atari:** Using 5,500 human queries, the agent showed substantial learning. Synthetic labels matched or approached RL performance in *BeamRider* and *Pong* with approximately 3,300 labels.
+*   **Novel Behaviors:** The system learned complex behaviors with roughly one hour of human feedback:
+    *   **Hopper:** Sequence of backflips (900 queries).
+    *   **Half-Cheetah:** Moving forward on one leg (800 queries).
+    *   **Enduro:** Staying even with other cars (1,300 queries).
+
+### Limitations Identified
+
+*   **Offline Training Failure:** Training the reward predictor on a static dataset (no online queries) performed poorly. Due to the nonstationarity of the occupancy distribution, the agent often developed "bizarre" behaviors, such as avoiding losing points in *Pong* without attempting to score [source:arxiv:1706.03741].
+*   **Feedback Granularity:** Comparing single frames was significantly less helpful than comparing short clips; longer clips provided necessary context for human evaluation [source:arxiv:1706.03741].
+*   **Human Consistency:** Real human feedback was occasionally less efficient than synthetic oracle feedback due to labeling errors or inconsistent rates of labeling [source:arxiv:1706.03741].
+*   **Task Complexity:** Some environments (e.g., *Qbert*) proved difficult to learn from short clips because the clips were confusing to evaluate [source:arxiv:1706.03741].
+
 ## Application to LLM Fine-tuning: PPO and RLHF
 
-The InstructGPT paper (Ouyang et al., 2022) instantiated policy gradient methods for LLM alignment via a three-stage pipeline: (1) supervised fine-tuning (SFT) on human demonstrations, (2) reward model (RM) training on ranked comparisons, (3) PPO optimization of the SFT policy against the RM with a KL penalty from the SFT model [source:arxiv:2203.02155].
+The InstructGPT paper (Ouyang et al., 2022) instantiated policy gradient methods for LLM alignment via a three-stage pipeline: (1) supervised fine-tuning (SFT) on human demonstrations, (2) reward model (RM) training on ranked comparisons, (3) PPO optimization of the SFT policy against the RM with a KL penalty from the SFT model [source:arxiv:2203.02155]. This pipeline **directly mirrors** the Christiano et al. (2017) architecture—replacing A2C/TRPO with PPO, trajectory segments with LLM completions, and video clips with text comparisons—but retains the core loop of preference-based reward learning followed by policy optimization [source:arxiv:1706.03741][source:arxiv:2203.02155].
 
 The PPO objective used is the clipped surrogate [source:arxiv:1707.06347]:
 
@@ -127,7 +182,7 @@ Policy gradient methods—specifically PPO with GAE—remain the **default** alg
 - **Off-policy methods (SAC, TD3)** have seen limited adoption for LLM fine-tuning due to the difficulty of replay buffers with long sequences and the non-stationarity of the reward model, though they remain standard in continuous control [source:arxiv:1801.01290].
 - **Distributional critics (DGAE)** are a recent research direction (2025) with promising MuJoCo results but **not widely reported** in LLM settings; the quantile-Huber loss and inverse CDF networks add significant complexity for unclear gains in discrete token spaces [source:arxiv:2507.17530].
 
-The field is **not abandoning** policy gradients—PPO remains the benchmark—but the **consensus is shifting** toward methods that simplify or eliminate the critic and advantage estimation pipeline, especially for instruction-following where reward models are noisy and the action space is discrete and massive.
+The field is **not abandoning** policy gradients—PPO remains the benchmark—but the **consensus is shifting** toward methods that simplify or eliminate the critic and advantage estimation pipeline, especially for instruction-following where reward models are noisy and the action space is discrete and massive. The Christiano et al. (2017) foundation—online reward learning with active querying—remains the conceptual backbone, though modern LLM RLHF typically uses **offline** reward model training on static preference datasets, a simplification that the 2017 paper showed can lead to reward hacking and "bizarre" behaviors if not carefully managed [source:arxiv:1706.03741].
 
 ## Key Takeaways
 
@@ -135,6 +190,7 @@ The field is **not abandoning** policy gradients—PPO remains the benchmark—b
 - The Policy Gradient Theorem (Sutton et al., 2000) shows the gradient depends on $Q^\pi$ but not $\nabla_\theta d^\pi$, enabling sampling-based estimation [source:papers:policy-gradient-methods-for-reinforcemen].
 - Actor-critic methods reduce variance by learning a critic; compatibility requires the critic to approximate the advantage function, not $Q^\pi$ [source:papers:policy-gradient-methods-for-reinforcemen][source:proceedings:actor-critic-algorithms].
 - GAE($\gamma,\lambda$) interpolates between TD($\lambda=0$) and MC($\lambda=1$) advantage estimates via exponentially weighted TD residuals; $\lambda \approx 0.95-0.99$ is standard [source:arxiv:1506.02438].
+- **Christiano et al. (2017) established the RLHF paradigm**: learn a reward model from human preferences (Bradley-Terry, ensembles, active querying), then optimize a policy via RL (A2C/TRPO) on the learned reward; this required <1% human feedback vs. environment interactions [source:arxiv:1706.03741].
 - PPO's clipped surrogate objective with GAE advantages and KL regularization is the dominant RLHF algorithm; InstructGPT demonstrated 1.3B aligned models outperforming 175B unaligned ones [source:arxiv:1707.06347][source:arxiv:2203.02155].
 - Distributional GAE (DGAE) extends advantage estimation to return distributions using a directional Wasserstein metric; improves continuous control but untested at LLM scale [source:arxiv:2507.17530].
 - The ecosystem is moving toward critic-free (GRPO) or RL-free (DPO) alternatives, but PPO+GAE remains the reference implementation and theoretical touchstone.
@@ -156,11 +212,12 @@ The field is **not abandoning** policy gradients—PPO remains the benchmark—b
 - [Reward model over-optimization](reward-model-overoptimization.md)
 
 ## References
-- [source:link:simple-statistical-gradient-following-al] [Simple statistical gradient-following algorithms for connectionist reinforcement learning](https://link.springer.com/article/10.1007/BF00992696)
 - [source:papers:policy-gradient-methods-for-reinforcemen] [Policy Gradient Methods for Reinforcement Learning with Function Approximation](https://papers.neurips.cc/paper/1713-policy-gradient-methods-for-reinforcement-learning-with-function-approximation.pdf)
-- [source:proceedings:actor-critic-algorithms] [Actor-Critic Algorithms](https://proceedings.neurips.cc/paper/1786-actor-critic-algorithms.pdf)
 - [source:arxiv:1506.02438] [High-Dimensional Continuous Control Using Generalized Advantage Estimation and Trust Region Policy Optimization](https://arxiv.org/pdf/1506.02438)
-- [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms](https://arxiv.org/pdf/1707.06347)
-- [source:arxiv:1801.01290] [Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor](https://arxiv.org/abs/1801.01290)
-- [source:arxiv:2203.02155] [Training language models to follow instructions with human feedback](https://arxiv.org/pdf/2203.02155)
+- [source:proceedings:actor-critic-algorithms] [Actor-Critic Algorithms](https://proceedings.neurips.cc/paper/1786-actor-critic-algorithms.pdf)
+- [source:link:simple-statistical-gradient-following-al] [Simple statistical gradient-following algorithms for connectionist reinforcement learning](https://link.springer.com/article/10.1007/BF00992696)
+- [source:arxiv:2203.02155] [Training language models to follow instructions with human feedback (InstructGPT)](https://arxiv.org/abs/2203.02155)
 - [source:arxiv:2507.17530] [Generalized Advantage Estimation for Distributional Policy Gradients](https://arxiv.org/abs/2507.17530v1)
+- [source:arxiv:1801.01290] [Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor](https://arxiv.org/abs/1801.01290)
+- [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347)
+- [source:arxiv:1706.03741] [Deep Reinforcement Learning from Human Preferences (RLHF Foundation)](https://arxiv.org/abs/1706.03741)
