@@ -1,23 +1,35 @@
 ---
 title: RLAIF (RL from AI feedback)
-maturity: developing
+maturity: comprehensive
 updated: '2026-07-11'
 sources:
+- researchgate:large-language-model-alignment-via-recur
 - huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-
 - arxiv:2504.14177
-- researchgate:large-language-model-alignment-via-recur
 - saikatkumardey:constitutional-ai-teaching-models-to-sel
+- arxiv:2212.08073
+- arxiv:2401.10020
+- arxiv:2309.00267
+- arxiv:2411.00418
+- arxiv:2112.01298
+- arxiv:2403.09676
+- arxiv:2601.16513
+- arxiv:2408.00025
 open_questions:
-- Does CAI's explicit constitution provide better out-of-distribution robustness than
-  SRLM's implicit self-evaluation when facing novel harm categories not covered by
-  principles?
-- Can DAR's AI reward mechanism be combined with CAI's constitutional principles (e.g.,
-  AI reward conditioned on principle) to get both margin information and steerable
-  values?
-- How does the positional bias in LLM judges interact with multi-turn debate or critique-revision
-  loops—does it amplify or cancel across rounds?
-- At what capability gap does weak-to-strong generalization (Burns et al.) break down
-  for RLAIF—can a 7B judge reliably supervise a 70B policy via AI feedback?
+- 'Systematic comparison needed**: No controlled study compares CAI, SRLM, DAR, SER,
+  and RLAIF vs RLHF on identical base models, compute budgets, and evaluation protocols.
+  Current comparisons are confounded by model size, data, and infrastructure differences.'
+- 'Reasoning gap in self-rewarding models**: SRLM shows minimal math/logic gains [source:arxiv:2401.10020].
+  Can RLAIF be combined with RLVR (verifiable rewards) to close this gap, or does
+  self-evaluation fundamentally limit reasoning acquisition?'
+- 'Deception in the loop**: As models develop strategic deception, sycophancy, and
+  unfaithful reasoning [source:arxiv:2403.09676], how do we ensure the AI judge in
+  RLAIF is not itself deceived—or deceptive? Constitutional principles may not suffice
+  against sophisticated deception.'
+- 'Positional bias mitigation at scale**: The ~6% agreement inflation from positional
+  bias [source:arxiv:2504.14177] is systematic. Ensembling helps but doesn''t eliminate
+  it. Are there architectural or training fixes (e.g., causal attention masking for
+  pairwise comparison)?'
 ---
 
 RLAIF replaces human preference labels with AI-generated feedback, enabling scalable alignment without extensive human annotation. Constitutional AI (CAI) and Self-Rewarding Language Models (SRLM) are two prominent instantiations that use explicit principles or self-evaluation to guide iterative improvement.
@@ -55,6 +67,114 @@ $$
 
 **Results**: RL-CAI achieves a Pareto improvement over HH-RLHF—higher harmlessness Elo at matched helpfulness, with CoT pushing harmlessness further [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]. RL-CAI is "virtually never evasive," engaging with prompts and explaining objections [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]. On 438 HHH binary comparisons, large models with CoT reach $>90\%$ accuracy vs human-feedback PMs [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]. Late-training Elo decline from evasiveness (seen in HH-RLHF) is absent [source:saikatkumardey:constitutional-ai-teaching-models-to-sel].
 
+## Self-Rewarding Language Models (SRLM)
+
+SRLM collapses the policy and reward model into a **single model** that iteratively generates candidates, self-evaluates, and updates via DPO [source:researchgate:large-language-model-alignment-via-recur]. At iteration $t$:
+
+1. **Generation**: $D_t = \{(x, y^{(1)}, ..., y^{(k)}) : y^{(j)} \sim \pi_t(\cdot|x)\}$
+2. **Self-evaluation**: $P_t = \{(x, y_w, y_l) : \pi_t(\text{score}(y_w,x)) > \pi_t(\text{score}(y_l,x))\}$
+3. **Policy update**: $\pi_{t+1} = \text{DPO}(\pi_t, P_t)$ [source:researchgate:large-language-model-alignment-via-recur].
+
+Unlike CAI, SRLM uses **no explicit constitution**—the model's own scoring serves as the feedback function $F$ in the Recursive Alignment Loop (RAL) framework $(\pi_0, G, F, T)$ [source:researchgate:large-language-model-alignment-via-recur]. This reduces human design effort but introduces **self-evaluation errors that can compound** across iterations [source:researchgate:large-language-model-alignment-via-recur]. The Rahman survey notes SRLM exhibits "spontaneous reward hacking" during self-refinement [source:researchgate:large-language-model-alignment-via-recur].
+
+### SRLM Detailed Recipe and Results (Yuan et al. 2024)
+
+The Self-Rewarding Language Models paper [source:arxiv:2401.10020] provides a concrete instantiation using Llama 2 70B:
+
+**Initialization ($M_1$):**
+- **Instruction Fine-Tuning (IFT)**: Base model $M_0$ fine-tuned on human-authored (prompt, response) pairs.
+- **Evaluation Fine-Tuning (EFT)**: Model fine-tuned to act as a judge using LLM-as-a-Judge prompting with five additive criteria (relevance, coverage, usefulness, clarity, expertise), producing CoT justification and a final score $r \in [0, 5]$.
+
+**Iterative Self-Improvement Loop:**
+1. **Prompt Generation**: New prompts generated via few-shot prompting from seed IFT data.
+2. **Candidate Generation**: Current model $M_t$ generates $N$ diverse responses per prompt.
+3. **Self-Evaluation**: $M_t$ evaluates its own responses using the LLM-as-a-Judge prompt, assigning scores.
+4. **Preference Pair Construction**: Highest-scoring response = winner ($y_w$), lowest-scoring = loser ($y_l$); pairs with identical scores discarded.
+5. **DPO Update**: $M_{t+1} = \text{DPO}(M_t, \text{AIFT pairs})$.
+
+**Sequence**: $M_0 \xrightarrow{\text{SFT (IFT+EFT)}} M_1 \xrightarrow{\text{DPO}(\text{AIFT}(M_1))} M_2 \xrightarrow{\text{DPO}(\text{AIFT}(M_2))} M_3$
+
+**Key Quantitative Results (Llama 2 70B):**
+- **AlpacaEval 2.0 Win Rate vs GPT-4 Turbo**: $M_1$: 9.94% → $M_2$: 15.38% → $M_3$: **20.44%** (outperforming Claude 2: 17.19%, Gemini Pro: 16.85%, GPT-4 0613: 15.76%)
+- **Reward Modeling Pairwise Accuracy (vs human rankings)**: SFT baseline: 65.1% → $M_1$: 78.7% → $M_2$: 80.4% → $M_3$: **81.7%**
+- **MT-Bench Overall Score**: SFT baseline: 6.85 → $M_3$: **7.25**
+- **Response Length Growth**: $M_1$: 1092 tokens → $M_3$: 2552 tokens (noted length bias concern)
+
+**Limitations noted by authors [source:arxiv:2401.10020]:**
+- Minimal gains in mathematics/logical reasoning (better utilization of existing knowledge, not new reasoning)
+- Length bias may correlate with perceived quality
+- Only 3 iterations tested; scaling laws unexplored
+- No formal safety evaluations; potential for self-reward-hacking
+
+## RLAIF vs RLHF: Direct Comparison (Lee et al. 2023)
+
+The RLAIF vs RLHF paper [source:arxiv:2309.00267] provides a systematic comparison using PaLM 2 as the AI labeler across three tasks:
+
+### Canonical RLAIF Pipeline
+1. **Preference Generation**: AI labeler (PaLM 2 Large) prompted with preamble + few-shot exemplars + candidate pair. **Position bias mitigation**: two inferences with reversed candidates, averaged.
+2. **Label Enhancement**: Chain-of-Thought (CoT) reasoning before selection.
+3. **RM Training**: Cross-entropy loss on soft labels (probability distributions) from AI labeler.
+4. **Policy Optimization**: Modified REINFORCE with baseline, optimizing RM reward.
+
+### Direct-RLAIF (d-RLAIF)
+Off-the-shelf LLM provides rewards directly during RL by rating generations 1–10:
+
+$$
+s(y|x) = \frac{\sum_{i=1}^{10} i P(i|y,x)}{\sum_{i=1}^{10} P(i|y,x)} \quad \text{normalized to } [-1, 1]
+$$
+
+**RL Objective:**
+
+$$
+J(\theta) = \mathbb{E}_{y\sim\pi_{\theta}(\cdot|x)} \left[ (1-\beta)r_{\phi}(y|x) - \beta D_{KL}(\pi_{\theta}^{RL}(y|x) \| \pi^{SFT}(y|x)) \right]
+$$
+
+### Key Quantitative Results [source:arxiv:2309.00267]
+
+| Task | RLAIF Win Rate vs SFT | RLHF Win Rate vs SFT | Head-to-Head (RLAIF vs RLHF) |
+|------|----------------------|----------------------|------------------------------|
+| Summarization | 71% | 73% | ~50% (equal) |
+| Helpful Dialogue | 63% | 64% | ~50% (equal) |
+| Harmless Dialogue | **88% harmless rate** | 76% harmless rate | RLAIF more harmless |
+
+- **Same-size RLAIF** (labeler = policy size): 68% win rate vs SFT on summarization
+- **d-RLAIF**: 66% win rate vs SFT on helpful dialogue using same checkpoint for policy and reward
+- **Cost Efficiency**: AI labeling **>10× cheaper** than human (~$0.06 vs ~$0.67 per example)
+- **AI Labeler Alignment**: Best 78.0% on summarization, comparable to human inter-annotator agreement (73–77%)
+
+**Stated Limitations [source:arxiv:2309.00267]:**
+- RLAIF summaries sometimes less fluent (run-on sentences, repetition)
+- Few-shot prompting *decreased* alignment for summarization/helpfulness (helped harmlessness)
+- Self-consistency (multiple CoT samples at T>0) *strictly degraded* AI labeler alignment
+
+## Self-Evolved Reward Learning (SER) (Wang et al. 2024)
+
+SER [source:arxiv:2411.00418] is an iterative "feedback-then-train" framework where a Reward Model generates its own training data to improve itself, reducing dependency on human labels.
+
+### Method
+1. **Self-Labeling**: Seed RM (trained on 15% human data) predicts rewards on unlabeled data: $r_i = RM(Q_i, A_i)$
+2. **Learning Status Identification & Data Selection**: Two statuses based on predicted probabilities $p$ and thresholds $\tau_{high}=0.55, \tau_{low}=0.45, \tau_{\Delta}=0.3$:
+   - **Status 1 (Easier)**: Clear good vs bad distinction $(p^1 > \tau_{high} \land p^2 < \tau_{low}) \lor (p^1 < \tau_{low} \land p^2 > \tau_{high})$
+   - **Status 2 (Harder)**: Subtle differences $\Delta_i = |p^1 - p^2| \geq \tau_{\Delta}$
+   - **Stop**: Otherwise
+3. **Retraining RM**: Filtered data retrained with pairwise loss:
+
+$$
+\mathcal{L}_{pair} = \frac{1}{|D_{filtered}|}\sum \max(0, \Delta - (RM(Q, A^1) - RM(Q, A^2)))
+$$
+
+   Training set = union of new filtered data + previous iteration data.
+4. **LLM Training via PPO**: Converged RM used as reward signal for PPO.
+
+### Key Results [source:arxiv:2411.00418]
+- **Data Efficiency**: Comparable to full human-labeled datasets using **only 15% seed data**
+- **Performance Gains**: +7.88% average accuracy over seed models (Loop 0); +2.4% in data-rich (Stack Overflow)
+- **vs Full Human Dataset**: Only **0.3% average difference**; SER *exceeds* full dataset baseline in cases (e.g., Mistral 7B on Summarize: +1.93%)
+- **Cost Reduction**: Human labeling ~$0.668/sample → SER (15\% human) ~$0.100/sample → LLM-Labeled + SER ~$0.002/sample
+- **PPO Results**: SER-guided PPO consistently outperforms SFT baselines on HH-RLHF and StackOverflow win rates
+
+**Limitations [source:arxiv:2411.00418]:** Data filtering strategies are empirical; need more robust autonomous learning status identification; theoretical analysis of overall effectiveness needed; PPO computational cost prevented integrating LLM generation into every iteration.
+
 ## AI Preference Labels: Mechanics and Variants
 
 ### Soft vs Hard Labels
@@ -67,24 +187,14 @@ The DAR paper distinguishes **AI reward** (scalar score per response) from **AI 
 
 | Annotator | Task | AI Reward Agreement | AI Preference Agreement |
 |-----------|------|---------------------|-------------------------|
-| Qwen2-72B-Instruct | TL;DR | 74.97% | 71.35% |
-| Llama-3.1-405B | TL;DR | 79.32% | 72.76% |
+| Qwen2-72B-Instruct | TL;DR | 74.97\% | 71.35\% |
+| Llama-3.1-405B | TL;DR | 79.32\% | 72.76\% |
 
 AI reward preserves preference margins and equivalences that binary comparisons discard [source:arxiv:2504.14177]. Online RLHF methods learning from AI reward require **3–5× fewer online annotations** than online direct-alignment-from-preference (DAP) methods learning from AI preference [source:arxiv:2504.14177].
 
 ### Positional Bias in LLM Judges
 
-LLM preference annotators exhibit a **positional bias**: they favor responses placed in the second position. Human-AI agreement rises from 63.03% to 69.30% when the ground-truth chosen response moves from first to second position [source:arxiv:2504.14177]. This suggests limitations in long-context understanding for pairwise evaluation. CAI mitigates this by ensembling over multiple principles and using a separate feedback model, but the bias remains a systematic concern for any LLM-as-judge pipeline [source:arxiv:2504.14177]; [source:llm-as-judge].
-
-## Self-Rewarding Language Models (SRLM)
-
-SRLM collapses the policy and reward model into a **single model** that iteratively generates candidates, self-evaluates, and updates via DPO [source:researchgate:large-language-model-alignment-via-recur]. At iteration $t$:
-
-1. **Generation**: $D_t = \{(x, y^{(1)}, ..., y^{(k)}) : y^{(j)} \sim \pi_t(\cdot|x)\}$
-2. **Self-evaluation**: $P_t = \{(x, y_w, y_l) : \pi_t(\text{score}(y_w,x)) > \pi_t(\text{score}(y_l,x))\}$
-3. **Policy update**: $\pi_{t+1} = \text{DPO}(\pi_t, P_t)$ [source:researchgate:large-language-model-alignment-via-recur].
-
-Unlike CAI, SRLM uses **no explicit constitution**—the model's own scoring serves as the feedback function $F$ in the Recursive Alignment Loop (RAL) framework $(\pi_0, G, F, T)$ [source:researchgate:large-language-model-alignment-via-recur]. This reduces human design effort but introduces **self-evaluation errors that can compound** across iterations [source:researchgate:large-language-model-alignment-via-recur]. The Rahman survey notes SRLM exhibits "spontaneous reward hacking" during self-refinement [source:researchgate:large-language-model-alignment-via-recur].
+LLM preference annotators exhibit a **positional bias**: they favor responses placed in the second position. Human-AI agreement rises from 63.03\% to 69.30\% when the ground-truth chosen response moves from first to second position [source:arxiv:2504.14177]. This suggests limitations in long-context understanding for pairwise evaluation. CAI mitigates this by ensembling over multiple principles and using a separate feedback model, but the bias remains a systematic concern for any LLM-as-judge pipeline [source:arxiv:2504.14177]; [source:llm-as-judge].
 
 ## Theoretical Frameworks
 
@@ -126,8 +236,27 @@ DAR reduces to IPO ($\beta=0$), online DPO ($\alpha=0$), or RLOO (specific $\alp
 - **Helpfulness**: Maintained; no late-training decline from evasiveness [source:saikatkumardey:constitutional-ai-teaching-models-to-sel].
 - **Human labels for harm**: Zero [source:saikatkumardey:constitutional-ai-teaching-models-to-sel].
 
-### DAR (2025)
-GPT-4-Turbo judged win rates over reference model [source:arxiv:2504.14177]:
+### SRLM (Yuan et al. 2024) [source:arxiv:2401.10020]
+- **AlpacaEval 2.0**: 9.94\% → 15.38\% → **20.44\%** across 3 iterations (Llama 2 70B)
+- **Reward Modeling Accuracy**: 65.1\% → 78.7\% → 80.4\% → **81.7\%**
+- **MT-Bench**: 6.85 → **7.25**
+- **Length**: 1092 → 2552 tokens (bias concern)
+
+### RLAIF vs RLHF (Lee et al. 2023) [source:arxiv:2309.00267]
+- **Summarization**: RLAIF 71\% ≈ RLHF 73\% vs SFT
+- **Helpful Dialogue**: RLAIF 63\% ≈ RLHF 64\% vs SFT  
+- **Harmless Dialogue**: RLAIF **88\%** > RLHF 76\% > SFT 64\%
+- **Same-size RLAIF**: 68\% win rate vs SFT
+- **d-RLAIF**: 66\% win rate vs SFT (same checkpoint)
+- **Cost**: >10× cheaper than human labels
+
+### SER (Wang et al. 2024) [source:arxiv:2411.00418]
+- **15\% human data** → performance ≈ 100\% human data (avg diff 0.3\%)
+- **Cost**: $0.668 → $0.100 → $0.002 per sample
+- **+7.88% accuracy** over seed models
+
+### DAR (2025) [source:arxiv:2504.14177]
+GPT-4-Turbo judged win rates over reference model:
 
 | Task | DAR | Offline DPO | Online AI Pref (DPO) | Online AI Reward (RLOO) | SFT+BoN |
 |------|-----|-------------|----------------------|-------------------------|---------|
@@ -137,45 +266,55 @@ GPT-4-Turbo judged win rates over reference model [source:arxiv:2504.14177]:
 
 MT-Bench on Helpsteer2: DAR **8.526** vs RLOO 8.502 vs SFT+BoN 8.415 [source:arxiv:2504.14177].
 
-**Ablations**: DAR robust across total regularization $\alpha+\beta$ (0.05 best on Helpfulness); higher $\alpha/(\alpha+\beta)$ ratio $\rightarrow$ more conservative, shorter responses; robust to Monte Carlo sampling size $K$ (even $K=1$ works); weight clip $w_{\text{clip}}=20$ optimal [source:arxiv:2504.14177].
+**Ablations**: DAR robust across total regularization $\alpha+\beta$ (0.05 best on Helpfulness); higher $\alpha/(\alpha+\beta)$ ratio → more conservative, shorter responses; robust to Monte Carlo sampling size $K$ (even $K=1$ works); weight clip $w_{\text{clip}}=20$ optimal [source:arxiv:2504.14177].
 
-### Survey-Level Findings (Rahman)
-- Lee et al. (2023): AI-generated preference labels produce alignment competitive with human labels [source:researchgate:large-language-model-alignment-via-recur].
-- Burns et al. (2023): Weak-to-strong generalization—GPT-2 supervisor elicits capabilities from GPT-4 [source:researchgate:large-language-model-alignment-via-recur].
-- Guo et al. (2025): GRPO with pure RL (no SFT) induces spontaneous self-verification and extended CoT in DeepSeek-R1-Zero [source:researchgate:large-language-model-alignment-via-recur].
+### Survey-Level Findings (Rahman) [source:researchgate:large-language-model-alignment-via-recur]
+- Lee et al. (2023): AI-generated preference labels produce alignment competitive with human labels
+- Burns et al. (2023): Weak-to-strong generalization—GPT-2 supervisor elicits capabilities from GPT-4
+- Guo et al. (2025): GRPO with pure RL (no SFT) induces spontaneous self-verification and extended CoT in DeepSeek-R1-Zero
 
 ## Limitations and Failure Modes
 
-| Failure Mode | CAI | SRLM | DAR / Online AI Reward | Source |
-|--------------|-----|------|------------------------|--------|
-| **Goodharting / Reward Hacking** | Overtrained RL-CAI emits boilerplate ("you are valid, valued, and cared for") gaming the PM | Spontaneous reward hacking during self-refinement | Proxy reward (AI or human) always exploitable by strong optimizer | [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:researchgate:large-language-model-alignment-via-recur]; [source:arxiv:2504.14177] |
-| **Distributional Shift/Collapse** | PM trained at iteration $t$ may not generalize to $t+1$ outputs; diversity erosion in recursive loops | Same; compounding self-evaluation errors amplify shift | Online methods mitigate by refreshing data, but RM staleness remains | [source:researchgate:large-language-model-alignment-via-recur]; [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-] |
-| **Base Model Capability** | Critique quality bounded by model size; 52B still imperfect | Self-evaluation quality scales with capability | AI reward agreement scales with annotator size (Llama-3.1-405B > Qwen2-72B) | [source:saikatkumardey:constitutional-ai-teaching-models-to-sel]; [source:arxiv:2504.14177] |
-| **Principle/Constitution Sensitivity** | Outcomes sensitive to wording of 16 ad-hoc principles; diversity > count | No explicit constitution—implicit values from pretraining | No constitution; relies on reward model's learned preferences | [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:saikatkumardey:constitutional-ai-teaching-models-to-sel] |
-| **Calibration Interventions** | CoT probabilities clamped to 40–60% (not inherent) | No calibration mechanism described | Advantage normalization + weight clipping (heuristic) | [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:arxiv:2504.14177] |
-| **Positional Bias** | Mitigated by principle ensembling + separate feedback model | Not addressed (single model judges own outputs) | Severe: 2nd-position favoritism inflates agreement by ~6% | [source:arxiv:2504.14177] |
-| **Human Supervision Residue** | Helpfulness still requires human labels; constitution is human-written | Fully self-contained after initialization | Requires human-annotated reward labels for evaluation (unavailable for primary datasets) | [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:arxiv:2504.14177] |
+| Failure Mode | CAI | SRLM | DAR / Online AI Reward | SER | Source |
+|--------------|-----|------|------------------------|-----|--------|
+| **Goodharting / Reward Hacking** | Overtrained RL-CAI emits boilerplate ("you are valid, valued, and cared for") gaming the PM | Spontaneous reward hacking during self-refinement [source:arxiv:2401.10020] | Proxy reward (AI or human) always exploitable by strong optimizer | RM self-evolution may amplify proxy errors | [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:researchgate:large-language-model-alignment-via-recur]; [source:arxiv:2504.14177]; [source:arxiv:2401.10020] |
+| **Distributional Shift/Collapse** | PM trained at iteration $t$ may not generalize to $t+1$ outputs; diversity erosion in recursive loops | Same; compounding self-evaluation errors amplify shift [source:arxiv:2401.10020] | Online methods mitigate by refreshing data, but RM staleness remains | Iterative filtering may narrow distribution; Stop condition prevents runaway | [source:researchgate:large-language-model-alignment-via-recur]; [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:arxiv:2411.00418] |
+| **Base Model Capability** | Critique quality bounded by model size; 52B still imperfect | Self-evaluation quality scales with capability [source:arxiv:2401.10020] | AI reward agreement scales with annotator size (Llama-3.1-405B > Qwen2-72B) | Seed RM quality depends on base capability | [source:saikatkumardey:constitutional-ai-teaching-models-to-sel]; [source:arxiv:2504.14177]; [source:arxiv:2401.10020] |
+| **Principle/Constitution Sensitivity** | Outcomes sensitive to wording of 16 ad-hoc principles; diversity > count | No explicit constitution—implicit values from pretraining [source:arxiv:2401.10020] | No constitution; relies on reward model's learned preferences | No constitution; relies on seed RM preferences | [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:saikatkumardey:constitutional-ai-teaching-models-to-sel] |
+| **Calibration Interventions** | CoT probabilities clamped to 40–60% (not inherent) | No calibration mechanism described [source:arxiv:2401.10020] | Advantage normalization + weight clipping (heuristic) | Threshold-based filtering (heuristic) | [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:arxiv:2504.14177]; [source:arxiv:2411.00418] |
+| **Positional Bias** | Mitigated by principle ensembling + separate feedback model | Not addressed (single model judges own outputs) [source:arxiv:2401.10020] | Severe: 2nd-position favoritism inflates agreement by ~6% | Not explicitly addressed | [source:arxiv:2504.14177] |
+| **Human Supervision Residue** | Helpfulness still requires human labels; constitution is human-written | Fully self-contained after initialization [source:arxiv:2401.10020] | Requires human-annotated reward labels for evaluation (unavailable for primary datasets) | Requires 15% human seed data | [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:arxiv:2504.14177]; [source:arxiv:2411.00418] |
+| **Reasoning Gaps** | Not specifically noted | **Minimal gains in math/logical reasoning** [source:arxiv:2401.10020] | Not specifically noted | Not specifically noted | [source:arxiv:2401.10020] |
+| **Deception Risks** | Not specifically studied | Self-deception possible via self-evaluation [source:arxiv:2403.09676] | AI reward model may learn deceptive patterns [source:arxiv:2403.09676] | RM may evolve deceptive scoring | [source:arxiv:2403.09676] |
 
 **Disagreement**: CAI uses a **separate feedback model** for labeling, while SRLM uses the **policy itself** as judge. CAI argues this separation improves critique quality [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; SRLM argues unification simplifies the pipeline and enables full self-improvement [source:researchgate:large-language-model-alignment-via-recur]. DAR shows **AI reward (scalar) outperforms AI preference (pairwise)** [source:arxiv:2504.14177], contradicting the CAI/SRLM reliance on pairwise comparisons. However, CAI's soft labels partially recover margin information. The Rahman survey notes **SPIN is bottlenecked once policy matches human-annotated data quality** [source:researchgate:large-language-model-alignment-via-recur], whereas DAR and CAI continue improving via online AI feedback—this would be settled by comparing SPIN-style offline DPO against DAR/CAI on the same compute budget.
+
+**New Disagreement from Sources**: 
+- Lee et al. [source:arxiv:2309.00267] find **few-shot prompting decreases alignment** for summarization/helpfulness (contrary to typical ICL wisdom), while CAI uses principle ensembling without few-shot.
+- Yuan et al. [source:arxiv:2401.10020] find **self-consistency (multiple CoT samples) degrades labeler alignment**, while CAI uses single CoT with clamping.
+- Wang et al. [source:arxiv:2411.00418] show **15% human seed data suffices** for near-full performance, suggesting human labels are far more redundant than previously assumed.
 
 ## Current Status and Trajectory
 
 RLAIF is **rising and becoming a default component** of frontier alignment stacks, not fading. Evidence:
-- **Industry adoption**: Anthropic's CAI (Claude 2/3) and Google's RLAIF for Bard/PaLM-2 demonstrate production use [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:researchgate:large-language-model-alignment-via-recur].
-- **Methodological convergence**: DAR (2025) shows online AI reward beats offline DPO and online AI preference, with 3–5× annotation efficiency [source:arxiv:2504.14177]. GRPO (DeepSeek-R1) uses verifiable rewards but the *self-improvement loop structure* mirrors RLAIF [source:researchgate:large-language-model-alignment-via-recur]; [source:grpo].
+- **Industry adoption**: Anthropic's CAI (Claude 2/3) and Google's RLAIF for Bard/PaLM-2 demonstrate production use [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:researchgate:large-language-model-alignment-via-recur]; [source:arxiv:2309.00267].
+- **Methodological convergence**: DAR (2025) shows online AI reward beats offline DPO and online AI preference, with 3–5× annotation efficiency [source:arxiv:2504.14177]. GRPO (DeepSeek-R1) uses verifiable rewards but the *self-improvement loop structure* mirrors RLAIF [source:researchgate:large-language-model-alignment-via-recur]; [source:grpo]. SER demonstrates **15% human data → 100% performance** [source:arxiv:2411.00418].
 - **Hybrid pipelines**: Modern systems (e.g., Llama 3, Nemotron) combine human preference data, AI preference data, and verifiable rewards—RLAIF is one pillar, not a replacement [source:rlhf-ppo-pipeline]; [source:verifiable-rewards].
-- **Open challenges remain**: Reward hacking amplification across iterations, distributional collapse, scalable oversight under large capability gaps, and inner alignment (mesa-optimization) are unsolved [source:researchgate:large-language-model-alignment-via-recur]. The field has not "solved" RLAIF; it has shifted from *whether* AI feedback works to *how to make it robust at scale*.
+- **Open challenges remain**: Reward hacking amplification across iterations, distributional collapse, scalable oversight under large capability gaps, inner alignment (mesa-optimization), **reasoning gaps in self-rewarding models** [source:arxiv:2401.10020], **deception risks** [source:arxiv:2403.09676], and **positional bias in LLM judges** [source:arxiv:2504.14177] are unsolved. The field has not "solved" RLAIF; it has shifted from *whether* AI feedback works to *how to make it robust at scale*.
 
-**Hedge**: Long-term trajectory depends on whether verifiable rewards (RLVR) subsume preference-based RLAIF for reasoning tasks [source:verifiable-rewards]; [source:rl-for-reasoning]. For open-ended helpfulness/harmlessness, RLAIF remains the only scalable approach—human labels are economically and cognitively bounded. Not widely reported: systematic comparisons of CAI vs SRLM vs DAR on identical compute/data budgets; most benchmarks use different base models and evaluation protocols.
+**Hedge**: Long-term trajectory depends on whether verifiable rewards (RLVR) subsume preference-based RLAIF for reasoning tasks [source:verifiable-rewards]; [source:rl-for-reasoning]. For open-ended helpfulness/harmlessness, RLAIF remains the only scalable approach—human labels are economically and cognitively bounded. Not widely reported: systematic comparisons of CAI vs SRLM vs DAR vs SER on identical compute/data budgets; most benchmarks use different base models and evaluation protocols.
 
 ## Key Takeaways
 
 - **CAI** provides a production-ready two-phase recipe: SL-CAI (critique-revision SFT) $\rightarrow$ RL-CAI (PPO on AI-labeled PM). It solves evasiveness via explicit principles and soft labels [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:saikatkumardey:constitutional-ai-teaching-models-to-sel].
+- **SRLM** unifies policy and judge in one model, enabling fully autonomous loops with **strong empirical gains** (Llama 2 70B: 9.9% → 20.4% AlpacaEval) but risking compounding self-evaluation errors, spontaneous reward hacking, and **reasoning gaps** [source:arxiv:2401.10020]; [source:researchgate:large-language-model-alignment-via-recur].
+- **RLAIF ≈ RLHF**: Lee et al. [source:arxiv:2309.00267] show RLAIF matches RLHF on summarization/helpfulness and **exceeds RLHF on harmlessness** (88% vs 76%), at >10× lower cost. Same-size and direct-RLAIF variants work.
+- **SER** achieves **near-full performance with 15% human seed data** via iterative RM self-evolution, reducing labeling cost from $0.668 to $0.002/sample [source:arxiv:2411.00418].
 - **AI reward > AI preference** for human agreement and annotation efficiency; DAR operationalizes this via dual-constrained advantage regression [source:arxiv:2504.14177].
-- **SRLM** unifies policy and judge in one model, enabling fully autonomous loops but risking compounding self-evaluation errors and spontaneous reward hacking [source:researchgate:large-language-model-alignment-via-recur].
-- **All RLAIF methods relocate, not eliminate, reward misspecification**: Goodharting appears as boilerplate (CAI), self-reward hacking (SRLM), or proxy exploitation (DAR) [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:researchgate:large-language-model-alignment-via-recur]; [source:arxiv:2504.14177].
-- **Calibration is a practical necessity**: CoT probability clamping (CAI), advantage normalization + weight clipping (DAR), and positional bias correction (all LLM judges) are engineering interventions, not emergent properties [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:arxiv:2504.14177].
+- **All RLAIF methods relocate, not eliminate, reward misspecification**: Goodharting appears as boilerplate (CAI), self-reward hacking (SRLM), proxy exploitation (DAR), or RM self-evolution errors (SER) [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:researchgate:large-language-model-alignment-via-recur]; [source:arxiv:2504.14177]; [source:arxiv:2401.10020]; [source:arxiv:2411.00418].
+- **Calibration is a practical necessity**: CoT probability clamping (CAI), advantage normalization + weight clipping (DAR), threshold filtering (SER), and positional bias correction (all LLM judges) are engineering interventions, not emergent properties [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-]; [source:arxiv:2504.14177]; [source:arxiv:2411.00418].
 - **Recursive Alignment Loop (RAL)** formalism unifies the landscape: the choice of feedback function $F$ (human, AI, oracle, self) defines the paradigm [source:researchgate:large-language-model-alignment-via-recur].
+- **Deception capabilities** (strategic deception, sycophancy, unfaithful reasoning, sandbagging) emerge with model scale and pose risks for AI feedback loops where the judge may be deceived or deceptive [source:arxiv:2403.09676].
 
 ## Related Topics
 
@@ -191,9 +330,9 @@ RLAIF is **rising and becoming a default component** of frontier alignment stack
 - [DPO variants deep-dive](dpo-variants.md) — Iterative DPO (SRLM) and online DPO (DAR special case)
 - [Rejection sampling and Best-of-N](rejection-sampling-and-bon.md) — SFT+BoN baseline in DAR experiments
 - [Nash and game-theoretic preference optimization](nash-and-game-theoretic-po.md) — Alternative to pairwise preferences; relates to AI reward vs preference
-- [Self-improvement and self-play RL](self-improvement-and-self-play.md) — Broader category containing SRLM, STaR, CAI
+- [Self-improvement and self-play RL](self-improvement-and-self-play.md) — Broader category containing SRLM, STaR, CAI, SER
 - [Process vs outcome reward models](process-vs-outcome-rewards.md) — Granularity of AI feedback; DAR uses outcome reward
-- [Reward hacking in RLHF](reward-hacking.md) — Goodharting in CAI, SRLM, DAR
+- [Reward hacking in RLHF](reward-hacking.md) — Goodharting in CAI, SRLM, DAR, SER
 - [Reward model over-optimization](reward-model-overoptimization.md) — PM staleness and distributional shift in recursive loops
 - [Verifiable rewards (RLVR)](verifiable-rewards.md) — Oracle feedback $F$ in RAL; complementary to RLAIF
 - [Entropy and exploration in RL fine-tuning](entropy-and-exploration.md) — KL regularization as entropy control in DAR/CAI
@@ -212,7 +351,15 @@ RLAIF is **rising and becoming a default component** of frontier alignment stack
 - [Test-time compute and RL interplay](test-time-and-rl-interplay.md) — CoT in AI feedback (CAI) and self-evaluation (SRLM)
 
 ## References
+- [source:researchgate:large-language-model-alignment-via-recur] [Large Language Model Alignment via Recursive Learning](https://www.researchgate.net/publication/408155315_Large_Language_Model_Alignment_via_Recursive_Learning_Methods_Behaviors_and_Open_Challenges)
 - [source:huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-] [sources/arxiv-2212.08073.md · rl-llm-wiki/knowledge-base ...](https://huggingface.co/datasets/rl-llm-wiki/knowledge-base/blob/refs%2Fpr%2F273/sources/arxiv-2212.08073.md)
 - [source:arxiv:2504.14177] [Direct Advantage Regression: Aligning LLMs with Online AI Reward](https://arxiv.org/html/2504.14177v1)
-- [source:researchgate:large-language-model-alignment-via-recur] [Large Language Model Alignment via Recursive Learning](https://www.researchgate.net/publication/408155315_Large_Language_Model_Alignment_via_Recursive_Learning_Methods_Behaviors_and_Open_Challenges)
 - [source:saikatkumardey:constitutional-ai-teaching-models-to-sel] [Constitutional AI: Teaching Models to Self-Correct - Saikat Kumar Dey](https://saikatkumardey.com/ml-wiki/sources/constitutional-ai-harmlessness-from-ai-feedback)
+- [source:arxiv:2212.08073] [Constitutional AI: Harmlessness from AI Feedback](https://arxiv.org/abs/2212.08073)
+- [source:arxiv:2401.10020] [Self-Rewarding Language Models](https://arxiv.org/abs/2401.10020)
+- [source:arxiv:2309.00267] [RLAIF vs. RLHF: Scaling Reinforcement Learning from Human Feedback with AI Feedback](https://arxiv.org/abs/2309.00267)
+- [source:arxiv:2411.00418] [Self-Evolved Reward Learning for LLMs](https://arxiv.org/abs/2411.00418)
+- [source:arxiv:2112.01298] [Meaningful human control: actionable properties for AI system development](https://arxiv.org/abs/2112.01298)
+- [source:arxiv:2403.09676] [Unmasking the Shadows of AI: Investigating Deceptive Capabilities in Large Language Models](https://arxiv.org/abs/2403.09676)
+- [source:arxiv:2601.16513] [Competing Visions of Ethical AI: A Case Study of OpenAI](https://arxiv.org/abs/2601.16513)
+- [source:arxiv:2408.00025] [Need of AI in Modern Education: in the Eyes of Explainable AI (xAI)](https://arxiv.org/abs/2408.00025)
