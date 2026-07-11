@@ -6,7 +6,7 @@ title: 'DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Langu
 url: https://arxiv.org/abs/2402.03300
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: distributed-rl-training
+topic: rl-for-math-and-code
 ---
 
 # DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models
