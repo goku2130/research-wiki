@@ -14,7 +14,7 @@ _Auto-generated 2026-07-11._
 - ⬜ The RLHF/PPO pipeline
 - ⬜ DPO variants deep-dive
 - ⬜ RLAIF (RL from AI feedback)
-- ⬜ Rejection sampling and Best-of-N
+- ✅ [Rejection sampling and Best-of-N](topics/rejection-sampling-and-bon.md)
 - ⬜ Nash and game-theoretic preference optimization
 - ⬜ Self-improvement and self-play RL
 - ⬜ Process vs outcome reward models
