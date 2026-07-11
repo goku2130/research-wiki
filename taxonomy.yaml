@@ -39,7 +39,7 @@ topics:
 - slug: rlhf-ppo-pipeline
   title: The RLHF/PPO pipeline
   notes: SFT -> reward model -> PPO; InstructGPT recipe
-  status: empty
+  status: done
 - slug: dpo-variants
   title: DPO variants deep-dive
   notes: IPO, KTO, ORPO, SimPO, CPO — losses and trade-offs
