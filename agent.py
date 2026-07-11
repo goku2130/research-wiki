@@ -18,6 +18,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import datetime as dt
 from concurrent.futures import ThreadPoolExecutor
@@ -151,15 +152,51 @@ def reviewer_client() -> OpenAI:
     return route(REVIEWER_MODEL)
 
 
+# --- Google free-tier rate limiter -------------------------------------------
+# The free Gemini tier allows only GOOGLE_RPM requests/minute (5 by default).
+# A global sliding-window throttle serializes Google calls to stay under it so
+# concurrent distill/orch/review calls don't trip 429s.
+_GOOGLE_RPM = int(os.getenv("GOOGLE_RPM", "5"))
+_google_lock = threading.Lock()
+_google_hits: list[float] = []
+
+
+def _google_throttle() -> None:
+    """Block until issuing one more Google call keeps us under _GOOGLE_RPM/60s."""
+    with _google_lock:
+        now = time.time()
+        while _google_hits and now - _google_hits[0] >= 60:
+            _google_hits.pop(0)
+        if len(_google_hits) >= _GOOGLE_RPM:
+            wait = 60 - (now - _google_hits[0]) + 0.5
+            time.sleep(max(0.0, wait))
+            now = time.time()
+            while _google_hits and now - _google_hits[0] >= 60:
+                _google_hits.pop(0)
+        _google_hits.append(time.time())
+
+
+def _is_google(client: OpenAI) -> bool:
+    return "generativelanguage" in str(client.base_url)
+
+
 def _chat(client: OpenAI, **kw):
-    """chat.completions.create with retry/backoff (for API rate limits under concurrency)."""
-    for attempt in range(4):
+    """chat.completions.create with rate-limit throttle + retry/backoff."""
+    google = _is_google(client)
+    for attempt in range(5):
+        if google:
+            _google_throttle()          # stay under the free-tier RPM cap
         try:
             return client.chat.completions.create(**kw)
-        except Exception:  # noqa: BLE001
-            if attempt == 3:
+        except Exception as e:  # noqa: BLE001
+            if attempt == 4:
                 raise
-            time.sleep(2 * (attempt + 1))
+            # 429/RESOURCE_EXHAUSTED needs a ~40s cooldown; other errors back off fast.
+            msg = str(e)
+            if "429" in msg or "RESOURCE_EXHAUSTED" in msg or "quota" in msg.lower():
+                time.sleep(30)
+            else:
+                time.sleep(2 * (attempt + 1))
 
 
 def strip_thoughts(text: str) -> str:
@@ -465,7 +502,7 @@ def distill(topic: dict, src: dict) -> dict | None:
     except Exception as e:  # noqa: BLE001
         log(topic["slug"], f"    distill failed ({sid}): {str(e)[:60]}")
         return None
-    summary = resp.choices[0].message.content.strip()
+    summary = strip_thoughts(content_text(resp.choices[0].message)).strip()
     if VERBOSE:
         log(topic["slug"], f"    distilled [{sid}] ({len(summary)} chars)")
     return {"id": sid, "title": src["title"], "url": src["url"], "summary": summary}

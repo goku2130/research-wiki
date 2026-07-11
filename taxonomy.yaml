@@ -51,7 +51,7 @@ topics:
 - slug: rejection-sampling-and-bon
   title: Rejection sampling and Best-of-N
   notes: BoN, rejection-sampling fine-tuning, inference-time alignment
-  status: empty
+  status: done
 - slug: nash-and-game-theoretic-po
   title: Nash and game-theoretic preference optimization
   notes: Preference Nash equilibria, self-play PO, general preferences
