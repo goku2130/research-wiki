@@ -3,11 +3,11 @@ topics:
 - slug: ppo-for-llms
   title: PPO for LLM fine-tuning (RLHF)
   notes: Policy-gradient basics, reward model, KL penalty, PPO clipping
-  status: done
+  status: empty
 - slug: dpo-and-preference-optimization
   title: Direct Preference Optimization and variants
   notes: DPO, IPO, KTO, ORPO — why they skip the reward model
-  status: done
+  status: empty
 - slug: grpo
   title: GRPO (Group Relative Policy Optimization)
   notes: How DeepSeek-style critic-free RL works
@@ -15,95 +15,95 @@ topics:
 - slug: reward-modeling
   title: Reward modeling for LLMs
   notes: Bradley-Terry, reward hacking, process vs outcome rewards
-  status: done
+  status: empty
 - slug: rl-for-reasoning
   title: RL for reasoning models
   notes: Verifiable rewards, long chain-of-thought, o1/R1-style training
-  status: done
+  status: empty
 - slug: policy-gradient-methods
   title: Policy gradient methods for LLMs
   notes: REINFORCE, actor-critic, advantage estimation, GAE
-  status: done
+  status: empty
 - slug: kl-regularization
   title: KL regularization in RLHF
   notes: Reference model, per-token KL, the Boltzmann optimum
-  status: done
+  status: empty
 - slug: mdp-formulation
   title: MDP formulation of LLM generation
   notes: Token-level MDP vs sequence bandit, terminal rewards
-  status: done
+  status: empty
 - slug: rl-for-llms-overview
   title: RL for LLMs — overview
   notes: 'The landscape: RLHF, RLAIF, RLVR, offline PO'
-  status: done
+  status: empty
 - slug: rlhf-ppo-pipeline
   title: The RLHF/PPO pipeline
   notes: SFT -> reward model -> PPO; InstructGPT recipe
-  status: done
+  status: empty
 - slug: dpo-variants
   title: DPO variants deep-dive
   notes: IPO, KTO, ORPO, SimPO, CPO — losses and trade-offs
-  status: done
+  status: empty
 - slug: rlaif
   title: RLAIF (RL from AI feedback)
   notes: Constitutional AI, AI preference labels, self-rewarding
-  status: done
+  status: empty
 - slug: rejection-sampling-and-bon
   title: Rejection sampling and Best-of-N
   notes: BoN, rejection-sampling fine-tuning, inference-time alignment
-  status: done
+  status: empty
 - slug: nash-and-game-theoretic-po
   title: Nash and game-theoretic preference optimization
   notes: Preference Nash equilibria, self-play PO, general preferences
-  status: done
+  status: empty
 - slug: self-improvement-and-self-play
   title: Self-improvement and self-play RL
   notes: STaR, ReST, Absolute Zero, iterated amplification
-  status: done
+  status: empty
 - slug: process-vs-outcome-rewards
   title: Process vs outcome reward models
   notes: PRMs, ORMs, step-level supervision, OmegaPRM
-  status: done
+  status: empty
 - slug: reward-hacking
   title: Reward hacking in RLHF
   notes: Specification gaming, Goodhart, mitigation
-  status: done
+  status: empty
 - slug: reward-model-overoptimization
   title: Reward model over-optimization
   notes: Gao scaling laws, KL budget, ensembles
-  status: done
+  status: empty
 - slug: verifiable-rewards
   title: Verifiable rewards (RLVR)
   notes: Rule-based rewards, code/math verifiers, the RLVR tax
-  status: done
+  status: empty
 - slug: entropy-and-exploration
   title: Entropy and exploration in RL fine-tuning
   notes: Entropy collapse, exploration bonuses, diversity
-  status: done
+  status: empty
 - slug: length-and-format-bias
   title: Length and format bias
   notes: Verbosity reward hacking, length-controlled evals
-  status: done
+  status: empty
 - slug: alignment-tax
   title: The alignment tax
   notes: Capability regressions from alignment; mitigation
-  status: done
+  status: empty
 - slug: overoptimization-and-mode-collapse
   title: Over-optimization and mode collapse
   notes: Diversity loss, distributional collapse under RL
-  status: done
+  status: empty
 - slug: sycophancy-and-misgeneralization
   title: Sycophancy and misgeneralization
   notes: Reward-induced sycophancy, goal misgeneralization
-  status: done
+  status: empty
 - slug: llm-as-judge
   title: LLM-as-judge
   notes: Judge models, biases, position/verbosity effects
-  status: done
+  status: empty
 - slug: alignment-and-winrate-evals
   title: Alignment and win-rate evals
   notes: AlpacaEval, Arena, MT-Bench, pairwise win rates
-  status: done
+  status: empty
 - slug: judging-bias-and-contamination
   title: Judging bias and contamination
   notes: Self-preference, data contamination, eval leakage
@@ -111,24 +111,24 @@ topics:
 - slug: distributed-rl-training
   title: Distributed RL training for LLMs
   notes: Rollout/learner split, sharding, PPO at scale
-  status: done
+  status: empty
 - slug: async-and-off-policy-rl
   title: Async and off-policy RL
   notes: Importance sampling, staleness, async rollouts
-  status: done
+  status: empty
 - slug: rollout-generation-infra
   title: Rollout generation infrastructure
   notes: vLLM/SGLang rollouts, KV reuse, throughput
-  status: done
+  status: empty
 - slug: rl-for-math-and-code
   title: RL for math and code
   notes: Verifier design, unit-test rewards, DeepSeekMath
-  status: done
+  status: empty
 - slug: agentic-and-tool-use-rl
   title: Agentic and tool-use RL
   notes: Multi-turn tool use, search-augmented RL, credit assignment
-  status: done
+  status: empty
 - slug: test-time-and-rl-interplay
   title: Test-time compute and RL interplay
   notes: Search + RL, inference scaling, MCTS-guided decoding
-  status: done
+  status: empty

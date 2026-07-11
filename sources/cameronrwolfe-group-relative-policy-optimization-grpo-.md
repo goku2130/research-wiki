@@ -3,22 +3,49 @@ id: cameronrwolfe:group-relative-policy-optimization-grpo-
 type: web
 title: Group Relative Policy Optimization (GRPO) - Deep (Learning) Focus
 url: https://cameronrwolfe.substack.com/p/grpo
-retrieved: '2026-07-10'
+retrieved: '2026-07-11'
 maturity: comprehensive
 topic: grpo
 ---
 
-**Core Problem**
-Reinforcement learning (RL) has become central to aligning large language models (LLMs) to human preferences and enhancing their complex reasoning capabilities. Traditional RLHF pipelines rely on neural reward models and the Proximal Policy Optimization (PPO) optimizer, introducing significant computational overhead, training complexity, and susceptibility to reward hacking. To address these inefficiencies, particularly for training Large Reasoning Models (LRMs) via Reinforcement Learning with Verifiable Rewards (RLVR), researchers have adopted Group Relative Policy Optimization (GRPO). GRPO was developed to simplify the RL optimization process while preserving the stability and effectiveness required for large-scale reasoning training.
+The author highlights that Group Relative Policy Optimization (GRPO) has become the prevalent Reinforcement Learning (RL) optimizer for enhancing the reasoning capabilities of Large Language Models (LLMs), particularly in the context of Reinforcement Learning with Verifiable Rewards (RLVR). While Proximal Policy Optimization (PPO) was historically used for aligning LLMs to human preferences via Reinforcement Learning from Human Feedback (RLHF), GRPO is now central to training Large Reasoning Models (LRMs) due to its efficiency and simplicity.
 
-**Methodological Framework & Algorithmic Recipe**
-The RL training paradigm for LLMs follows a consistent online loop that GRPO operationalizes through a streamlined recipe: (1) sample a diverse batch of prompts; (2) generate one or multiple completions per prompt using the current policy; (3) compute rewards for each completion using deterministic verifiers (e.g., string matching for math or sandbox execution for code) rather than learned reward models; and (4) update the policy weights via GRPO to maximize reward while constraining policy drift. This process is typically preceded by supervised finetuning (SFT) to establish a baseline. During RLVR, the model generates extended chain-of-thought reasoning trajectories wrapped in special tokens, which are evaluated against verifiable ground truths. GRPO builds directly upon PPO’s architecture but removes the need for a separate critic model and simplifies advantage estimation, making it more parameter-efficient and stable for reasoning-focused models.
+**Core Problem:**
+The core problem addressed is the need for an efficient and effective RL optimizer to train LLMs for complex reasoning tasks, especially when verifiable rewards are available. Traditional RLHF, often using PPO, relies on reward models which introduce complexity, training overhead, and the risk of reward hacking. RLVR aims to mitigate these issues by using deterministic, verifiable rewards, but still requires a robust RL optimizer to translate these rewards into effective policy updates for LLMs.
 
-**Key Formulations**
-PPO’s surrogate objective forms the mathematical foundation for GRPO. The algorithm relies on the policy ratio $r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{old}}(a_t|s_t)}$, which is clipped to the interval $[1 - \epsilon, 1 + \epsilon]$ to enforce a trust region and prevent catastrophic policy updates. The surrogate objective is formulated as the minimum of the clipped and unclipped terms, creating a pessimistic lower bound that disincentivizes large probability shifts. Advantage estimation utilizes the standard definition $A(s, a) = Q(s, a) - V(s)$, where the value function $V(s)$ is typically approximated by a shared critic or value head. To maintain alignment with the initial supervised model, KL divergence is incorporated directly into the reward signal as a penalty term, approximated via the difference in log probabilities between the current and reference policies: $\text{KL} \approx \log \pi_{\theta_{old}} - \log \pi_\theta$. The adjusted reward becomes $R_{\text{adjusted}} = R - \beta \cdot \text{KL}$, ensuring the policy optimizes rewards without diverging excessively from its pre-trained distribution.
+**Method/Recipe Step by Step:**
+GRPO operates within the general framework of online RL for LLMs, which involves:
+1.  **Prompt Sampling and Completion Generation:** A batch of prompts is sampled, and the current LLM policy generates one or more completions for each prompt.
+2.  **Reward Computation:** A reward is computed for each completion. In the context of RLVR, these rewards are derived from verifiable sources (e.g., ground truth answers, rule-based verifiers, or LLM judges for math/coding problems). This contrasts with RLHF, where rewards come from a learned reward model.
+3.  **Policy Update:** GRPO is then used as the RL optimizer to compute the policy update, adjusting the LLM's weights to maximize the computed rewards. This process iteratively refines the LLM's ability to generate correct and verifiable responses.
 
-**Quantitative Results**
-The provided source does not report specific quantitative metrics, performance percentages, or compute benchmarks for GRPO. It notes that LRMs trained with RLVR and GRPO exhibit predictable scaling laws relative to RL compute steps, and highlights the emergence of open reasoning models like DeepSeek-R1 and Kimi-K2 that match or exceed closed counterparts. However, no numerical results or empirical measurements are detailed in the text.
+The overall RLVR process with GRPO for training LRMs can be summarized as:
+*   **Select a Verifiable Domain:** Choose a domain where correctness can be objectively verified (e.g., mathematics, coding).
+*   **Create a Verifiable Dataset:** Develop a dataset with prompts and either known ground-truth answers or rule-based verification mechanisms.
+*   **Instruct LLM for Parsable Output:** Guide the LLM to format its output such that the final answer can be easily parsed for verification.
+*   **Iterative RL Training with GRPO:**
+    *   Generate completions using the current LLM.
+    *   Verify completions against ground truth or rules to obtain rewards.
+    *   Apply GRPO to update the LLM's policy based on these rewards.
 
-**Stated Limitations**
-Despite its efficiency, GRPO and the broader LRM training paradigm face several constraints. LRMs optimized for verifiable domains exhibit performance bias, often underperforming in non-verifiable tasks such as creative writing, summarization, or knowledge retrieval. The extended chain-of-thought reasoning required for complex tasks increases inference latency, computational cost, and verbosity, making LRMs inefficient for simpler queries. Additionally, these models may suffer from alignment deficiencies, including poor instruction following or non-standard formatting, and can exhibit overthinking behaviors that introduce errors. The source emphasizes that RL training remains a complex, open research frontier, with ongoing challenges in balancing reward design, scaling laws, and cross-domain generalization.
+**Key Formulas in LaTeX:**
+The source mentions the reward model loss function derived from the Bradley-Terry model for RLHF, but does not provide specific formulas for GRPO itself. The reward model loss function is given as:
+
+$$
+L(\theta) = -\sum_{(x, y_w, y_l) \in D} \log(\sigma(r_\theta(x, y_w) - r_\theta(x, y_l)))
+$$
+
+where:
+*   $D$ is the preference dataset.
+*   $(x, y_w, y_l)$ represents a prompt $x$, a preferred completion $y_w$, and a rejected completion $y_l$.
+*   $r_\theta(x, y)$ is the score assigned by the reward model with parameters $\theta$ to completion $y$ for prompt $x$.
+*   $\sigma$ is the sigmoid function.
+
+**Key Quantitative Results and Numbers:**
+The source states that GRPO is "more efficient and approachable than its predecessors" and has played a role in creating "more powerful reasoning models." It highlights its use in training "open reasoning models like DeepSeek-R1." However, no specific quantitative results (e.g., performance metrics, speedups, or model sizes) are provided for GRPO itself or models trained with it. The text mentions "over 72,000 subscribers" to the Deep (Learning) Focus newsletter.
+
+**Stated Limitations:**
+The source acknowledges that "RL training— *even with GRPO*—is a complex process that presents a seemingly endless frontier of open research questions." While GRPO is described as "refreshingly simple— *and effective*," the broader field of RL for LLMs, including RLVR, still faces challenges. Specifically, the limitations of RLVR mentioned include:
+*   **Verifiable Domain Requirement:** RLVR is limited to domains where rewards can be deterministically verified, such as math or coding. This restricts its applicability to tasks without clear, objective correctness criteria.
+*   **String Matching Limitations:** Simple string matching for verification is not always sufficient, requiring more robust validation logic or LLM judges to handle variations in output format.
+*   **Ongoing Research:** The field is still active, with ongoing research into tweaking GRPO, scaling RLVR training, expanding to non-verifiable domains via rubrics, using curriculum learning, and combining verifiable and non-verifiable rewards.

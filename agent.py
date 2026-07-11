@@ -166,6 +166,14 @@ def strip_thoughts(text: str) -> str:
     """Gemma 4 (API) emits inline <thought>...</thought>; drop it."""
     return re.sub(r"<thought>.*?</thought>", "", text, flags=re.DOTALL).strip()
 
+
+VERBOSE = os.getenv("VERBOSE", "").lower() in ("1", "true", "yes")
+
+
+def log(tag: str, msg: str) -> None:
+    """Timestamped, topic-tagged progress line (flushed so it streams live)."""
+    print(f"{time.strftime('%H:%M:%S')} │ {tag[:24]:24} │ {msg}", flush=True)
+
 MAX_TOOL_STEPS = 16      # cap orchestrator tool calls in stage 1
 SCAN_CHARS = 5000        # truncation while the orchestrator is scanning pages
 FULLTEXT_CHARS = 24000   # HTML/trafilatura read for the distillation stage (fallback)
@@ -418,17 +426,16 @@ def gather_sources(topic: dict) -> list[dict]:
         for tc in m.tool_calls:
             name, args = tc.function.name, json.loads(tc.function.arguments or "{}")
             if name == "submit_sources":
-                srcs = args.get("sources", [])
-                print(f"  submit_sources: {len(srcs)} sources")
-                return srcs
-            print(f"  [{step}] {name}({str(args)[:70]})")
+                return args.get("sources", [])
+            if VERBOSE:
+                log(topic["slug"], f"  [{step}] {name}({str(args)[:60]})")
             try:
                 result = DISPATCH[name](**args)
             except Exception as e:  # noqa: BLE001
                 result = f"[tool error: {e}]"
             messages.append({"role": "tool", "tool_call_id": tc.id,
                              "content": json.dumps(result)[:SCAN_CHARS]})
-    print("  ! hit MAX_TOOL_STEPS -> forcing submit_sources")
+    log(topic["slug"], "  (hit step cap → forcing source list)")
     return force_submit(messages)
 
 
@@ -445,7 +452,8 @@ DISTILL_SYS = (
 def distill(topic: dict, src: dict) -> dict | None:
     text = fetch_fulltext(src["url"])
     if len(text) < 800:
-        print(f"    skip (thin fetch): {src['url']}")
+        if VERBOSE:
+            log(topic["slug"], f"    skip (thin fetch): {src['url'][:50]}")
         return None
     sid = source_id(src["url"], src["title"])
     try:
@@ -455,10 +463,11 @@ def distill(topic: dict, src: dict) -> dict | None:
                       {"role": "user", "content":
                        f"Source: {src['title']}\nURL: {src['url']}\n\nTEXT:\n{text}"}])
     except Exception as e:  # noqa: BLE001
-        print(f"    distill failed ({sid}): {e}")
+        log(topic["slug"], f"    distill failed ({sid}): {str(e)[:60]}")
         return None
     summary = resp.choices[0].message.content.strip()
-    print(f"    distilled [{sid}] ({len(summary)} chars)")
+    if VERBOSE:
+        log(topic["slug"], f"    distilled [{sid}] ({len(summary)} chars)")
     return {"id": sid, "title": src["title"], "url": src["url"], "summary": summary}
 
 
@@ -691,12 +700,53 @@ def revise(topic: dict, article: str, issues: list[str], distilled: list[dict],
     return _split_open_qs(strip_preamble(fix_latex(normalize_citations(body))))
 
 
+# ----------------------------------------------------------------- enrichment
+DEEPEN_INSTR = (
+    "You are DEEPENING an existing wiki article using NEW sources not yet in it. "
+    "Integrate the new findings into the relevant sections (or add sections), cite them "
+    "inline as [source:<id>], and surface any NEW disagreement. CRITICAL: preserve ALL "
+    "existing content and its existing [source:...] citations — you ADD, never rewrite or "
+    "drop. Keep the format ('## Current status and trajectory', '## Key takeaways', "
+    "'## Related topics', then an 'OPEN_QUESTIONS:' trailer). Output ONLY the article."
+)
+
+
+def deepen(topic: dict, existing_body: str, new_distilled: list[dict], tax: dict):
+    corpus = "\n\n".join(f"[source:{d['id']}] {d['title']}\n{d['summary']}"
+                         for d in new_distilled)
+    prompt = (f"Topic: {topic['title']}\n\n{DEEPEN_INSTR}\n\n{_siblings_block(topic, tax)}\n\n"
+              f"NEW SOURCE SUMMARIES:\n{corpus}\n\nEXISTING ARTICLE:\n{existing_body}")
+    resp = _chat(writer_client(), model=WRITER_MODEL, temperature=0.6,
+                 messages=[{"role": "system", "content": WRITE_SYS},
+                           {"role": "user", "content": prompt}])
+    body = strip_thoughts(content_text(resp.choices[0].message))
+    return _split_open_qs(strip_preamble(fix_latex(normalize_citations(body))))
+
+
+def _load_source(sid: str) -> dict | None:
+    """Reload a distilled source from disk (to reassemble the full source set)."""
+    p = SOURCES_DIR / id_to_filename(sid)
+    if not p.exists():
+        return None
+    parts = p.read_text().split("---", 2)
+    if len(parts) < 3:
+        return None
+    meta = yaml.safe_load(parts[1]) or {}
+    return {"id": meta.get("id", sid), "title": meta.get("title", ""),
+            "url": meta.get("url", ""), "summary": parts[2].strip()}
+
+
+_MATURITY_NEXT = {"stub": "developing", "developing": "comprehensive",
+                  "comprehensive": "comprehensive"}
+
+
 # ----------------------------------------------------------------- persistence
 def fm(d: dict) -> str:
     return "---\n" + yaml.safe_dump(d, sort_keys=False, allow_unicode=True).strip() + "\n---\n\n"
 
 
-def save(topic: dict, distilled: list[dict], article: str, open_qs: list[str]) -> None:
+def save(topic: dict, distilled: list[dict], article: str, open_qs: list[str],
+         maturity: str = "developing") -> None:
     SOURCES_DIR.mkdir(exist_ok=True)
     TOPICS_DIR.mkdir(exist_ok=True)
     today = dt.date.today().isoformat()
@@ -707,7 +757,7 @@ def save(topic: dict, distilled: list[dict], article: str, open_qs: list[str]) -
                 "maturity": "comprehensive", "topic": topic["slug"]}
         (SOURCES_DIR / id_to_filename(d["id"])).write_text(fm(meta) + fix_latex(d["summary"]) + "\n")
 
-    front = {"title": topic["title"], "maturity": "developing", "updated": today,
+    front = {"title": topic["title"], "maturity": maturity, "updated": today,
              "sources": [d["id"] for d in distilled]}
     if open_qs:
         front["open_questions"] = open_qs
@@ -734,20 +784,33 @@ def pick_topic(tax: dict, forced: str | None):
 
 
 def gather_and_distill(topic: dict) -> list[dict]:
+    slug = topic["slug"]
+    t0 = time.time()
     srcs = gather_sources(topic)
+    log(slug, f"gather: {len(srcs)} sources ({time.time()-t0:.0f}s)")
     if not srcs:
         return []
-    print(f"== distilling {len(srcs)} sources ({DISTILL_WORKERS}-way concurrent)...")
+    t1 = time.time()
     with ThreadPoolExecutor(max_workers=DISTILL_WORKERS) as ex:
-        return [d for d in ex.map(lambda s: distill(topic, s), srcs) if d]
+        distilled = [d for d in ex.map(lambda s: distill(topic, s), srcs) if d]
+    log(slug, f"distill: {len(distilled)}/{len(srcs)} kept ({time.time()-t1:.0f}s)")
+    return distilled
 
 
-def compose(topic: dict, distilled: list[dict], tax: dict, verbose: bool = True):
-    """Write -> review + fact-check -> revise, using the current WRITER/REVIEWER
-    backends. Returns (article, open_qs, meta) where meta records the gate activity."""
-    article, open_qs = write_article(topic, distilled, tax)
+def compose(topic: dict, distilled: list[dict], tax: dict, verbose: bool = True,
+            seed_body: str | None = None):
+    """Write (or DEEPEN an existing article if seed_body) -> review + fact-check ->
+    revise. Returns (article, open_qs, meta)."""
+    slug = topic["slug"]
+    tw = time.time()
+    if seed_body:
+        article, open_qs = deepen(topic, seed_body, distilled, tax)
+    else:
+        article, open_qs = write_article(topic, distilled, tax)
+    log(slug, f"{'deepen' if seed_body else 'write'}: {len(article.split())}w ({time.time()-tw:.0f}s)")
     rounds = []
     for rnd in range(MAX_REVIEW_ROUNDS):
+        tr = time.time()
         # review and fact_check are independent reads of the article -> run concurrently
         with ThreadPoolExecutor(max_workers=2) as ex:
             f_rev = ex.submit(review, topic, article, open_qs, distilled)
@@ -758,37 +821,92 @@ def compose(topic: dict, distilled: list[dict], tax: dict, verbose: bool = True)
         issues = struct + [f"[grounding] {g}" for g in grounding] + [f"[latex] {x}" for x in latex]
         rounds.append({"structural": len(struct), "grounding": len(grounding), "latex": len(latex)})
         if not issues:
-            if verbose:
-                print(f"  round {rnd+1}: APPROVE ({len(distilled)} sources grounded)")
+            log(slug, f"review r{rnd+1}: APPROVE ({len(distilled)} sources grounded, {time.time()-tr:.0f}s)")
             break
-        if verbose:
-            print(f"  round {rnd+1}: revise — {len(struct)} structural, "
-                  f"{len(grounding)} grounding, {len(latex)} latex")
+        log(slug, f"review r{rnd+1}: revise — {len(struct)} structural, {len(grounding)} "
+                  f"grounding, {len(latex)} latex ({time.time()-tr:.0f}s)")
         new_article, new_qs = revise(topic, article, issues, distilled, tax)
         article, open_qs = new_article, (new_qs or open_qs)
     return article, open_qs, {"rounds": rounds}
 
 
+def enrich(topic: dict, tax: dict) -> bool:
+    """Re-visit a done topic: gather NEW sources (not already cited), DEEPEN the
+    existing article to fold them in, advance maturity. Returns True if changed."""
+    slug = topic["slug"]
+    p = TOPICS_DIR / f"{slug}.md"
+    if not p.exists():
+        print(f"  {slug} not generated yet — nothing to enrich"); return False
+    parts = p.read_text().split("---", 2)
+    front = yaml.safe_load(parts[1]) or {}
+    body = parts[2].strip()
+    cited = set(front.get("sources") or [])
+    print(f"== enrich {slug}: {len(cited)} sources, maturity={front.get('maturity', '?')}")
+    srcs = gather_sources(topic)
+    new = [s for s in srcs if source_id(s["url"], s["title"]) not in cited][:TARGET_SOURCES]
+    if not new:
+        print("  no new sources — already current"); return False
+    print(f"== distilling {len(new)} NEW sources ({DISTILL_WORKERS}-way)...")
+    with ThreadPoolExecutor(max_workers=DISTILL_WORKERS) as ex:
+        new_distilled = [d for d in ex.map(lambda s: distill(topic, s), new)
+                         if d and d["id"] not in cited]
+    if not new_distilled:
+        print("  nothing new distilled"); return False
+    print(f"== deepening with {len(new_distilled)} new sources...")
+    article, open_qs, _ = compose(topic, new_distilled, tax, seed_body=body)
+    old = [d for sid in cited if (d := _load_source(sid))]
+    all_distilled = old + new_distilled
+    maturity = _MATURITY_NEXT.get(front.get("maturity", "developing"), "comprehensive")
+    save(topic, all_distilled, article, open_qs, maturity=maturity)
+    print(f"== enriched {slug}: +{len(new_distilled)} -> {len(all_distilled)} sources, "
+          f"maturity={maturity}")
+    return True
+
+
+def _stalest_done(tax: dict):
+    done = [t for t in tax["topics"] if t.get("status") == "done"]
+    if not done:
+        return None
+
+    def updated(t):
+        p = TOPICS_DIR / f"{t['slug']}.md"
+        if not p.exists():
+            return ""
+        return str((yaml.safe_load(p.read_text().split("---", 2)[1]) or {}).get("updated", ""))
+    return min(done, key=updated)
+
+
 def main() -> None:
+    argv = sys.argv[1:]
+    enrich_mode = "--enrich" in argv
+    rest = [a for a in argv if a != "--enrich"]
+    slug = rest[0] if rest else None
     tax = yaml.safe_load(TAXONOMY.read_text())
-    forced = sys.argv[1] if len(sys.argv) > 1 else None
-    topic = pick_topic(tax, forced)
-    print(f"== topic: {topic['slug']} ({topic['title']})")
     t0 = time.time()
 
+    if enrich_mode:
+        topic = (next(t for t in tax["topics"] if t["slug"] == slug) if slug
+                 else _stalest_done(tax))
+        if not topic:
+            print("nothing to enrich"); return
+        print(f"== ENRICH: {topic['slug']} ({topic['title']})")
+        enrich(topic, tax)
+        regenerate_index(tax)
+        print(f"== enrich tick done in {time.time()-t0:.0f}s")
+        return
+
+    topic = pick_topic(tax, slug)
+    log(topic["slug"], f"START — {topic['title']}")
     distilled = gather_and_distill(topic)
     if not distilled:
-        print("no sources; aborting"); return
-
-    print(f"== writing article from {len(distilled)} distilled sources...")
+        log(topic["slug"], "no sources; aborting"); return
     article, open_qs, _ = compose(topic, distilled, tax)
     save(topic, distilled, article, open_qs)
-
     topic["status"] = "done"
     TAXONOMY.write_text(yaml.safe_dump(tax, sort_keys=False, allow_unicode=True))
     regenerate_index(tax)
-    print(f"== done in {time.time()-t0:.0f}s -> topics/{topic['slug']}.md "
-          f"({len(distilled)} sources, {len(open_qs)} open questions)")
+    log(topic["slug"], f"DONE ({time.time()-t0:.0f}s, {len(distilled)} sources, "
+                       f"{len(open_qs)} open questions)")
 
 
 if __name__ == "__main__":

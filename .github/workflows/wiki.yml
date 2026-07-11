@@ -1,0 +1,59 @@
+name: wiki-autopilot
+
+# Self-maintaining wiki: on a schedule, fill the next empty topic, else enrich
+# the stalest one — fully cloud (NVIDIA + Firecrawl), no local machine needed.
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # every 6 hours
+  workflow_dispatch: {}       # manual "Run workflow" button
+
+permissions:
+  contents: write             # allow the job to push commits
+
+concurrency:
+  group: wiki-autopilot       # never run two ticks at once
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install --quiet openai requests pyyaml trafilatura
+
+      - name: Generate or enrich one topic
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          MISTRAL_API_KEYS: ${{ secrets.MISTRAL_API_KEYS }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          # Final consistent config (matches the clean run).
+          WRITER_MODEL: nvidia/nemotron-3-ultra-550b-a55b
+          ORCH_MODEL: nvidia/llama-3.3-nemotron-super-49b-v1.5
+          DISTILL_MODEL: nvidia/nemotron-3-ultra-550b-a55b
+          REVIEWER_MODEL: nvidia/llama-3.3-nemotron-super-49b-v1.5
+        run: |
+          NEXT=$(python -c "import yaml;t=yaml.safe_load(open('taxonomy.yaml'));u=[x['slug'] for x in t['topics'] if x.get('status')!='done'];print(u[0] if u else '')")
+          if [ -n "$NEXT" ]; then
+            echo "Filling empty topic: $NEXT"
+            python agent.py "$NEXT"
+          else
+            echo "All topics done — enriching the stalest one"
+            python agent.py --enrich
+          fi
+
+      - name: Commit and push
+        run: |
+          git config user.name "wiki-autopilot[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "auto: scheduled wiki update $(date -u +%FT%TZ)"
+          git push

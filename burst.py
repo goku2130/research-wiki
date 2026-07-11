@@ -28,14 +28,19 @@ def sh(*args) -> None:
 
 def generate(topic: dict, tax: dict) -> str:
     slug = topic["slug"]
+    t0 = time.time()
+    agent.log(slug, "START")
     try:
         distilled = agent.gather_and_distill(topic)
         if not distilled:
+            agent.log(slug, "no sources — skipped")
             return f"{slug}: no sources"
         article, open_qs, _ = agent.compose(topic, distilled, tax, verbose=False)
         agent.save(topic, distilled, article, open_qs)
     except Exception as e:  # noqa: BLE001
+        agent.log(slug, f"FAILED ({str(e)[:80]})")
         return f"{slug}: FAILED ({str(e)[:80]})"
+    agent.log(slug, f"DONE ({len(distilled)} sources, {len(article.split())}w, {time.time()-t0:.0f}s)")
     # serialize taxonomy update + commit + push
     with _lock:
         tax = yaml.safe_load(agent.TAXONOMY.read_text())
@@ -53,7 +58,9 @@ def generate(topic: dict, tax: dict) -> str:
 def main() -> None:
     tax = yaml.safe_load(agent.TAXONOMY.read_text())   # read-only snapshot for siblings
     todo = [t for t in tax["topics"] if t.get("status") != "done"][:MAX_TOPICS]
-    print(f"### BURST: {len(todo)} topics, {WORKERS} concurrent, writer={agent.WRITER_MODEL}")
+    print(f"### BURST: {len(todo)} topics, {WORKERS} concurrent")
+    print(f"### models: orch={agent.ORCH_MODEL} | distill={agent.DISTILL_MODEL} "
+          f"| review={agent.REVIEWER_MODEL} | writer={agent.WRITER_MODEL}", flush=True)
     t0 = time.time()
     with ThreadPoolExecutor(max_workers=WORKERS) as ex:
         futs = {ex.submit(generate, t, tax): t["slug"] for t in todo}
