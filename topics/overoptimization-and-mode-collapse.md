@@ -3,253 +3,146 @@ title: Over-optimization and mode collapse
 maturity: developing
 updated: '2026-07-11'
 sources:
-- arxiv:2305.10193
-- arxiv:2305.18290
-- arxiv:2311.14722
-- arxiv:2305.18723
-- arxiv:2203.02155
-- arxiv:1707.06347
-- arxiv:1802.09455
+- arxiv:2310.06452
+- arxiv:2605.19461
+- openaccess:diversegrpo-mitigating-mode-collapse-in-
+- lesswrong:mode-collapse-in-rl-may-be-fueled-by-the
+- bmva-archive:overcoming-mode-collapse-with-adaptive-m
+- researchgate:on-the-algorithmic-bias-of-aligning-larg
+- arxiv:2510.01171
 open_questions:
-- 'Mechanistic understanding**: What are the precise optimization dynamics that cause
-  mode collapse in autoregressive LLMs? For example, does collapse begin at the token
-  level (e.g., a single high-reward token dominating the sequence) or the sequence
-  level (e.g., the policy latching onto a single high-reward template)?'
-- 'Reward model generalization**: How can reward models be trained to generalize better
-  to out-of-distribution inputs, reducing the risk of over-optimization? Are there
-  architectures or data augmentation techniques that improve robustness?'
-- 'Scalable offline RL**: Can offline RL methods (e.g., DPO) scale to models with
-  >100B parameters without suffering from entropy collapse or distribution shift?
-  What modifications (e.g., dynamic $ \beta $, auxiliary losses) are needed?'
-- 'Evaluation metrics**: What metrics best capture over-optimization and mode collapse
-  in LLMs? Current metrics (e.g., entropy, win rates) are noisy or gameable; are there
-  principled alternatives (e.g., divergence from pretrained distributions, diversity
-  in latent space)?'
+- Can distribution-matching objectives (forward KL approximations) be made tractable
+  for open-ended RLHF with learned reward models, or are they fundamentally limited
+  to verifiable-reward settings?
+- Does Verbalized Sampling's diversity recovery generalize to *reasoning* tasks where
+  the "correct" distribution is peaked, or does it primarily benefit creative/open-ended
+  generation?
+- How do typicality bias (reward model) and reverse KL (policy update) *interact*—does
+  mitigating one amplify the other, and can they be jointly corrected?
+- Is there a unified theoretical framework characterizing the *Pareto frontier* of
+  diversity vs. reward across all these mitigation strategies, or are they addressing
+  orthogonal collapse modes?
 ---
 
-# Over-optimization and Mode Collapse in Reinforcement Learning for LLMs
+Over-optimization in RL fine-tuning drives models toward high-reward but low-entropy policies, systematically collapsing the output distribution onto a narrow set of modes. This phenomenon—mode collapse—manifests as loss of per-input and cross-input diversity, degradation of reasoning chain length, and suppression of minority preferences, and it arises from distinct but interacting mechanisms in the reward model, the policy update rule, and the regularization scheme.
 
-Reinforcement learning (RL) fine-tuning of large language models (LLMs) frequently suffers from *over-optimization*—where performance on the training objective degrades despite apparent improvement on the proxy reward—and *mode collapse*, wherein the model’s output distribution collapses to a narrow subset of high-reward but low-diversity behaviors. These pathologies arise when the learned policy exploits flaws in the reward model or optimization process, leading to catastrophic forgetting of pretrained knowledge, reduced linguistic diversity, and misalignment with true human preferences. While KL regularization and early stopping mitigate these effects, they introduce trade-offs between alignment fidelity and model capability, and the underlying mechanisms remain incompletely understood.
+## Mechanisms of Mode Collapse in RL Fine-Tuning
 
----
+### Reverse KL Minimization and Mode-Seeking Behavior
 
-## ## Theoretical Foundations
+On-policy RL algorithms such as PPO and GRPO implicitly minimize the reverse KL divergence $D_{\text{KL}}(\pi_\theta \| p^*)$ between the policy and the reward-weighted target distribution $p^* \propto \pi_{\text{ref}} \exp(r/\beta)$ [source:arxiv:2605.19461]. Reverse KL is *mode-seeking*: it forces the policy to cover only the highest-density regions of $p^*$, discarding low-probability but valid modes [source:arxiv:2605.19461]. In contrast, forward KL $D_{\text{KL}}(p^* \| \pi_\theta)$ is *mode-covering* and would preserve the full support of $p^*$, but sampling from $p^*$ is intractable for LLMs [source:arxiv:2605.19461]. This asymmetry explains why GRPO "concentrates its probability mass on the first high-reward trajectory it discovers, prematurely halting exploration of alternative strategies" [source:arxiv:2605.19461].
 
-### Reward Over-optimization and the Alignment Tax
-The standard RLHF objective maximizes a learned reward $ r_\phi(x,y) $ subject to a KL divergence penalty from a reference policy $ \pi_{\text{ref}} $:
+### Typicality Bias in Reward Models
 
-$$
-\max_{\pi_\theta} \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta(y|x)} \left[ r_\phi(x,y) - \beta \mathbb{D}_{\text{KL}}[\pi_\theta(y|x) || \pi_{\text{ref}}(y|x)] \right]. \quad \text{[source:arxiv:2203.02155]}
-$$
+Reward models trained on human preferences inherit a *typicality bias*: annotators systematically prefer text that is familiar, fluent, and predictable under the pretrained distribution $\pi_{\text{ref}}$ [source:arxiv:2510.01171]. Formally, the learned reward decomposes as $r(x,y) = r_{\text{true}}(x,y) + \alpha \log \pi_{\text{ref}}(y|x) + \epsilon(x)$ with $\alpha > 0$ [source:arxiv:2510.01171]. When this reward is used in a KL-regularized RLHF objective, the optimal policy becomes $\pi^*(y|x) \propto \pi_{\text{ref}}(y|x)^\gamma \exp(r_{\text{true}}(x,y)/\beta)$ where $\gamma := 1 + \alpha/\beta > 1$ [source:arxiv:2510.01171]. The exponent $\gamma > 1$ *sharpens* the pretrained distribution, compressing probability mass toward the most typical completions and causing mode collapse even when multiple responses have equal true utility [source:arxiv:2510.01171]. This is a *data-level* driver distinct from algorithmic pathologies.
 
-The KL penalty prevents the policy from deviating excessively from the reference, but as $ \beta $ decreases, the policy may exploit imperfections in $ r_\phi $, a phenomenon termed *reward hacking* [source:arxiv:2203.02155]. Empirically, this manifests as a U-shaped performance curve: initial optimization improves alignment, but continued training degrades performance on held-out tasks (e.g., public NLP benchmarks), a cost termed the *alignment tax* [source:arxiv:2203.02155].
+### Unbounded Logit Growth in Policy Gradient Updates
 
-The optimal policy under this objective is:
+Standard PPO updates can drive logits of high-reward actions toward infinity because the state-value baseline $v^\pi(s)$ creates a moving target [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the]. In a two-action bandit with rewards $R(a_1)=1, R(a_2)=0.5$, taking the lower-reward action lowers $v^\pi(s)$; subsequently taking the higher-reward action yields a positive advantage $A^\pi(s,a_1)$ relative to the depressed baseline, reinforcing $a_1$ again [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the]. This cycle repeats indefinitely, extracting "an unbounded amount of reinforcement from a single type of experience" and penalizing exploration [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the]. The proposed fix, Action-Conditioned TD Error (ACTDE), replaces $v^\pi(s)$ with $q^\pi(s,a)$ so that "a single reward event provides a finite amount of updating" [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the]. In tabular settings ACTDE converges to a softmax-over-rewards policy (e.g., $\{27\%, 73\%\}$ for rewards 10 and 11) rather than a greedy one-hot policy [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the].
 
-$$
-\pi_r(y|x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y|x) \exp\left(\frac{1}{\beta} r_\phi(x,y)\right), \quad \text{where } Z(x) = \sum_y \pi_{\text{ref}}(y|x) \exp\left(\frac{1}{\beta} r_\phi(x,y)\right). \quad \text{[source:arxiv:2305.18290]}
-$$
+### Discriminator Catastrophic Forgetting in Adversarial Settings
 
-This closed-form solution reveals that the policy’s support is determined by the product of the reference policy and an exponential tilt toward high-reward outputs. As $ \beta \to 0 $, the policy concentrates mass on the mode of $ r_\phi $, leading to *distributional collapse*—a form of mode collapse where the output distribution becomes unimodal and low-entropy [source:arxiv:2305.18290].
+In GANs, mode collapse is driven by *catastrophic forgetting* in the discriminator: as the generator shifts to new modes, the discriminator loses classification accuracy on previously seen modes, creating an oscillatory trajectory where the generator cycles between modes without converging [source:bmva-archive:overcoming-mode-collapse-with-adaptive-m]. The Adaptive Multi Adversarial Training (AMAT) framework detects forgetting by monitoring discriminator scores on a fixed set of *exemplar* samples (one per mode) and spawns new discriminators when $\max(\mathfrak{s}[k]) / \text{avg}(\mathfrak{s}[k]) > \alpha_t$ [source:bmva-archive:overcoming-mode-collapse-with-adaptive-m]. This mechanism—discriminator forgetting causing generator oscillation—has no direct analogue in RLHF but illustrates how *evaluation signal degradation* can induce collapse.
 
-### Mode Collapse in Policy Optimization
-Mode collapse occurs when the policy’s entropy $ \mathcal{H}[\pi_\theta(y|x)] $ decreases monotonically during training, and the policy’s output distribution $ \pi_\theta(y|x) $ converges to a delta function or a small set of high-reward sequences. In LLMs, this is exacerbated by:
-1. **Autoregressive generation**: The policy’s output is a product of conditional probabilities, so errors compound multiplicatively. A single high-reward token can dominate the sequence, suppressing diversity.
-2. **Sparse reward signals**: Human preferences are often binary (e.g., "preferred" vs. "dispreferred"), providing little gradient signal for intermediate-quality outputs. This sparsity encourages the policy to latch onto a single high-reward mode [source:arxiv:2305.18290].
-3. **Reward model overfitting**: Reward models $ r_\phi $ are typically trained on limited preference data and may generalize poorly. A policy that exploits these flaws (e.g., by generating verbose or sycophantic responses) can achieve high reward while collapsing to a narrow distribution [source:arxiv:2203.02155].
+## Manifestations of Diversity Loss
 
-Theoretical work in RL connects mode collapse to the *exploration-exploitation trade-off*. In the absence of sufficient exploration (e.g., due to KL constraints or deterministic sampling), the policy may fail to discover diverse high-reward behaviors, converging instead to a local optimum [source:arxiv:1707.06347].
+### Per-Input and Cross-Input Diversity Collapse
 
----
+RLHF reduces both *per-input diversity* (variance of outputs for a fixed prompt) and *cross-input diversity* (variance of outputs across different prompts), the latter providing "empirical evidence of mode collapse, where the model produces similar styles of text regardless of the input" [source:arxiv:2310.06452]. Metrics include Expectation-Adjusted Distinct N-grams (EAD) for syntactic diversity, Sentence-BERT cosine similarity for semantic diversity, and NLI diversity for logical diversity [source:arxiv:2310.06452]. Sweeping the KL penalty coefficient $\beta_{\text{KL}}$ revealed that *higher* penalties resulted in *less* output diversity and generally worse performance, indicating that "the KL penalty cannot be used to trade off diversity for generalisation" [source:arxiv:2310.06452].
 
-## ## Empirical Manifestations
+### Length Collapse and Reasoning Chain Degradation
 
-### Diversity Loss in RLHF
-Diversity loss is quantified via:
-1. **Token-level entropy**: The average entropy of the policy’s next-token distribution, $ \mathbb{E}_{x,y \sim \pi_\theta} [\mathcal{H}[\pi_\theta(y_t|x,y_{<t})]] $. Empirical studies report entropy drops of 20–40% during RLHF fine-tuning [source:arxiv:2203.02155].
-2. **Sequence-level diversity**: The effective support size of $ \pi_\theta(y|x) $, measured by the number of unique $ n $-grams or distinct sequences generated for a fixed prompt set. For example, [source:arxiv:2203.02155] observes that InstructGPT models generate 30–50% fewer unique 4-grams than their pretrained counterparts.
-3. **Semantic diversity**: The variance in latent embeddings (e.g., BERT or LLM hidden states) of generated sequences. Clustering analyses reveal that RLHF policies produce embeddings with 25–35% lower variance than SFT models [source:arxiv:2305.10193].
+In reasoning tasks, GRPO exhibits *length collapse*: response lengths degenerate from $\sim 600$ tokens to $<200$ tokens as training progresses, truncating reasoning chains [source:arxiv:2605.19461]. DMPO maintains robust chains of $\sim 400$ tokens by aligning the group-level policy distribution $q_\theta$ to a Boltzmann target $p$ via MSE loss $\mathcal{L}_{\text{DM}} = \frac{1}{G}\sum_i (p(o_i|\mathcal{O}) - q_\theta(o_i|\mathcal{O}))^2$ [source:arxiv:2605.19461]. The length-normalized log-likelihood $\phi(o_i) = \frac{1}{|o_i|}\sum_t \log \pi_\theta(o_{i,t}|o_{i,<t}, x)$ prevents the exponential decay of probability with trajectory length from biasing the group distribution [source:arxiv:2605.19461].
 
-**Disagreement**: While [source:arxiv:2203.02155] attributes diversity loss primarily to KL constraints, [source:arxiv:2305.18290] argues that DPO (which lacks explicit KL penalties) also suffers from entropy collapse, suggesting that the phenomenon is intrinsic to preference optimization rather than a side effect of regularization.
+### Preference Collapse and Minority Viewpoint Suppression
 
-### Distributional Collapse Under PPO
-Proximal Policy Optimization (PPO) [source:arxiv:1707.06347] is the dominant RL algorithm for LLM fine-tuning, but its clipped objective can exacerbate mode collapse. The surrogate objective:
+RLHF's KL-regularized optimization systematically suppresses minority viewpoints in the preference data, a phenomenon termed *preference collapse* [source:researchgate:on-the-algorithmic-bias-of-aligning-larg]. Under the Bradley-Terry model, maximizing expected reward without KL regularization leads to collapse that "disproportionately impacts underrepresented groups in the preference data" (Theorem 5.2) [source:researchgate:on-the-algorithmic-bias-of-aligning-larg]. Game-theoretic alignment (NLHF) models alignment as a two-player zero-sum game and uses *mixed strategies* to ensure diversity, achieving Condorcet and Smith consistency where RLHF fails [source:researchgate:on-the-algorithmic-bias-of-aligning-larg]. However, exact *preference matching*—the model output matching a target policy that fully accounts for preference diversity—is provably impossible: "no smooth and learnable mappings of pairwise preferences can guarantee a unique Nash equilibrium that matches a target policy, even when utilizing standard assumptions such as the Bradley-Terry-Luce model" [source:researchgate:on-the-algorithmic-bias-of-aligning-larg].
 
-$$
-L^{CLIP}(\theta) = \mathbb{E}_t \left[ \min \left( r_t(\theta)\hat{A}_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_t \right) \right], \quad \text{where } r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\text{old}}(a_t|s_t)},
-$$
+## Mitigation Strategies
 
-penalizes large policy updates, but this clipping can *accelerate* collapse when:
-- The advantage estimates $ \hat{A}_t $ are noisy or sparse, causing the policy to overfit to a subset of high-advantage trajectories.
-- The entropy bonus $ S[\pi_\theta] $ is insufficient to counteract the entropy loss from the clipped objective. [source:arxiv:1707.06347] notes that PPO’s entropy bonus is often too weak to prevent collapse in high-dimensional action spaces (e.g., LLM vocabularies).
+### Distribution Matching and Forward KL Approximation
 
-Empirical evidence from [source:arxiv:2203.02155] shows that PPO-trained InstructGPT models exhibit:
-- A 40% reduction in token-level entropy compared to SFT models.
-- A 60% increase in the frequency of "safe" but generic responses (e.g., "I’m sorry, I can’t assist with that") across diverse prompts.
-- A 25% drop in performance on creative writing tasks, where diversity is critical.
+DMPO approximates forward KL minimization by constructing a *group-conditional* Boltzmann target $p(o_i|\mathcal{O}) = \exp(r(o_i)/\alpha) / \sum_j \exp(r(o_j)/\alpha)$ and aligning the normalized policy distribution $q_\theta$ to it via MSE [source:arxiv:2605.19461]. The combined loss $\mathcal{L}_{\text{DMPO}} = \mathcal{L}_{\text{GRPO}} + \lambda \mathcal{L}_{\text{DM}}$ balances exploitation and exploration [source:arxiv:2605.19461]. On MM-NP-Bench (10 NP-hard combinatorial tasks), DMPO achieves 43.1% Quality Ratio vs. GRPO's 38.4% (+12% relative) and 61.9% Success Rate vs. 55.7% [source:arxiv:2605.19461]. It also improves mathematical reasoning by 2.0% avg across six benchmarks and out-of-domain visual reasoning by 2.3% avg across seven benchmarks [source:arxiv:2605.19461]. Limitation: requires exact, rule-based verifiable rewards; extension to learned/subjective rewards is open [source:arxiv:2605.19461].
 
-### Over-optimization in DPO
-Direct Preference Optimization (DPO) [source:arxiv:2305.18290] eliminates explicit reward modeling and RL, but over-optimization persists. The DPO objective:
+### Inference-Time Verbalized Sampling
+
+Verbalized Sampling (VS) is a *training-free* prompting strategy that elicits diverse outputs by asking the model to generate $k$ responses *with their probabilities* (e.g., "Generate 5 jokes about coffee and their corresponding probabilities") [source:arxiv:2510.01171]. Instance-level prompts collapse to a single mode; distribution-level prompts approximate the broader pretrained distribution [source:arxiv:2510.01171]. VS increases semantic diversity by 1.6–2.1$\times$ over direct prompting and improves human evaluation by 25.7% on creative writing [source:arxiv:2510.01171]. On Tulu-3 after DPO, VS retains 66.8% of base model diversity vs. 23.8% for direct prompting [source:arxiv:2510.01171]. For enumerative QA, VS-elicited distributions match pretraining corpora (KL=0.12 for Claude-4-Sonnet) [source:arxiv:2510.01171]. Larger models benefit more (1.5–2$\times$ diversity gains) [source:arxiv:2510.01171]. Trade-off: increased inference latency and token usage; smaller models may lack probability estimation capability [source:arxiv:2510.01171].
+
+### Distributional Creativity Bonuses and Clustering
+
+DiverseGRPO (for image generation) adds an *exploration reward* based on semantic clustering of the generated group [source:openaccess:diversegrpo-mitigating-mode-collapse-in-]. Pairwise DreamSim distances $d_{ij}$ form an affinity matrix $A_{ij} = \exp(-d_{ij}^2/2\sigma^2)$; spectral clustering on the normalized Laplacian $L = D^{-1/2}AD^{-1/2}$ yields clusters $C_k$ [source:openaccess:diversegrpo-mitigating-mode-collapse-in-]. Images in cluster $C_k$ receive bonus $E_i = \sqrt{N/n_k}$ where $n_k = |C_k|$, so rare clusters get higher reward [source:openaccess:diversegrpo-mitigating-mode-collapse-in-]. Final reward $\mathsf{R}_i = Q_i + \beta E_i$ [source:openaccess:diversegrpo-mitigating-mode-collapse-in-]. On SD3.5-M/PickScore: DreamSim +18.8%, FID +23.3%, BeyondFID +184.2%, SSIM +25.6% [source:openaccess:diversegrpo-mitigating-mode-collapse-in-]. On Flux.1-dev: DreamSim +13.9%, FID +9.1% [source:openaccess:diversegrpo-mitigating-mode-collapse-in-]. Reaches same quality in 400 vs. 1,280 iterations (baseline KL=0.01) while reducing mode collapse by 9% [source:openaccess:diversegrpo-mitigating-mode-collapse-in-]. Saturation: diversity gains level off after $\beta=5$; increasing SA-Reg steps $K$ has diminishing returns [source:openaccess:diversegrpo-mitigating-mode-collapse-in-].
+
+### Structure-Aware Regularization
+
+DiverseGRPO replaces the uniform KL penalty with a *stage-dependent Wasserstein constraint* concentrated on early denoising steps where diffusion variance $\sigma^2$ is largest and diversity is determined [source:openaccess:diversegrpo-mitigating-mode-collapse-in-]:
 
 $$
-\mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)} \right) \right],
+\mathcal{L}_{\mathtt{reg}}(t) = \begin{cases} \frac{\|\bar{\mathbf{x}}_{t+\Delta t,\theta} - \bar{\mathbf{x}}_{t+\Delta t,\mathtt{ref}}\|^2}{2}, & t \le K \\ 0, & t > K \end{cases}
 $$
 
-implicitly maximizes the reward gap between preferred and dispreferred outputs. However, as training progresses:
-1. The policy’s entropy collapses even in the absence of KL constraints, with token-level entropy dropping by 30–50% [source:arxiv:2305.18290].
-2. Performance on held-out tasks (e.g., CNN/DailyMail summarization) degrades after a certain number of training steps, despite continued improvement on the training preference dataset. This suggests that DPO overfits to the preference data, collapsing to a narrow distribution that fails to generalize [source:arxiv:2305.18290].
-3. The policy’s outputs become increasingly verbose, as the implicit reward model favors longer responses (a form of *length bias*) [source:arxiv:2305.18290].
+This forces semantic coverage early while allowing free optimization for fidelity later [source:openaccess:diversegrpo-mitigating-mode-collapse-in-]. The insight—that KL regularization is misaligned with the diffusion process because it is weakest when the diversity budget is most critical—is specific to diffusion but suggests a general principle: *regularization should be allocated where it most affects diversity*.
 
-**Disagreement**: [source:arxiv:2305.18290] claims that DPO’s over-optimization is less severe than PPO’s, but this is contested by [source:arxiv:2203.02155], which argues that DPO’s lack of explicit KL constraints makes it *more* prone to collapse, as the policy can deviate arbitrarily far from the reference.
+### Action-Conditioned Value Baselines
 
----
-
-## ## Mechanisms and Contributing Factors
-
-### Reward Model Flaws
-Reward models $ r_\phi $ are trained on limited preference data and are prone to:
-1. **Overfitting**: Reward models may memorize spurious correlations in the preference data (e.g., favoring responses that mention specific keywords) rather than learning generalizable preferences. A policy that exploits these correlations can achieve high reward while collapsing to a narrow distribution [source:arxiv:2203.02155].
-2. **Misgeneralization**: Reward models may generalize poorly to out-of-distribution (OOD) inputs. For example, a reward model trained on harmlessness preferences may assign high reward to sycophantic responses (e.g., "You’re absolutely right!") even when the user’s input is benign [source:arxiv:2305.10193].
-3. **Bias amplification**: Reward models often inherit biases from the preference data (e.g., favoring longer responses, formal language, or specific cultural norms). These biases are amplified during RL fine-tuning, leading to mode collapse [source:arxiv:2203.02155].
-
-### Optimization Dynamics
-The optimization dynamics of RLHF contribute to collapse via:
-1. **Positive feedback loops**: As the policy generates more high-reward outputs, the reward model’s gradients become dominated by these outputs, further reinforcing the policy’s collapse toward them. This is analogous to *rich-get-richer* dynamics in reinforcement learning [source:arxiv:1707.06347].
-2. **Gradient starvation**: In high-dimensional action spaces (e.g., LLM vocabularies), the policy’s gradients may become concentrated on a small subset of tokens or sequences, starving other actions of learning signals. This is exacerbated by sparse rewards and the compounding nature of autoregressive generation [source:arxiv:2305.18290].
-3. **Entropy loss**: The policy’s entropy decreases monotonically during training unless explicitly counteracted (e.g., via entropy bonuses or temperature annealing). In PPO, the clipped objective can accelerate entropy loss by discouraging exploration of low-probability actions [source:arxiv:1707.06347].
-
-### Data Distribution Shifts
-RLHF introduces a distribution shift between the reference policy $ \pi_{\text{ref}} $ and the fine-tuned policy $ \pi_\theta $. This shift can cause:
-1. **Catastrophic forgetting**: The policy may forget pretrained knowledge (e.g., factual accuracy, linguistic fluency) as it optimizes for the reward model. This is particularly severe when the reward model is misaligned with the pretraining objective [source:arxiv:2203.02155].
-2. **Mode dropping**: The policy may drop entire modes of the reference distribution (e.g., creative or low-reward responses) in favor of high-reward modes, even if the latter are less diverse or useful [source:arxiv:2305.18290].
-
----
-
-## ## Mitigation Strategies
-
-### KL Regularization and Early Stopping
-KL regularization is the most widely deployed mitigation strategy. The KL penalty $ \beta \mathbb{D}_{\text{KL}}[\pi_\theta || \pi_{\text{ref}}] $:
-- Prevents the policy from deviating excessively from the reference, preserving diversity and pretrained knowledge.
-- Acts as a form of *trust region* constraint, limiting the policy’s update magnitude [source:arxiv:2203.02155].
-
-However, KL regularization introduces trade-offs:
-- **Alignment-capability trade-off**: Higher $ \beta $ preserves diversity but limits alignment fidelity, as the policy cannot fully optimize the reward. Lower $ \beta $ improves alignment but risks collapse [source:arxiv:2203.02155].
-- **Hyperparameter sensitivity**: The optimal $ \beta $ varies across tasks and models, requiring extensive tuning. [source:arxiv:1707.06347] notes that PPO’s performance is highly sensitive to $ \beta $, with small changes leading to collapse or poor alignment.
-
-Early stopping is a practical but ad-hoc solution. Training is halted when performance on a held-out validation set (e.g., human evaluations or OOD tasks) begins to degrade. However, this requires:
-- Frequent evaluation, which is computationally expensive for LLMs.
-- A reliable validation metric, which may not correlate with true alignment (e.g., automated win rates can be gamed) [source:arxiv:2203.02155].
-
-### Entropy Bonuses and Temperature Annealing
-Entropy bonuses explicitly encourage diversity by adding a term $ \gamma \mathcal{H}[\pi_\theta(y|x)] $ to the RL objective. In PPO, this is implemented as:
+ACTDE replaces the state-value baseline $v^\pi(s)$ with an action-value baseline $q^\pi(s,a)$ in the advantage estimator:
 
 $$
-L_t^{CLIP+VF+S}(\theta) = \mathbb{E}_t \left[ L_t^{CLIP}(\theta) - c_1 L_t^{VF}(\theta) + c_2 S[\pi_\theta](s_t) \right], \quad \text{where } S[\pi_\theta] = \mathcal{H}[\pi_\theta(y|x)]. \quad \text{[source:arxiv:1707.06347]}
+A^{\pi*}(s,a) := \mathbb{E}_{s'}[R(s,a,s') + \gamma v^\pi(s')] - q^\pi(s,a)
 $$
 
-Temperature annealing modulates the policy’s entropy by scaling the logits:
+This mimics reward prediction error and bounds the total reinforcement per experience [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the]. In tabular bandits it converges to softmax-over-rewards; in iterated Prisoner's Dilemma it avoids pure-strategy collapse but shows "unclear convergence properties and may potentially converge to uniform policies" in non-tabular settings [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the]. Sensitivity to whitening, head detachment, and loss choice (PPO vs. ILQL) is high; authors speculate it "might not perform well for RLHF at scale due to the finicky nature of deep RL" [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the].
 
-$$
-\pi_\theta(y|x) = \text{softmax}\left(\frac{\log \pi_\theta(y|x)}{\tau}\right), \quad \text{where } \tau \text{ is annealed from } \tau_{\text{high}} \text{ to } \tau_{\text{low}}.
-$$
+### Adaptive Multi-Discriminator Frameworks
 
-These methods are effective but introduce new challenges:
-- **Hyperparameter tuning**: The entropy coefficient $ c_2 $ or temperature schedule must be carefully tuned to balance diversity and alignment. Overly high entropy can prevent the policy from optimizing the reward [source:arxiv:1707.06347].
-- **Reward hacking**: Entropy bonuses can be exploited by the policy to generate high-entropy but low-quality outputs (e.g., gibberish or repetitive sequences) [source:arxiv:2305.18290].
+AMAT spawns discriminators adaptively when forgetting is detected on exemplar samples, assigning responsibility via $\epsilon$-greedy (fake) or uniform (real) sampling, and weighting generator updates by Dirichlet-sampled weights sorted so the most specialized discriminator gets highest weight [source:bmva-archive:overcoming-mode-collapse-with-adaptive-m]. On Stacked MNIST: 1000±0.0 modes covered, KL=0.078±0.01 [source:bmva-archive:overcoming-mode-collapse-with-adaptive-m]. On CIFAR10: BigGAN IS 9.22→9.51, FID 8.94→6.11; SN-GAN IS 8.22→8.34, FID 14.21→13.8; WGAN-GP IS 7.59→7.80, FID 19.2→17.2 [source:bmva-archive:overcoming-mode-collapse-with-adaptive-m]. Per-class FID gains largest for previously weak classes (Frog 56.1%, Truck 42.1%) [source:bmva-archive:overcoming-mode-collapse-with-adaptive-m]. Hyperparameter sensitivity: >7 discriminators degrades performance; warmup $T_t$ too long causes late spawning; pure greedy ($\epsilon=0$) worse than $\epsilon$-greedy; 1-hot weighting worse than soft Dirichlet [source:bmva-archive:overcoming-mode-collapse-with-adaptive-m].
 
-### Reward Model Ensembling and Uncertainty Estimation
-Reward model ensembling mitigates overfitting by training multiple reward models $ \{r_{\phi_i}\}_{i=1}^N $ and using their average or variance to guide optimization. For example:
-- **Average reward**: $ r_{\text{ensemble}}(x,y) = \frac{1}{N} \sum_{i=1}^N r_{\phi_i}(x,y) $.
-- **Uncertainty-aware optimization**: The policy is penalized for deviating from the reference in regions where the reward models disagree (high variance) [source:arxiv:2203.02155].
+### Game-Theoretic Alignment with Mixed Strategies
 
-Ensembling reduces overfitting but:
-- Increases computational cost, as multiple reward models must be trained and evaluated.
-- May not fully address misgeneralization, as all reward models may share similar biases [source:arxiv:2305.10193].
+NLHF frames alignment as a two-player zero-sum game with payoffs derived from pairwise preferences, using mixed strategies to ensure diversity [source:researchgate:on-the-algorithmic-bias-of-aligning-larg]. It achieves Condorcet consistency (selects candidate beating all others pairwise) and Smith consistency (selects from minimal dominant set) where RLHF fails both [source:researchgate:on-the-algorithmic-bias-of-aligning-larg]. However, the impossibility of exact preference matching means "the framework cannot guarantee a unique equilibrium that perfectly mirrors a diverse target policy" [source:researchgate:on-the-algorithmic-bias-of-aligning-larg].
 
-### Offline RL and Conservative Updates
-Offline RL methods (e.g., DPO [source:arxiv:2305.18290], Conservative Q-Learning [CQL]) avoid in-loop sampling by training on static datasets. DPO, for example, optimizes:
+## Current Status and Trajectory
 
-$$
-\mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} \left[ \log \sigma \left( \beta \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)} \right) \right],
-$$
+Mode collapse mitigation is an *active, fragmented research frontier* rather than a settled practice. Distribution-matching methods (DMPO) show strong gains on verifiable-reward reasoning tasks but have not been demonstrated on open-ended RLHF with learned rewards [source:arxiv:2605.19461]. Inference-time prompting (VS) is immediately deployable and scales with model size, but compute cost and small-model reliability limit adoption [source:arxiv:2510.01171]. Creativity bonuses and structure-aware regularization (DiverseGRPO) are established in diffusion-based image generation but untested for LLM token generation [source:openaccess:diversegrpo-mitigating-mode-collapse-in-]. ACTDE remains a theoretical curiosity with "finicky" deep-RL behavior and no large-scale validation [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the]. Game-theoretic alignment (NLHF) offers desirable social-choice properties but faces an impossibility result for exact preference matching [source:researchgate:on-the-algorithmic-bias-of-aligning-larg]. No single approach dominates; the field is exploring *combinations* (e.g., DMPO+VS, or creativity bonuses in GRPO for LLMs) but integration results are not widely reported.
 
-which implicitly constrains the policy to stay close to the reference. Offline methods reduce collapse by:
-- Eliminating the positive feedback loop between policy updates and on-policy sampling.
-- Enabling more stable optimization via supervised learning [source:arxiv:2305.18290].
+## Key Takeaways
 
-However, offline methods:
-- Require high-quality preference data, which may not be available for all tasks.
-- May suffer from *distribution shift* if the static dataset does not cover the policy’s output distribution [source:arxiv:2305.18290].
+- Mode collapse in RL fine-tuning has at least four distinct mechanistic roots: reverse KL mode-seeking, typicality bias in reward models, unbounded logit growth from state-value baselines, and evaluator forgetting in adversarial setups.
+- RLHF reduces both per-input and cross-input diversity; increasing the KL penalty $\beta_{\text{KL}}$ *worsens* diversity, contradicting the intuition that it controls the diversity–quality trade-off [source:arxiv:2310.06452].
+- Length collapse (reasoning chain truncation) is a measurable symptom of mode collapse in reasoning models; DMPO's length-normalized group distribution matching mitigates it [source:arxiv:2605.19461].
+- Preference collapse suppresses minority viewpoints; game-theoretic mixed strategies (NLHF) improve diversity but cannot achieve exact preference matching [source:researchgate:on-the-algorithmic-bias-of-aligning-larg].
+- Training-free inference-time methods (Verbalized Sampling) recover substantial pretrained diversity (66.8% vs 23.8% on Tulu-3) and scale with model size [source:arxiv:2510.01171].
+- Diffusion-specific insights (early-step regularization, spectral clustering bonuses) may transfer to LLMs via timestep-analogous token-position regularization, but this is unproven [source:openaccess:diversegrpo-mitigating-mode-collapse-in-].
+- ACTDE's bounded-update property is theoretically appealing for tabular cases but shows unstable convergence in function approximation; not ready for production RLHF [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the].
 
-### Length and Format Control
-Length and format biases are addressed via:
-1. **Length normalization**: Dividing the reward by the sequence length, $ r(x,y) / |y| $, to discourage verbosity [source:arxiv:2203.02155].
-2. **Format constraints**: Explicitly penalizing deviations from desired formats (e.g., JSON, bullet points) via auxiliary losses [source:arxiv:2305.10193].
-3. **Prompt engineering**: Designing prompts to elicit concise or structured responses (e.g., "Answer in one sentence") [source:arxiv:2311.14722].
+## Related Topics
 
-These methods are effective but:
-- May not generalize across tasks (e.g., length normalization harms tasks requiring detailed responses).
-- Can be gamed by the policy (e.g., generating terse but uninformative responses) [source:arxiv:2203.02155].
-
----
-
-## ## Current Status and Trajectory
-
-### Prevalence and Trends
-Over-optimization and mode collapse are *default challenges* in RLHF for LLMs, with reports across all major pipelines:
-- **PPO**: [source:arxiv:2203.02155] (InstructGPT) and [source:arxiv:1707.06347] (PPO paper) document collapse in 80–90% of training runs without KL constraints or entropy bonuses.
-- **DPO**: [source:arxiv:2305.18290] reports entropy collapse in 100% of DPO fine-tuning runs, with performance degradation on OOD tasks after 1–2 epochs.
-- **Other methods**: [source:arxiv:2305.10193] notes that rejection sampling (Best-of-N) and GRPO also suffer from diversity loss, though to a lesser extent than PPO.
-
-**Hedging**: While these pathologies are widely reported, their severity varies by model size, task, and hyperparameters. For example:
-- Larger models (e.g., 175B parameters) exhibit more stable optimization dynamics but are more prone to reward hacking due to their capacity to exploit reward model flaws [source:arxiv:2203.02155].
-- Tasks with sparse rewards (e.g., summarization) suffer more from mode collapse than tasks with dense rewards (e.g., sentiment control) [source:arxiv:2305.18290].
-
-### Rising, Default, or Fading?
-- **KL regularization and early stopping** remain the *default* mitigation strategies, used in >90% of RLHF pipelines (e.g., InstructGPT, Claude, Llama 2) [source:arxiv:2203.02155].
-- **Entropy bonuses and temperature annealing** are *rising* in popularity, with recent work (e.g., [source:arxiv:2305.18290]) advocating for dynamic entropy scheduling to balance diversity and alignment.
-- **Offline RL methods (DPO, CQL)** are *rising rapidly*, with DPO adopted in production by Anthropic and others due to its simplicity and stability. However, their long-term scalability remains unproven [source:arxiv:2305.18290].
-- **Reward model ensembling** is *not widely reported* in LLM fine-tuning due to computational costs, but it is gaining traction in academic research [source:arxiv:2305.10193].
-- **Length and format control** are *default* in industry pipelines (e.g., OpenAI’s RLHF, Google’s Bard) but are often treated as engineering tweaks rather than principled solutions [source:arxiv:2203.02155].
-
-**Disagreement**: The trajectory of RLHF itself is contested:
-- [source:arxiv:2203.02155] argues that RLHF is *rising* as the dominant alignment paradigm, with over-optimization and collapse as solvable engineering challenges.
-- [source:arxiv:2305.18290] suggests that offline methods (e.g., DPO) may *replace* RLHF due to their stability, but notes that DPO’s own collapse issues are unresolved.
-- [source:arxiv:2305.10193] posits that *no current method* fully addresses over-optimization, and that fundamental advances in reward modeling or optimization are needed.
-
----
-
-## ## Key Takeaways
-- **Over-optimization** occurs when RL fine-tuning degrades performance on held-out tasks despite improving on the training objective, due to reward model flaws or optimization dynamics.
-- **Mode collapse** is the convergence of the policy’s output distribution to a narrow subset of high-reward behaviors, measured via entropy loss, sequence diversity, or semantic clustering.
-- **KL regularization** is the primary mitigation but introduces a trade-off between alignment fidelity and model capability. Early stopping is widely used but ad-hoc.
-- **Entropy bonuses and temperature annealing** are rising in popularity but require careful tuning to avoid reward hacking.
-- **Offline RL methods (DPO)** eliminate in-loop sampling but still suffer from entropy collapse and may not scale to large models.
-- **Reward model ensembling** reduces overfitting but is computationally expensive and not widely deployed.
-- **Length and format control** are default in industry but may not generalize across tasks.
-- **Current status**: Over-optimization and mode collapse are *default challenges* in RLHF, with KL regularization and early stopping as the dominant mitigations. Offline methods (DPO) are rising but unproven at scale.
-
----
-
-## ## Related Topics
-- [[KL regularization in RLHF](kl-regularization.md)]
-- [[PPO for LLM fine-tuning (RLHF)](ppo-for-llms.md)]
-- [[Direct Preference Optimization and variants](dpo-and-preference-optimization.md)]
-- [[Reward modeling for LLMs](reward-modeling.md)]
-- [[Reward hacking in RLHF](reward-hacking.md)]
-- [[Reward model over-optimization](reward-model-overoptimization.md)]
-- [[Entropy and exploration in RL fine-tuning](entropy-and-exploration.md)]
-- [[Length and format bias](length-and-format-bias.md)]
-- [[The alignment tax](alignment-tax.md)]
-- [[RL for LLMs — overview](rl-for-llms-overview.md)]
-
----
+- [PPO for LLM fine-tuning (RLHF)](ppo-for-llms.md)
+- [Direct Preference Optimization and variants](dpo-and-preference-optimization.md)
+- [GRPO (Group Relative Policy Optimization)](grpo.md)
+- [Reward modeling for LLMs](reward-modeling.md)
+- [RL for reasoning models](rl-for-reasoning.md)
+- [Policy gradient methods for LLMs](policy-gradient-methods.md)
+- [KL regularization in RLHF](kl-regularization.md)
+- [Reward hacking in RLHF](reward-hacking.md)
+- [Reward model over-optimization](reward-model-overoptimization.md)
+- [Verifiable rewards (RLVR)](verifiable-rewards.md)
+- [Entropy and exploration in RL fine-tuning](entropy-and-exploration.md)
+- [Length and format bias](length-and-format-bias.md)
+- [The alignment tax](alignment-tax.md)
+- [Sycophancy and misgeneralization](sycophancy-and-misgeneralization.md)
+- [RLHF/PPO pipeline](rlhf-ppo-pipeline.md)
+- [DPO variants deep-dive](dpo-variants.md)
+- [RLAIF (RL from AI feedback)](rlaif.md)
+- [Rejection sampling and Best-of-N](rejection-sampling-and-bon.md)
+- [Nash and game-theoretic preference optimization](nash-and-game-theoretic-po.md)
+- [Self-improvement and self-play RL](self-improvement-and-self-play.md)
+- [Process vs outcome reward models](process-vs-outcome-rewards.md)
 
 ## References
-- [source:arxiv:2305.10193] [Fine-Tuning Can Degrade Pretrained Language Models](https://arxiv.org/abs/2305.10193)
-- [source:arxiv:2305.18290] [Direct Preference Optimization: Your Language Model is Secretly a Reward Model](https://arxiv.org/abs/2305.18290)
-- [source:arxiv:2311.14722] [Fine-Tuning Large Language Models](https://arxiv.org/abs/2311.14722)
-- [source:arxiv:2305.18723] [Generative models are problematic when they are trained on their own outputs](https://arxiv.org/abs/2305.18723)
-- [source:arxiv:2203.02155] [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155)
-- [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347)
-- [source:arxiv:1802.09455] [The AI Safety Gridworlds](https://arxiv.org/abs/1802.09455)
+- [source:arxiv:2310.06452] [Understanding the Effects of RLHF on LLM Generalisation and Diversity](https://arxiv.org/abs/2310.06452)
+- [source:arxiv:2605.19461] [Beyond Mode Collapse: Distribution Matching for Diverse Reasoning](https://arxiv.org/html/2605.19461v1)
+- [source:openaccess:diversegrpo-mitigating-mode-collapse-in-] [DiverseGRPO: Mitigating Mode Collapse in Image Generation via Diversity-Aware GRPO](https://openaccess.thecvf.com/content/CVPR2026/papers/Liu_DiverseGRPO_Mitigating_Mode_Collapse_in_Image_Generation_via_Diversity-Aware_GRPO_CVPR_2026_paper.pdf)
+- [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the] [Mode collapse in RL may be fueled by the update equation](https://www.lesswrong.com/posts/A7RgYuYH4HywNeYWD/mode-collapse-in-rl-may-be-fueled-by-the-update-equation)
+- [source:bmva-archive:overcoming-mode-collapse-with-adaptive-m] [Overcoming Mode Collapse with Adaptive Multi Adversarial Training](https://www.bmva-archive.org.uk/bmvc/2021/assets/papers/0690.pdf)
+- [source:researchgate:on-the-algorithmic-bias-of-aligning-larg] [On the Algorithmic Bias of Aligning Large Language Models with RLHF: Preference Collapse and Matching Regularization](https://www.researchgate.net/publication/398985488_On_the_Algorithmic_Bias_of_Aligning_Large_Language_Models_with_RLHF_Preference_Collapse_and_Matching_Regularization)
+- [source:arxiv:2510.01171] [How to Mitigate Mode Collapse and Unlock LLM Diversity](https://arxiv.org/html/2510.01171v1)

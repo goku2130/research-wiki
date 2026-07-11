@@ -24,7 +24,7 @@ _Auto-generated 2026-07-11._
 - ✅ [Entropy and exploration in RL fine-tuning](topics/entropy-and-exploration.md)
 - ✅ [Length and format bias](topics/length-and-format-bias.md)
 - ✅ [The alignment tax](topics/alignment-tax.md)
-- ⬜ Over-optimization and mode collapse
+- ✅ [Over-optimization and mode collapse](topics/overoptimization-and-mode-collapse.md)
 - ⬜ Sycophancy and misgeneralization
 - ⬜ LLM-as-judge
 - ⬜ Alignment and win-rate evals
