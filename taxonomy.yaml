@@ -63,7 +63,7 @@ topics:
 - slug: process-vs-outcome-rewards
   title: Process vs outcome reward models
   notes: PRMs, ORMs, step-level supervision, OmegaPRM
-  status: empty
+  status: done
 - slug: reward-hacking
   title: Reward hacking in RLHF
   notes: Specification gaming, Goodhart, mitigation
