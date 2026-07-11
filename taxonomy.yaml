@@ -43,7 +43,7 @@ topics:
 - slug: dpo-variants
   title: DPO variants deep-dive
   notes: IPO, KTO, ORPO, SimPO, CPO — losses and trade-offs
-  status: empty
+  status: done
 - slug: rlaif
   title: RLAIF (RL from AI feedback)
   notes: Constitutional AI, AI preference labels, self-rewarding

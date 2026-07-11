@@ -12,7 +12,7 @@ _Auto-generated 2026-07-11._
 - ✅ [MDP formulation of LLM generation](topics/mdp-formulation.md)
 - ✅ [RL for LLMs — overview](topics/rl-for-llms-overview.md)
 - ✅ [The RLHF/PPO pipeline](topics/rlhf-ppo-pipeline.md)
-- ⬜ DPO variants deep-dive
+- ✅ [DPO variants deep-dive](topics/dpo-variants.md)
 - ✅ [RLAIF (RL from AI feedback)](topics/rlaif.md)
 - ✅ [Rejection sampling and Best-of-N](topics/rejection-sampling-and-bon.md)
 - ⬜ Nash and game-theoretic preference optimization
