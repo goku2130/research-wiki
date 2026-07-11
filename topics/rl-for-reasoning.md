@@ -3,105 +3,164 @@ title: RL for reasoning models
 maturity: developing
 updated: '2026-07-11'
 sources:
-- arxiv:2501.12948
 - arxiv:2506.14245
-- arxiv:2412.14135
-- arxiv:2604.18639
-- arxiv:2406.06592
-- arxiv:2605.05226
-- arxiv:2502.10867
-- arxiv:2604.17312
+- magazine:the-state-of-reinforcement-learning-for-
+- interconnects:deepseek-r1-s-recipe-to-replicate-o1-and
+- github:a-survey-of-reinforcement-learning-for-l
+- cameronrwolfe:demystifying-reasoning-models-by-cameron
+- rlhfbook:reasoning-and-inference-time-scaling-nat
 open_questions:
-- How can the "overthinking" phenomenon (token inefficiency on simple tasks) be mitigated
-  without degrading performance on complex tasks? [source:arxiv:2501.12948]
-- Can internalized process supervision (IOP) scale to models significantly larger
-  than 32B parameters without becoming unstable? [source:arxiv:2605.05226]
-- Is there a formal theoretical guarantee for the generalization of RLVR-trained models
-  to unseen distributions, beyond empirical observation? [source:arxiv:2506.14245]
+- What is the minimal base-model capability (pre-training scale, context length, instruction
+  tuning) required for RLVR to successfully induce long-CoT reasoning from scratch
+  without cold-start SFT?
+- How should the verifiable-reward training set be composed (math vs. code vs. STEM,
+  difficulty distribution, answer-format constraints) to maximize out-of-domain generalization
+  — e.g., to free-form reasoning, agentic tasks, or non-STEM domains?
+- Can the implicit CoT incentivization of GRPO be strengthened or made more sample-efficient
+  by incorporating lightweight process signals (e.g., format rewards, step-level verification)
+  without reintroducing reward-model over-optimization?
+- What are the scaling laws for RLVR compute (RL steps × group size × model size)
+  versus inference-time compute (Pass@K, majority voting, tree search), and where
+  is the Pareto frontier for a given inference budget?
 ---
 
-Reinforcement learning (RL) for reasoning models shifts the training paradigm from next-token prediction to the optimization of deliberative, multi-step trajectories. This approach leverages verifiable rewards and compute-scaling—both at training and inference—to move beyond the "intelligence upper bound" imposed by static human demonstrations [source:arxiv:2502.10867].
+Reinforcement learning with verifiable rewards (RLVR) has emerged as the dominant paradigm for training large reasoning models (LRMs), replacing subjective human-preference reward models with objective, executable verification functions for math and code. This shift enables massive-scale RL on verifiable domains, producing models that generate long chains-of-thought (CoT) and achieve inference-time scaling — where performance improves monotonically with test-time compute.
 
-## Core Training Recipes and Pipelines
+## Foundational Framework: RLVR and Verifiable Rewards
 
-Modern reasoning models typically employ a multi-stage pipeline to transition from base language capabilities to autonomous "System 2" reasoning.
+RLVR formulates LLM generation as a Markov decision process where the reward signal $R(y)$ is a deterministic function of the final answer $a$ extracted from a response $y = (c, a)$ comprising a chain-of-thought $c$ and an answer $a$ [source:arxiv:2506.14245]. For mathematics, $R(y) = \mathbb{1}[\text{extracted\_answer}(y) = \text{ground\_truth}]$; for code, $R(y) = \mathbb{1}[\text{all\_unit\_tests\_pass}(y)]$ or a proportional score [source:rlhfbook:reasoning-and-inference-time-scaling-nat]. This replaces the learned reward model of classical RLHF with a ground-truth verifier, eliminating reward-model over-optimization and enabling "hundreds or thousands of epochs over the same few data points" [source:rlhfbook:reasoning-and-inference-time-scaling-nat].
 
-### Multi-Stage RL Pipelines
-The DeepSeek-R1 framework utilizes a four-stage process: (1) cold-start SFT with human-aligned CoT data; (2) an initial RL stage using Group Relative Policy Optimization (GRPO) with language consistency rewards; (3) rejection sampling and SFT on a mix of reasoning and general data; and (4) a final RL stage combining rule-based rewards for verifiable tasks and model-based rewards for safety and helpfulness [source:arxiv:2501.12948]. 
-
-Alternatively, the "EasyRL" approach focuses on data efficiency via a self-evolving trajectory: (1) knowledge transfer using a small set of easy labeled samples; (2) a divide-and-conquer strategy that pseudo-labels difficult unlabeled data based on output uncertainty; and (3) difficulty-progressive self-training that iteratively exposes the model to harder samples [source:arxiv:2604.18639].
-
-### The Scaling Roadmap
-A generalized roadmap for reproducing o1-style capabilities emphasizes the integration of four components:
-1. **Policy Initialization:** Injecting reasoning behaviors (e.g., self-correction, task decomposition) via SFT [source:arxiv:2412.14135].
-2. **Reward Design:** Moving from sparse outcome rewards to dense process rewards [source:arxiv:2412.14135].
-3. **Search:** Using MCTS or Beam Search to generate high-quality trajectories during both training and inference [source:arxiv:2412.14135].
-4. **Learning:** Updating the policy via policy gradients or behavior cloning based on search-generated data [source:arxiv:2412.14135].
-
-## Reward Mechanisms and Credit Assignment
-
-A central tension in reasoning RL is the trade-off between the simplicity of outcome-based rewards and the precision of process-based rewards.
-
-### Outcome-Based and Verifiable Rewards (RLVR)
-Verifiable rewards provide binary feedback based on the correctness of the final answer [source:arxiv:2506.14245]. DeepSeek-R1 employs rule-based rewards for accuracy and format to incentivize reasoning without human labeling [source:arxiv:2501.12948]. 
-
-There is a significant theoretical disagreement regarding the effect of RL with Verifiable Rewards (RLVR). Some argue that RLVR merely improves sampling efficiency by reweighting paths already present in the base model; however, empirical evidence using the `CoT-Pass@K` metric suggests that RLVR fundamentally extends the reasoning boundary, generating higher-quality trajectories that are not present in the base model's sampling distribution [source:arxiv:2506.14245].
-
-### Process-Based Supervision (PRMs)
-Process Reward Models (PRMs) provide granular, step-level feedback to mitigate the "credit assignment" problem in long-chain reasoning [source:arxiv:2406.06592].
-* **Automated Generation:** OmegaPRM uses a divide-and-conquer MCTS algorithm and binary search to locate the first incorrect step in a trajectory, reducing error localization complexity from $O(kM)$ to $O(k \log M)$ [source:arxiv:2406.06592].
-* **Value Iteration:** PRMs can be optimized via the Bellman equation to predict cumulative rewards:
+The verifiable-reward setup creates a **logic prior**: correct CoTs are more likely to yield correct answers than incorrect CoTs, i.e.,
 
 $$
-V_{\theta}(s) = r(s) + \gamma \max_{a} V_{\theta}(a + s)
+P(\mathcal{I}_{\mathrm{Ans}}(a)=1 \mid \mathcal{I}_{\mathrm{CoT}}(c)=1) = \alpha > \beta = P(\mathcal{I}_{\mathrm{Ans}}(a)=1 \mid \mathcal{I}_{\mathrm{CoT}}(c)=0)
 $$
 
-  where $V_{\theta}(s)$ is the state value and $r(s)$ is the immediate reward [source:arxiv:2502.10867].
+[source:arxiv:2506.14245]. This inequality is the theoretical linchpin: even though the reward observes only answer correctness, the policy gradient receives a stronger positive signal from trajectories with correct reasoning.
 
-### Internalizing Supervision (IOP)
-The IOP framework attempts to convert sparse outcome feedback into token-level signals without external PRMs. It treats the model as both a policy generator $\pi_\theta$ and a repair mode $\rho_\theta$. By comparing a failed trajectory $y_i$ with a repaired version $\bar{y}_i$ (derived from a correct reference anchor), it creates a bilateral token-level difference mask. Policy updates are then gated to restrict gradients to these "active" tokens [source:arxiv:2605.05226].
+## Training Recipes: From o1 to DeepSeek R1
 
-## Optimization and Search Algorithms
+OpenAI's o1 (2024) and o3 (2024) demonstrated that massive RL compute — o3 used **10× more training compute than o1** — combined with verifiable rewards yields dramatic gains: o1 solves **74–93%** of AIME problems vs. GPT-4o's **12%**, and o3 achieves **87.5%** on ARC-AGI (human-level 85%) and **25.2%** on FrontierMath (prior SOTA 2.0%) [source:cameronrwolfe:demystifying-reasoning-models-by-cameron]. However, OpenAI's recipe remains closed.
 
-### Group Relative Policy Optimization (GRPO)
-GRPO is a dominant algorithm for reasoning models, removing the need for a separate value function (critic) by using group-relative advantages. The objective is defined as:
+DeepSeek R1 (2025) published a replicable four-stage pipeline [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and]:
+
+1. **Cold-start SFT**: Fine-tune the base model on ~"a few thousand" filtered long-CoT completions from an intermediate R1-Zero model, using few-shot prompting, reflection/verification prompts, and human annotation to enforce readable formatting (e.g., `` tags).
+2. **Large-scale RL (R1-Zero style)**: Train with **GRPO** on verifiable reasoning problems "until convergence" — **1000s of RL steps** (vs. 100s for Tülu 3, ~50 for larger models) [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and]. Reward = accuracy bonus (correct answer) + format reward (ad`) + language-consistency reward (match question language).
+3. **Rejection sampling for general abilities**: Generate 800k completions (600k reasoning, 200k chat), rank with reward models (including LLM-as-judge for non-verifiable prompts), and SFT the base model on the top-ranked data.
+4. **Final RL for general use**: Mix verifiable-domain prompts with standard RLHF preference prompts; use multiple reward models from DeepSeek-V3 pipeline.
+
+**Disagreement on cold-start necessity**: DeepSeek reports R1-Zero (pure RL, no cold-start) exhibits "minor usability issues" like language switching, implying cold-start SFT is essential for readability [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and]. However, [source:arxiv:2506.14245] shows that **base models without cold-start** (Qwen2.5-32B → DAPO-Qwen-32B via GRPO) still achieve significant CoT-Pass@K gains on AIME 2024/2025, suggesting cold-start may accelerate but is not strictly necessary for reasoning emergence. The survey [source:github:a-survey-of-reinforcement-learning-for-l] notes base model requirements for direct RL remain unclear.
+
+## Algorithmic Foundations: GRPO and Policy Optimization
+
+Group Relative Policy Optimization (GRPO) is the workhorse algorithm for RLVR [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and; arxiv:2506.14245]. For a prompt $q$, GRPO samples a group of $G$ responses $\{y_i\}_{i=1}^G$, computes rewards $R(y_i)$, and estimates the advantage via Monte Carlo normalization:
 
 $$
-\mathcal{J}_{GRPO}(\theta) = \mathbb{E} \left[ \frac{1}{G} \sum_{i=1}^G \left( \min \left( \frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)} A_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{old}}(o_i|q)}, 1-\varepsilon, 1+\varepsilon\right) A_i \right) - \beta \mathbb{D}_{KL}(\pi_\theta || \pi_{ref}) \right) \right]
+\hat{A}(y_i) = \frac{R(y_i) - \mu_{\mathbf{Y}}}{\sigma_{\mathbf{Y}}}, \quad
+\mu_{\mathbf{Y}} = \frac{1}{G}\sum_{j=1}^G R(y_j), \quad
+\sigma_{\mathbf{Y}} = \sqrt{\frac{1}{G}\sum_{j=1}^G (R(y_j) - \mu_{\mathbf{Y}})^2}
 $$
 
-The advantage $A_i$ is computed via group normalization: $A_i = \frac{r_i - \text{mean}(\{r\})}{\text{std}(\{r\})}$ [source:arxiv:2501.12948][source:arxiv:2502.10867].
+[source:arxiv:2506.14245]. The policy gradient update is
 
-### Search and Inference Scaling
-Reasoning is modeled as a Markov Decision Process (MDP) where the state $s_t$ is the question and previous reasoning steps [source:arxiv:2502.10867]. To scale performance, models utilize:
-* **Test-Time Compute:** Non-autoregressive decoding (Beam Search, MCTS) guided by a PRM [source:arxiv:2502.10867].
-* **Reward Shaping:** Transforming sparse rewards into dense ones using potential functions: $F(s_t, a_t) = r(s_t, a_t) + \gamma\phi(s_{t+1}) - \phi(s_t)$ [source:arxiv:2412.14135].
+$$
+\nabla_\theta J(\theta) \approx \frac{1}{G}\sum_{i=1}^G \hat{A}(y_i) \nabla_\theta \log \pi_\theta(y_i \mid q)
+$$
+
+[source:arxiv:2506.14245]. GRPO eliminates the critic/value network of PPO, reducing memory and compute — critical for the 1000s-of-steps training regime [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and]. The survey [source:github:a-survey-of-reinforcement-learning-for-l] categorizes GRPO under "Critic-Free Algorithms" in its policy-optimization taxonomy.
+
+**KL regularization**: Both PPO and GRPO typically add a KL penalty $\beta \cdot \mathrm{KL}(\pi_\theta \| \pi_{\text{ref}})$ to the loss to prevent deviation from the reference (SFT) model [source:magazine:the-state-of-reinforcement-learning-for-; arxiv:2506.14245]. The magnitude of $\beta$ controls the alignment tax [source:alignment-tax.md] and exploration-exploitation trade-off [source:entropy-and-exploration.md].
+
+## Theoretical Analysis: Why Verifiable Rewards Incentivize Correct Reasoning
+
+[source:arxiv:2506.14245] proves that under the logic prior ($\alpha > \beta$), GRPO's expected advantage favors correct CoTs:
+
+$$
+\mathbb{E}[\hat{A}(y_i) \mid \mathcal{I}_{\mathrm{CoT}}(c_i)=1] > 0, \quad
+\mathbb{E}[\hat{A}(y_i) \mid \mathcal{I}_{\mathrm{CoT}}(c_i)=0] < 0
+$$
+
+(Theorem 1). In the idealized limit of large $G$ and deterministic rewards ($\alpha=1, \beta=0$), the conditional advantages converge to
+
+$$
+\mathbb{E}[\hat{A} \mid \text{correct CoT}] \to \sqrt{\frac{1-p_c}{p_c}}, \quad
+\mathbb{E}[\hat{A} \mid \text{incorrect CoT}] \to -\sqrt{\frac{p_c}{1-p_c}}
+$$
+
+where $p_c = P(\mathcal{I}_{\mathrm{CoT}}=1)$ [source:arxiv:2506.14245]. This shows RLVR **implicitly upweights correct reasoning trajectories** even without process supervision.
+
+**Disagreement on distilled models**: [source:arxiv:2506.14245] reports that for **distilled LLMs** (e.g., DeepSeek-R1-Distill-Qwen-7B) in math, RLVR primarily improves sampling efficiency (Pass@1 rises but Pass@K and CoT-Pass@K gaps vanish for large $K$), suggesting distilled models already internalize major reasoning patterns. In contrast, **base models** show persistent CoT-Pass@K gaps up to $K=1024$, indicating genuine reasoning acquisition. The survey [source:github:a-survey-of-reinforcement-learning-for-l] does not distinguish these regimes.
+
+## Empirical Evidence: Pass@K, CoT-Pass@K, and Generalization
+
+**Pass@K on code**: AceReason-Nemotron-7B (post-RLVR) outperforms DeepSeek-R1-Distill-Qwen-7B (pre-RLVR) on LiveCodeBench across $K$ up to 1024; Skywork-OR1-7B shows consistent gaps especially on medium/hard problems [source:arxiv:2506.14245].
+
+**CoT-Pass@K on math**: DAPO-Qwen-32B (post-RLVR) exhibits a **significant CoT-Pass@K gap over Qwen2.5-32B (base) on AIME 2024/2025 at all $K \le 1024$**, with the gap "particularly pronounced on AIME 2025" [source:arxiv:2506.14245]. This metric requires both final answer and intermediate CoT to be correct, verified via an LLM-as-CoT-judge (DeepSeek-R1-0528-Qwen3-8B) with multi-verification ($n=3$) and majority-vote aggregation [source:arxiv:2506.14245].
+
+**Training dynamics**: On fully optimized training questions, $P(CA)^{(q)} \to 1.0$ (fraction of correct answers), while $P(CC|CA)^{(q)}$ (fraction of correct CoTs among correct answers) reaches median **~0.7** [source:arxiv:2506.14245]. Generalization to unseen test sets (AIME 2024) appears within **first 20 training steps** [source:arxiv:2506.14245].
+
+**SFT transfer**: SFT on CoTs generated by DAPO-Qwen-32B matches the Pass@1 of the RL model, confirming high-quality CoTs are **extractable and transferable** [source:arxiv:2506.14245].
+
+**Limitations noted**: 
+- LLM-as-CoT-judge is not infallible [source:arxiv:2506.14245].
+- No formal generalization guarantee; empirical only [source:arxiv:2506.14245].
+- Domain mismatch: DAPO (integer-answer math) shows no gain on Minerva (physics, free-form) [source:arxiv:2506.14245].
+- Benchmark contamination risk on static benchmarks [source:arxiv:2506.14245].
+- R1-Zero usability issues (language mixing) persist without cold-start [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and].
+- Infrastructure details (multi-model memory, generation/verification/loss scheduling) undisclosed [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and].
 
 ## Current status and trajectory
 
-Techniques for RL-based reasoning are currently **rising and becoming the default** for frontier reasoning models. The transition from pure SFT to RL-driven "Native CoT" is well-documented, with models like DeepSeek-R1 and o1 demonstrating that RL can unlock superhuman performance in mathematics and coding [source:arxiv:2501.12948][source:arxiv:2502.10867]. 
-
-However, the trajectory is bifurcated: 
-1. **Verifiable Domains:** RLVR and GRPO are highly effective and widely adopted in math and code [source:arxiv:2604.18639].
-2. **Non-Verifiable Domains:** The application of these techniques to creative writing or open-ended research is **not widely reported** and remains a major challenge due to the lack of rule-based rewards, leading to high risks of reward hacking [source:arxiv:2501.12948][source:arxiv:2604.17312].
+RLVR is the **default and rising** paradigm for frontier reasoning models (o1/o3, DeepSeek R1, Kimi 1.5, Qwen 3, Nemotron, Skywork, Phi-4 Reasoning, Llama-Nemotron, MiMo, Hunyuan-TurboS, all 2024–2025) [source:rlhfbook:reasoning-and-inference-time-scaling-nat; github:a-survey-of-reinforcement-learning-for-l]. The field is converging on **GRPO + verifiable rewards + long-CoT cold-start + multi-stage RL/SFT** as the canonical recipe. However, critical details remain **not widely reported**: optimal data composition (verifiable vs. general), reward-model choices for Stage 3/4, KL schedules, and infrastructure for 1000s of RL steps [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and]. The survey [source:github:a-survey-of-reinforcement-learning-for-l] explicitly solicits missing work, indicating the literature is still rapidly expanding. Fading: pure PPO with learned reward models for reasoning; rising: critic-free methods (GRPO, DAPO), process-reward variants [source:process-vs-outcome-rewards.md], and test-time compute integration [source:test-time-and-rl-interplay.md].
 
 ## Key takeaways
-* **Boundary Extension:** RLVR does not just re-weight paths; it can expand the model's inherent reasoning capabilities [source:arxiv:2506.14245].
-* **Efficiency Gains:** Automated process supervision (OmegaPRM) can be 75x more efficient than brute-force Monte Carlo for generating PRM data [source:arxiv:2406.06592].
-* **GRPO Advantage:** GRPO reduces computational overhead by replacing the critic model with group-based normalization [source:arxiv:2501.12948].
-* **Bottleneck:** The primary limitation across all frameworks is the reliance on verifiable ground truth, making the methodology difficult to export to subjective tasks [source:arxiv:2604.18639][source:arxiv:2604.17312].
+
+- **RLVR replaces learned reward models with executable verifiers** (unit tests, answer extraction), enabling massive-scale RL on math/code without reward hacking [source:rlhfbook:reasoning-and-inference-time-scaling-nat; arxiv:2506.14245].
+- **GRPO is the de facto algorithm**: critic-free, group-normalized advantages, compatible with 1000s of RL steps [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and; arxiv:2506.14245].
+- **Logic prior ($\alpha > \beta$) drives implicit CoT improvement**: Theorem 1 proves GRPO upweights correct reasoning trajectories even with outcome-only rewards [source:arxiv:2506.14245].
+- **Base models acquire new reasoning** (CoT-Pass@K gaps persist to $K=1024$); distilled models mainly gain sampling efficiency (gaps vanish) [source:arxiv:2506.14245].
+- **Cold-start SFT on synthetic long-CoT** improves readability and stabilizes RL but may not be strictly necessary for reasoning emergence [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and; arxiv:2506.14245].
+- **Multi-stage pipelines (RL → rejection sampling → RL)** integrate general abilities while preserving reasoning [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and].
+- **Open challenges**: infrastructure for large-scale RL, optimal data mixes, generalization guarantees, domain transfer, and benchmark contamination [source:arxiv:2506.14245; interconnects:deepseek-r1-s-recipe-to-replicate-o1-and].
 
 ## Related topics
+
+- [Verifiable rewards (RLVR)](verifiable-rewards.md)
 - [GRPO (Group Relative Policy Optimization)](grpo.md)
+- [RL for math and code](rl-for-math-and-code.md)
+- [Process vs outcome reward models](process-vs-outcome-rewards.md)
+- [Self-improvement and self-play RL](self-improvement-and-self-play.md)
+- [Test-time compute and RL interplay](test-time-and-rl-interplay.md)
+- [KL regularization in RLHF](kl-regularization.md)
+- [Reward hacking in RLHF](reward-hacking.md)
+- [Reward model over-optimization](reward-model-overoptimization.md)
+- [Entropy and exploration in RL fine-tuning](entropy-and-exploration.md)
+- [Length and format bias](length-and-format-bias.md)
+- [Distributed RL training for LLMs](distributed-rl-training.md)
+- [Rollout generation infrastructure](rollout-generation-infra.md)
+- [The RLHF/PPO pipeline](rlhf-ppo-pipeline.md)
 - [PPO for LLM fine-tuning (RLHF)](ppo-for-llms.md)
-- [Reward modeling for LLMs](reward-modeling.md)
+- [Direct Preference Optimization and variants](dpo-and-preference-optimization.md)
+- [Policy gradient methods for LLMs](policy-gradient-methods.md)
+- [MDP formulation of LLM generation](mdp-formulation.md)
+- [RL for LLMs — overview](rl-for-llms-overview.md)
+- [RLAIF (RL from AI feedback)](rlaif.md)
+- [Rejection sampling and Best-of-N](rejection-sampling-and-bon.md)
+- [Agentic and tool-use RL](agentic-and-tool-use-rl.md)
+- [The alignment tax](alignment-tax.md)
+- [Over-optimization and mode collapse](overoptimization-and-mode-collapse.md)
+- [Sycophancy and misgeneralization](sycophancy-and-misgeneralization.md)
+- [LLM-as-judge](llm-as-judge.md)
+- [Alignment and win-rate evals](alignment-and-winrate-evals.md)
+- [Judging bias and contamination](judging-bias-and-contamination.md)
+- [Async and off-policy RL](async-and-off-policy-rl.md)
+- [Nash and game-theoretic preference optimization](nash-and-game-theoretic-po.md)
+- [DPO variants deep-dive](dpo-variants.md)
 
 ## References
-- [source:arxiv:2501.12948] [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948)
-- [source:arxiv:2506.14245] [Reinforcement Learning with Verifiable Rewards Implicitly Incentivizes Correct Reasoning in Base LLMs](https://arxiv.org/abs/2506.14245)
-- [source:arxiv:2412.14135] [Scaling of Search and Learning: A Roadmap to Reproduce o1 from Reinforcement Learning Perspective](https://arxiv.org/abs/2412.14135)
-- [source:arxiv:2604.18639] [Easy Samples Are All You Need: Self-Evolving LLMs via Data-Efficient Reinforcement Learning](https://arxiv.org/abs/2604.18639)
-- [source:arxiv:2406.06592] [Improve Mathematical Reasoning in Language Models by Automated Process Supervision](https://arxiv.org/abs/2406.06592)
-- [source:arxiv:2605.05226] [Internalizing Outcome Supervision into Process Supervision: A New Paradigm for Reinforcement Learning for Reasoning](https://arxiv.org/abs/2605.05226)
-- [source:arxiv:2502.10867] [A Tutorial on LLM Reasoning: Relevant Methods behind ChatGPT o1](https://arxiv.org/abs/2502.10867)
-- [source:arxiv:2604.17312] [A Survey of Reinforcement Learning for Large Language Models Under Data Scarcity Challenges and Solutions](https://arxiv.org/abs/2604.17312)
+- [source:arxiv:2506.14245] [Reinforcement Learning with Verifiable Rewards Implicitly Incentivizes Correct Reasoning in Base LLMs - arXiv](https://arxiv.org/html/2506.14245v2)
+- [source:magazine:the-state-of-reinforcement-learning-for-] [The State of Reinforcement Learning for LLM Reasoning - Ahead of AI](https://magazine.sebastianraschka.com/p/the-state-of-llm-reasoning-model-training)
+- [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and] [DeepSeek R1's recipe to replicate o1 and the future of reasoning LMs](https://www.interconnects.ai/p/deepseek-r1-recipe-for-o1)
+- [source:github:a-survey-of-reinforcement-learning-for-l] [A Survey of Reinforcement Learning for Large Reasoning Models](https://github.com/TsinghuaC3I/Awesome-RL-for-LRMs)
+- [source:cameronrwolfe:demystifying-reasoning-models-by-cameron] [Demystifying Reasoning Models - by Cameron R. Wolfe, Ph.D.](https://cameronrwolfe.substack.com/p/demystifying-reasoning-models)
+- [source:rlhfbook:reasoning-and-inference-time-scaling-nat] [Reasoning and Inference-Time Scaling - Nathan Lambert](https://rlhfbook.com/c/07-reasoning)

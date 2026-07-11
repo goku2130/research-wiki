@@ -6,7 +6,7 @@ _Auto-generated 2026-07-11._
 - ✅ [Direct Preference Optimization and variants](topics/dpo-and-preference-optimization.md)
 - ✅ [GRPO (Group Relative Policy Optimization)](topics/grpo.md)
 - ✅ [Reward modeling for LLMs](topics/reward-modeling.md)
-- ⬜ RL for reasoning models
+- ✅ [RL for reasoning models](topics/rl-for-reasoning.md)
 - ⬜ Policy gradient methods for LLMs
 - ⬜ KL regularization in RLHF
 - ⬜ MDP formulation of LLM generation
