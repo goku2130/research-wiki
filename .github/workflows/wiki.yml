@@ -35,13 +35,17 @@ jobs:
           MISTRAL_API_KEYS: ${{ secrets.MISTRAL_API_KEYS }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          # Final consistent config (matches the clean run): Nemotron 550B writes,
-          # gemini-2.5-flash handles the fast tool-calling/distill/review roles
-          # (the NVIDIA nemotron-super orchestrator was too slow and stalled ticks).
+          # Final FREE config: Nemotron 550B writes (NVIDIA build API, free); the
+          # tool-calling/distill/review roles run on Google's free tier. NOTE: bare
+          # model ids (no 'google/' prefix) so route() sends them to the free Google
+          # endpoint, NOT paid OpenRouter. gemini-2.5/3.5-flash are capped at 20 req/day
+          # — use gemini-flash-lite-latest (500/day) + gemma-4-31b-it (1500/day, unlimited
+          # TPM). GOOGLE_RPM throttles under the 15 RPM per-model limit.
           WRITER_MODEL: nvidia/nemotron-3-ultra-550b-a55b
-          ORCH_MODEL: google/gemini-2.5-flash
-          DISTILL_MODEL: google/gemini-2.5-flash
-          REVIEWER_MODEL: google/gemini-2.5-flash
+          ORCH_MODEL: gemini-flash-lite-latest
+          DISTILL_MODEL: gemma-4-31b-it
+          REVIEWER_MODEL: gemma-4-31b-it
+          GOOGLE_RPM: "12"
         run: |
           NEXT=$(python -c "import yaml;t=yaml.safe_load(open('taxonomy.yaml'));u=[x['slug'] for x in t['topics'] if x.get('status')!='done'];print(u[0] if u else '')")
           if [ -n "$NEXT" ]; then
