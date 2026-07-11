@@ -1,65 +1,57 @@
 ---
 id: cameronrwolfe:proximal-policy-optimization-ppo-the-key
 type: web
-title: 'Proximal Policy Optimization (PPO): The Key to LLM Alignment (Cameron Wolfe)'
-url: https://cameronrwolfe.substack.com/p/proximal-policy-optimization-ppo
+title: 'Proximal Policy Optimization (PPO): The Key to LLM Alignment (Overview)'
+url: https://cameronrwolfe.substack.com/p/ppo-llm
 retrieved: '2026-07-11'
 maturity: comprehensive
 topic: ppo-for-llms
 ---
 
-# Summary: Proximal Policy Optimization (PPO) for LLM Alignment
+# Proximal Policy Optimization (PPO) for LLM Alignment
 
 ### Core Problem
-The primary challenge addressed is **language model alignment**: ensuring that large language models (LLMs) generate text that is helpful, truthful, and non-toxic, rather than simply predicting the next token. While Supervised Fine-Tuning (SFT) is a starting point, it is insufficient for full alignment. 
+The primary objective in LLM post-training is aligning models with human preferences. While reinforcement learning (RL) is the primary tool for this, basic policy gradient methods—such as Vanilla Policy Gradient (VPG)—suffer from two critical flaws:
+1. **High Variance:** Gradient estimates can be highly volatile, requiring a massive number of sampled trajectories to achieve accuracy, which is computationally expensive.
+2. **Unstable Updates:** VPG lacks a mechanism to constrain the size of policy updates, meaning a single large, inaccurate update can destabilize and significantly harm the policy.
 
-Traditional reinforcement learning (RL) algorithms face significant hurdles in this context:
-*   **Deep Q-Learning (DQL):** Effective for discrete action spaces but fails to generalize to continuous action spaces.
-*   **Vanilla Policy Gradient (VPG):** Suffers from poor data efficiency and lack of robustness. Specifically, performing multiple optimization steps on the same trajectory often leads to "destructively large policy updates" that damage model performance.
+### Method and MDP Formulation
+PPO is a policy gradient algorithm designed to reduce variance and enforce a "trust region" to limit how much a policy changes in a single update. For LLMs, PPO utilizes a **Markov Decision Process (MDP)** formulation rather than a bandit formulation.
 
-### Method: RLHF and the Path to PPO
-The source describes the implementation of **Reinforcement Learning from Human Feedback (RLHF)**, which utilizes PPO to align LLMs.
-
-#### The RLHF Recipe
-1.  **Data Generation:** Generate multiple outputs for a set of prompts using the LLM.
-2.  **Human Ranking:** Human annotators rank or score these responses based on specific alignment criteria (e.g., avoiding hallucinations).
-3.  **Reward Modeling:** Train a reward model to predict human preference scores based on the LLM's responses.
-4.  **Policy Optimization:** Use PPO to finetune the LLM (the policy) to maximize the scores predicted by the reward model.
-
-#### RL Framework for LLMs
-To apply RL, the LLM process is mapped to RL components:
-*   **Policy:** The language model.
-*   **State:** The current textual input sequence.
-*   **Action:** The next token predicted by the model.
-*   **Reward:** The quality score provided by the reward model after a full sequence is produced.
-
-#### Technical Evolution: TRPO to PPO
-PPO is an extension of **Trust Region Policy Optimization (TRPO)**. TRPO improves upon VPG by finding the largest possible policy update that improves performance without damaging it. This is achieved by updating the policy under a constraint based on the **Kullback-Leibler (KL) Divergence**, which measures the distance between the old and updated policies.
-
-The practical implementation of TRPO involves:
-1.  Approximating the objective and constraint using a **Taylor expansion**.
-2.  Solving the approximate objective via **Lagrangians and duality**.
-3.  Utilizing the **conjugate gradient algorithm** to avoid the computational intractability of inverting large matrices.
-4.  Applying post-processing to ensure the KL divergence constraint is met and the objective is improved.
-
-PPO is presented as a more robust, simpler, and more data-efficient alternative to TRPO, making it the preferred choice for aligning models like InstructGPT and ChatGPT.
+#### Step-by-Step Recipe:
+1. **Environment Mapping:** The RL framework is mapped to the LLM context:
+    * **Policy ($\pi_\theta$):** The LLM itself.
+    * **Initial State:** The input prompt.
+    * **Action ($a_t$):** Each individual token predicted by the LLM.
+    * **State ($s_t$):** The running completion (prompt plus all tokens generated up to time $t$).
+    * **Trajectory:** The entire generated completion from the prompt to the stop token (e.g., `<eos>`).
+    * **Reward:** A scalar value provided by a reward model or a verifier.
+2. **Trajectory Sampling:** A batch of prompts is sampled, and the LLM generates completions based on its current stochastic policy.
+3. **Reward Assignment:** Rewards are computed for these completions. The objective is to maximize the expected cumulative reward, often incorporating a discount factor $\gamma$ to prioritize immediate rewards over distant ones.
+4. **Gradient Estimation:** The algorithm estimates the "policy gradient"—the gradient of the RL objective with respect to the policy parameters $\theta$. This is done by approximating the theoretical expectation with a sample mean across the generated trajectories.
+5. **Policy Update:** Instead of computing the gradient directly, a loss function is formulated such that its gradient equals the policy gradient. Gradient ascent is then performed using automatic differentiation (e.g., via PyTorch's `loss.backward()`).
 
 ### Key Formulas
-The source emphasizes the use of **KL Divergence** to compare two probability distributions, $p$ and $q$, and to penalize reward hacking or excessively large policy updates.
-
-The KL divergence is formulated as the expected difference in log probabilities between two distributions:
+The policy's probability of taking an action is denoted as:
 
 $$
-\text{KL}(p \parallel q) = \mathbb{E}_{x \sim p} [\log p(x) - \log q(x)]
+\pi_\theta(a_t | s_t)
 $$
 
-### Quantitative Results and Applications
-While the source does not provide specific numerical benchmark improvements, it notes the following:
-*   **Adoption:** PPO was the selected algorithm for the RLHF implementation used by OpenAI to align **InstructGPT** and **ChatGPT**.
-*   **Utility:** PPO is described as satisfying four critical needs: general applicability (discrete and continuous), data efficiency, robustness (minimal hyperparameter tuning), and simplicity of implementation.
+To determine the relative utility of an action compared to the average, PPO utilizes the **Advantage Function**:
+
+$$
+A(s, a) = Q(s, a) - V(s)
+$$
+
+Where:
+* $V(s)$ (**Value Function**): The expected cumulative reward starting from state $s$ following policy $\pi_\theta$.
+* $Q(s, a)$ (**Action-Value Function**): The expected cumulative reward starting from state $s$, taking action $a$, and then following policy $\pi_\theta$.
+
+### Quantitative Results and Status
+The source does not provide specific benchmark numbers or percentage improvements. However, it notes that PPO served as the "default RL algorithm in LLM post-training for years" due to its effectiveness in alignment, maintaining a "long reign" despite the rapid pace of AI research. It is only recently that alternative algorithms, such as GRPO, have been adopted for specific tasks like LLM reasoning.
 
 ### Stated Limitations
-*   **RLHF General Limitations:** The curation of human preference data is expensive, and RL can be data inefficient.
-*   **DQL:** Limited to simple environments; fails in continuous action spaces.
-*   **VPG:** Requires massive amounts of data to eliminate noise in policy gradient estimates.
-*   **TRPO:** The analytical update rule is difficult to work with, requiring complex approximations (Taylor expansions and conjugate gradients) to be computationally feasible.
+* **Resource Intensity:** PPO carries high compute and memory overhead, which restricts experimentation to those with extensive computational resources.
+* **Complexity:** The algorithm is described as complicated and "packed with nuanced implementation details."
+* **Expertise Requirement:** Successful implementation requires both a deep theoretical understanding of the algorithm and substantial practical domain knowledge.
