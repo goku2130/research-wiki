@@ -46,9 +46,18 @@ def _load_env() -> None:
 
 _load_env()
 
-QWEN = OpenAI(base_url=os.getenv("QWEN_URL", "http://localhost:8181/v1"), api_key="local")
+# Local Qwen endpoints — round-robined across GPUs (5090:8181, 3090:8183).
+_QWEN_URLS = [u.strip() for u in os.getenv("QWEN_URLS",
+             os.getenv("QWEN_URL", "http://localhost:8181/v1")).split(",") if u.strip()]
+_QWEN_CLIENTS = [OpenAI(base_url=u, api_key="local") for u in _QWEN_URLS]
+_qwen_cycle = itertools.cycle(_QWEN_CLIENTS)
+QWEN = _QWEN_CLIENTS[0]                        # default/first (experiment compatibility)
 GEMMA = OpenAI(base_url=os.getenv("GEMMA_URL", "http://localhost:8182/v1"), api_key="local")
 SEARXNG = os.getenv("SEARXNG_URL", "http://localhost:8888")
+
+
+def qwen_client() -> OpenAI:
+    return next(_qwen_cycle)                   # spread calls across the GPU endpoints
 
 _GKEY = os.getenv("GOOGLE_API_KEY")
 _GOOGLE_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
@@ -102,6 +111,11 @@ def writer_client() -> OpenAI:
     if WRITER_MODEL.startswith(("mistral", "magistral")) and _MKEYS:
         return mistral_client()   # next key in the round-robin
     return WRITER
+
+
+def reviewer_client() -> OpenAI:
+    """Reviewer client — round-robins the local Qwen GPUs, else the override backend."""
+    return qwen_client() if REVIEWER_MODEL == "local" else REVIEWER
 
 
 def _chat(client: OpenAI, **kw):
@@ -269,7 +283,7 @@ def force_submit(messages: list) -> list[dict]:
            f"\nCall submit_sources now with the {TARGET_SOURCES} most authoritative "
            "(prefer arXiv papers over blogs).")
     try:
-        resp = QWEN.chat.completions.create(
+        resp = qwen_client().chat.completions.create(
             model="local", messages=messages + [{"role": "user", "content": msg}],
             tools=[SUBMIT_TOOL],
             tool_choice={"type": "function", "function": {"name": "submit_sources"}},
@@ -296,7 +310,7 @@ def gather_sources(topic: dict) -> list[dict]:
                 {"role": "user",
                  "content": f"Topic: {topic['title']}\nScope: {topic.get('notes','')}"}]
     for step in range(MAX_TOOL_STEPS):
-        resp = QWEN.chat.completions.create(
+        resp = qwen_client().chat.completions.create(
             model="local", messages=messages, tools=TOOLS, temperature=0.6)
         m = resp.choices[0].message
         if not m.tool_calls:
@@ -337,7 +351,7 @@ def distill(topic: dict, src: dict) -> dict | None:
         return None
     sid = source_id(src["url"], src["title"])
     try:
-        resp = QWEN.chat.completions.create(
+        resp = qwen_client().chat.completions.create(
             model="local", temperature=0.3,
             messages=[{"role": "system", "content": DISTILL_SYS},
                       {"role": "user", "content":
@@ -432,7 +446,7 @@ def review(topic: dict, article: str, open_qs: list[str], distilled: list[dict])
     content = (f"Topic: {topic['title']}\nValid source ids: {ids}\n"
                f"Open questions present: {len(open_qs)}\n\nARTICLE:\n{article}")
     try:
-        resp = REVIEWER.chat.completions.create(
+        resp = reviewer_client().chat.completions.create(
             model=REVIEWER_MODEL, temperature=0.2, max_tokens=4000,
             messages=[{"role": "system", "content": REVIEW_SYS},
                       {"role": "user", "content": content}])
@@ -471,7 +485,7 @@ def fact_check(topic: dict, article: str, distilled: list[dict]) -> list[str]:
                          for d in distilled)
     content = f"ARTICLE:\n{article}\n\nSOURCE SUMMARIES:\n{corpus}"
     try:
-        resp = REVIEWER.chat.completions.create(
+        resp = reviewer_client().chat.completions.create(
             model=REVIEWER_MODEL, temperature=0.1, max_tokens=8000,
             messages=[{"role": "system", "content": FACTCHECK_SYS},
                       {"role": "user", "content": content}])
