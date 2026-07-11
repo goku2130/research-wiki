@@ -9,7 +9,7 @@ _Auto-generated 2026-07-11._
 - ✅ [RL for reasoning models](topics/rl-for-reasoning.md)
 - ✅ [Policy gradient methods for LLMs](topics/policy-gradient-methods.md)
 - ⬜ KL regularization in RLHF
-- ⬜ MDP formulation of LLM generation
+- ✅ [MDP formulation of LLM generation](topics/mdp-formulation.md)
 - ⬜ RL for LLMs — overview
 - ⬜ The RLHF/PPO pipeline
 - ⬜ DPO variants deep-dive
