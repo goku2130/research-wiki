@@ -91,7 +91,7 @@ topics:
 - slug: overoptimization-and-mode-collapse
   title: Over-optimization and mode collapse
   notes: Diversity loss, distributional collapse under RL
-  status: empty
+  status: done
 - slug: sycophancy-and-misgeneralization
   title: Sycophancy and misgeneralization
   notes: Reward-induced sycophancy, goal misgeneralization
