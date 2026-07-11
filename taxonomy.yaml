@@ -71,7 +71,7 @@ topics:
 - slug: reward-model-overoptimization
   title: Reward model over-optimization
   notes: Gao scaling laws, KL budget, ensembles
-  status: empty
+  status: done
 - slug: verifiable-rewards
   title: Verifiable rewards (RLVR)
   notes: Rule-based rewards, code/math verifiers, the RLVR tax
