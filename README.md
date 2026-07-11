@@ -11,7 +11,7 @@ _Auto-generated 2026-07-11._
 - ✅ [KL regularization in RLHF](topics/kl-regularization.md)
 - ✅ [MDP formulation of LLM generation](topics/mdp-formulation.md)
 - ⬜ RL for LLMs — overview
-- ⬜ The RLHF/PPO pipeline
+- ✅ [The RLHF/PPO pipeline](topics/rlhf-ppo-pipeline.md)
 - ⬜ DPO variants deep-dive
 - ✅ [RLAIF (RL from AI feedback)](topics/rlaif.md)
 - ✅ [Rejection sampling and Best-of-N](topics/rejection-sampling-and-bon.md)
