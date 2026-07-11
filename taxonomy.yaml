@@ -55,7 +55,7 @@ topics:
 - slug: nash-and-game-theoretic-po
   title: Nash and game-theoretic preference optimization
   notes: Preference Nash equilibria, self-play PO, general preferences
-  status: empty
+  status: done
 - slug: self-improvement-and-self-play
   title: Self-improvement and self-play RL
   notes: STaR, ReST, Absolute Zero, iterated amplification
