@@ -25,7 +25,7 @@ _Auto-generated 2026-07-11._
 - ✅ [Length and format bias](topics/length-and-format-bias.md)
 - ✅ [The alignment tax](topics/alignment-tax.md)
 - ✅ [Over-optimization and mode collapse](topics/overoptimization-and-mode-collapse.md)
-- ⬜ Sycophancy and misgeneralization
+- ✅ [Sycophancy and misgeneralization](topics/sycophancy-and-misgeneralization.md)
 - ✅ [LLM-as-judge](topics/llm-as-judge.md)
 - ⬜ Alignment and win-rate evals
 - ⬜ Judging bias and contamination
