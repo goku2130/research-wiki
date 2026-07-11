@@ -783,3 +783,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    # Force a clean exit: cloud HTTP clients / thread pools can keep the process
+    # alive after the work is done, which would hang a cron/Actions job.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
