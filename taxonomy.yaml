@@ -1,12 +1,5 @@
-# ============================================================
-#  Topic backlog for the autonomous wiki. The scheduler fills
-#  the least-covered (empty) topic each tick, breadth-first.
-#  ==> EDIT to your interests: add/remove topics freely.
-#  status: empty | draft | done   (agent updates this)
-# ============================================================
 domain: RL for LLMs
 topics:
-# --- already generated ---
 - slug: ppo-for-llms
   title: PPO for LLM fine-tuning (RLHF)
   notes: Policy-gradient basics, reward model, KL penalty, PPO clipping
@@ -27,11 +20,10 @@ topics:
   title: RL for reasoning models
   notes: Verifiable rewards, long chain-of-thought, o1/R1-style training
   status: done
-# --- foundations ---
 - slug: policy-gradient-methods
   title: Policy gradient methods for LLMs
   notes: REINFORCE, actor-critic, advantage estimation, GAE
-  status: empty
+  status: done
 - slug: kl-regularization
   title: KL regularization in RLHF
   notes: Reference model, per-token KL, the Boltzmann optimum
@@ -44,7 +36,6 @@ topics:
   title: RL for LLMs — overview
   notes: 'The landscape: RLHF, RLAIF, RLVR, offline PO'
   status: empty
-# --- algorithms ---
 - slug: rlhf-ppo-pipeline
   title: The RLHF/PPO pipeline
   notes: SFT -> reward model -> PPO; InstructGPT recipe
@@ -69,7 +60,6 @@ topics:
   title: Self-improvement and self-play RL
   notes: STaR, ReST, Absolute Zero, iterated amplification
   status: empty
-# --- reward modeling ---
 - slug: process-vs-outcome-rewards
   title: Process vs outcome reward models
   notes: PRMs, ORMs, step-level supervision, OmegaPRM
@@ -86,7 +76,6 @@ topics:
   title: Verifiable rewards (RLVR)
   notes: Rule-based rewards, code/math verifiers, the RLVR tax
   status: empty
-# --- objectives, phenomena, failure modes ---
 - slug: entropy-and-exploration
   title: Entropy and exploration in RL fine-tuning
   notes: Entropy collapse, exploration bonuses, diversity
@@ -107,7 +96,6 @@ topics:
   title: Sycophancy and misgeneralization
   notes: Reward-induced sycophancy, goal misgeneralization
   status: empty
-# --- evaluation ---
 - slug: llm-as-judge
   title: LLM-as-judge
   notes: Judge models, biases, position/verbosity effects
@@ -120,7 +108,6 @@ topics:
   title: Judging bias and contamination
   notes: Self-preference, data contamination, eval leakage
   status: empty
-# --- training systems ---
 - slug: distributed-rl-training
   title: Distributed RL training for LLMs
   notes: Rollout/learner split, sharding, PPO at scale
@@ -133,7 +120,6 @@ topics:
   title: Rollout generation infrastructure
   notes: vLLM/SGLang rollouts, KV reuse, throughput
   status: empty
-# --- verifiable reasoning ---
 - slug: rl-for-math-and-code
   title: RL for math and code
   notes: Verifier design, unit-test rewards, DeepSeekMath
