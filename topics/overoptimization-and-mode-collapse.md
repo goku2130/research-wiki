@@ -1,27 +1,34 @@
 ---
 title: Over-optimization and mode collapse
-maturity: developing
+maturity: comprehensive
 updated: '2026-07-11'
 sources:
-- arxiv:2310.06452
-- arxiv:2605.19461
-- openaccess:diversegrpo-mitigating-mode-collapse-in-
 - lesswrong:mode-collapse-in-rl-may-be-fueled-by-the
-- bmva-archive:overcoming-mode-collapse-with-adaptive-m
-- researchgate:on-the-algorithmic-bias-of-aligning-larg
 - arxiv:2510.01171
+- arxiv:2605.19461
+- researchgate:on-the-algorithmic-bias-of-aligning-larg
+- openaccess:diversegrpo-mitigating-mode-collapse-in-
+- bmva-archive:overcoming-mode-collapse-with-adaptive-m
+- arxiv:2310.06452
+- arxiv:2210.10760
+- arxiv:2106.02073
+- arxiv:2212.14405
+- arxiv:1701.08300
+- arxiv:2406.04896
+- arxiv:2602.10623
+- arxiv:2510.00502
+- arxiv:1504.04596
 open_questions:
-- Can distribution-matching objectives (forward KL approximations) be made tractable
-  for open-ended RLHF with learned reward models, or are they fundamentally limited
-  to verifiable-reward settings?
-- Does Verbalized Sampling's diversity recovery generalize to *reasoning* tasks where
-  the "correct" distribution is peaked, or does it primarily benefit creative/open-ended
-  generation?
-- How do typicality bias (reward model) and reverse KL (policy update) *interact*—does
-  mitigating one amplify the other, and can they be jointly corrected?
-- Is there a unified theoretical framework characterizing the *Pareto frontier* of
-  diversity vs. reward across all these mitigation strategies, or are they addressing
-  orthogonal collapse modes?
+- Can the scaling laws for RM overoptimization [source:arxiv:2210.10760] be validated
+  with human preference ground truth, and do they hold for adversarial Goodhart strategies
+  in frontier models?
+- Does neural collapse under MSE [source:arxiv:2106.02073] predict the representation
+  geometry of over-optimized LLM policies, and can the central path dynamics inform
+  early-stopping criteria?
+- Can variance-regularized offline RL (OVR) [source:arxiv:2212.14405] be combined
+  with online RLHF to mitigate over-optimism during policy updates?
+- Is the Maclaurin expansion trade-off in MXQL [source:arxiv:2406.04896] applicable
+  to policy gradient objectives (e.g., PPO/GRPO) rather than Q-learning?
 ---
 
 Over-optimization in RL fine-tuning drives models toward high-reward but low-entropy policies, systematically collapsing the output distribution onto a narrow set of modes. This phenomenon—mode collapse—manifests as loss of per-input and cross-input diversity, degradation of reasoning chain length, and suppression of minority preferences, and it arises from distinct but interacting mechanisms in the reward model, the policy update rule, and the regularization scheme.
@@ -43,6 +50,19 @@ Standard PPO updates can drive logits of high-reward actions toward infinity bec
 ### Discriminator Catastrophic Forgetting in Adversarial Settings
 
 In GANs, mode collapse is driven by *catastrophic forgetting* in the discriminator: as the generator shifts to new modes, the discriminator loses classification accuracy on previously seen modes, creating an oscillatory trajectory where the generator cycles between modes without converging [source:bmva-archive:overcoming-mode-collapse-with-adaptive-m]. The Adaptive Multi Adversarial Training (AMAT) framework detects forgetting by monitoring discriminator scores on a fixed set of *exemplar* samples (one per mode) and spawns new discriminators when $\max(\mathfrak{s}[k]) / \text{avg}(\mathfrak{s}[k]) > \alpha_t$ [source:bmva-archive:overcoming-mode-collapse-with-adaptive-m]. This mechanism—discriminator forgetting causing generator oscillation—has no direct analogue in RLHF but illustrates how *evaluation signal degradation* can induce collapse.
+
+### Neural Collapse Under MSE Loss
+
+Neural collapse (NC)—where last-layer features collapse to class-means and classifiers converge to a Simplex Equiangular Tight Frame—emerges under Mean Squared Error (MSE) loss as well as cross-entropy [source:arxiv:2106.02073]. The MSE loss decomposes into three components: $\mathcal{L}_{\mathrm{NC1}}$ (within-class variability collapse), $\mathcal{L}_{\mathrm{NC2/3}}$ (convergence to Simplex ETF), and $\mathcal{L}_{\mathrm{LS}}^{\perp}$ (deviation from least-squares optimal classifier). Training dynamics follow a "central path" where the classifier remains near the least-squares solution, and the Signal-to-Noise Ratio (SNR) matrix singular values $\omega_j$ evolve according to $c_{1}\log(\omega_{j})+c_{2}\omega_{j}^{2}+c_{3}\omega_{j}^{4}=a_{j}+t$, with all non-zero $\omega_j \to \infty$ at rate $\sqrt[4]{t/c_3}$ and $\max \omega_j / \min \omega_j \to 1$ [source:arxiv:2106.02073]. This provides a theoretical template for representation collapse in over-optimized policies: as optimization progresses, feature diversity collapses geometrically toward a low-dimensional simplex structure.
+
+### Scaling Laws for Reward Model Overoptimization
+
+Overoptimization follows predictable scaling laws with respect to reward model (RM) size, training data, and optimization method [source:arxiv:2210.10760]. Using a synthetic "gold-standard" RM (6B) as ground truth, the gold reward $R$ as a function of KL distance $d = \sqrt{D_{\mathrm{KL}}(\pi \parallel \pi_{\mathrm{init}})}$ follows distinct curves:
+
+*   **Best-of-$n$ (BoN)**: $R_{\mathrm{bon}}(d) = d(\alpha_{\mathrm{bon}} - \beta_{\mathrm{bon}}d)$
+*   **RL (PPO)**: $R_{\mathrm{RL}}(d) = d(\alpha_{\mathrm{RL}} - \beta_{\mathrm{RL}}\log d)$
+
+Coefficients $\alpha, \beta$ scale smoothly and approximately logarithmically with proxy RM parameters. A critical data threshold exists: below ~2,000 comparisons, proxy RMs show near-chance loss and minimal gold score improvement. Larger policies (6B vs 1.2B) start higher but do not overoptimize faster—peak gold scores occur at nearly the same KL distance. RL is less KL-efficient than BoN, consuming more KL for the same optimization. Adding a KL penalty in RL does not improve the gold-reward–KL frontier; it merely converges earlier, equivalent to early stopping [source:arxiv:2210.10760]. Limitations: synthetic gold RM may not transfer to human preferences; models tested were too weak for adversarial Goodhart strategies.
 
 ## Manifestations of Diversity Loss
 
@@ -100,9 +120,35 @@ AMAT spawns discriminators adaptively when forgetting is detected on exemplar sa
 
 NLHF frames alignment as a two-player zero-sum game with payoffs derived from pairwise preferences, using mixed strategies to ensure diversity [source:researchgate:on-the-algorithmic-bias-of-aligning-larg]. It achieves Condorcet consistency (selects candidate beating all others pairwise) and Smith consistency (selects from minimal dominant set) where RLHF fails both [source:researchgate:on-the-algorithmic-bias-of-aligning-larg]. However, the impossibility of exact preference matching means "the framework cannot guarantee a unique equilibrium that perfectly mirrors a diverse target policy" [source:researchgate:on-the-algorithmic-bias-of-aligning-larg].
 
+### Variance-Regularized Offline Policy Optimization
+
+Offline Variance Regularization (OVR) mitigates over-optimism in offline RL by minimizing the variance of marginalized importance sampling returns via Fenchel duality, avoiding the double-sampling problem [source:arxiv:2212.14405]. The algorithm estimates the stationary distribution ratio $\omega(s,a) = d_\pi(s,a)/d_\mathcal{D}(s,a)$ via DICE, computes dual variables $\nu(s,a) = \omega(s,a) \tilde{r}(s,a)$, and augments rewards: $\tilde{r}(s,a) = [r - \lambda \nu r - \lambda r^2](s,a)$. The max-min objective $\max_\pi \min_\nu J(\pi,\nu)$ provides a probabilistic lower bound on the true return. On D4RL benchmarks, BCQ+OVR significantly outperforms BCQ on medium-quality datasets (e.g., Hopper-medium: 57.76→71.24; Walker-medium: 27.13→33.90) but shows no gains on random datasets and marginal gains on expert datasets [source:arxiv:2212.14405]. Limitation: relies on distribution ratio estimation which introduces bias; sensitive to $\lambda$.
+
+### Maclaurin-Expanded Extreme Q-Learning (MXQL)
+
+MXQL stabilizes Extreme Q-learning (XQL) by replacing the Gumbel loss with an Expanded Gumbel loss derived via Maclaurin expansion, enabling a tunable trade-off between stability (Normal/L2, $n=2$) and optimality (Gumbel/soft Q-learning, $n\to\infty$) [source:arxiv:2406.04896]. The value loss is $L(V)=\mathbb{E}[\sum_{j=2}^{n} (Q-V)^j / (j!\beta^j)]$. On DM Control, MXQL ($n=8$) outperforms XQL at small $\beta$ where XQL fails (QuadrupedRun: 896 vs 730; HopperHop: 363 vs 287). On D4RL, MXQL exceeds XQL on AntMaze-umaze (88.3 vs 47.7) and Kitchen-mixed (71.9 vs 40.4) but underperforms IQL on AntMaze medium/large [source:arxiv:2406.04896]. Trade-off: smaller $n$ increases stability but yields non-maximizing value estimates.
+
+### Bayesian Non-Negative Reward Modeling (BNRM)
+
+BNRM replaces the deterministic reward head with a probabilistic generative process based on Non-negative Factor Analysis, using local latent variables $\theta$ (instance-specific) and a global reward dictionary $\Phi$ (shared basis) with Gamma priors enforcing sparsity and non-negativity [source:arxiv:2602.10623]. The reward is $r(x,y) = \theta^\top \Phi$, fed into a Bradley-Terry likelihood. Amortized variational inference uses the LLM backbone as an encoder predicting Weibull posterior parameters. Training maximizes ELBO with KL coefficient $\eta$. Results: on Unified-Feedback, BT-BNRM improves over BT baseline by +5.4% (ID), +13.3% (HHH), +6.1% (MT-Bench); RewardBench 93.6 vs 93.1; length bias correlation drops from 0.488 to 0.123; 1K BNRM examples match 20K BT examples; 40% label noise tolerance improves BT by 16.7%; PPO policies reach 74.98% (Llama-3.1-8B) and 62.25% (OpenRLHF) [source:arxiv:2602.10623]. Limitation: hyperparameter $\eta$ requires tuning ($\eta=10^{-5}$ optimal); untested in multi-turn/tool-use/long-horizon settings.
+
+### Diffusion Alignment as Variational EM (DAV)
+
+DAV formulates diffusion alignment as variational EM, alternating between an E-step that discovers diverse high-reward trajectories via importance-sampled posterior inference, and an M-step that minimizes *forward* KL (mode-covering) to distill trajectories back into the model [source:arxiv:2510.00502]. The ELBO objective $\mathcal{J}_{\alpha,\gamma}$ includes a reward-tilted posterior $\eta^* \propto p_\theta \exp(Q_{\text{soft}}/\alpha)$ and a KL penalty $\lambda D_{\text{KL}}(p_\theta \| p_{\theta^0})$ to prevent capability loss. On Stable Diffusion v1.5: DAV achieves aesthetic 8.04 (vs DDPO 6.83, DRaFT 7.22), ImageReward 0.95 (vs DDPO 0.27, DRaFT 0.19), and DAV-KL reaches ImageReward 1.13 with higher diversity (LPIPS-A 0.58 vs 0.48). Test-time search yields aesthetic 9.18. On DNA sequence design, DAV outperforms baselines on activity/diversity/naturalness trade-offs [source:arxiv:2510.00502]. Limitation: E-step test-time search adds computational overhead; Tweedie's formula for soft Q-function is inaccurate at high noise levels.
+
+### Structural Learning of Diverse Ranking
+
+A structural SVM framework directly optimizes Diversity-Correlated Evaluation Measures (DCEM: ERR-IA, $\alpha$-NDCG, NRBP) via a bi-criteria discriminant function combining relevance features ($\psi_r$) and diversity features ($\psi_d$: semantic topic/taxonomy, non-semantic link/URL) [source:arxiv:1504.04596]. The loss $\Delta_{DCEM} = 1 - DCEM(\mathbf{y})/DCEM(\mathbf{y}^{(i)})$ is minimized via cutting-plane algorithm. On TREC Web Track 2009-2011, $\text{SVM}_{DCEM}$ outperforms baselines: vs xQuAD, +17.16%/12.27%/10.31% ERR-IA; vs SVMDIV, +11.54%/9.6%/6.19%. Top diversity features: ODP taxonomy (weight 2.83) and topic model (2.75). Training time ~2.5h; prediction $O(nK)$ [source:arxiv:1504.04596]. Limitation: greedy selection gives $(1-1/e)$-approximation; link/URL features sparse; NP-hard optimal ranking.
+
 ## Current Status and Trajectory
 
-Mode collapse mitigation is an *active, fragmented research frontier* rather than a settled practice. Distribution-matching methods (DMPO) show strong gains on verifiable-reward reasoning tasks but have not been demonstrated on open-ended RLHF with learned rewards [source:arxiv:2605.19461]. Inference-time prompting (VS) is immediately deployable and scales with model size, but compute cost and small-model reliability limit adoption [source:arxiv:2510.01171]. Creativity bonuses and structure-aware regularization (DiverseGRPO) are established in diffusion-based image generation but untested for LLM token generation [source:openaccess:diversegrpo-mitigating-mode-collapse-in-]. ACTDE remains a theoretical curiosity with "finicky" deep-RL behavior and no large-scale validation [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the]. Game-theoretic alignment (NLHF) offers desirable social-choice properties but faces an impossibility result for exact preference matching [source:researchgate:on-the-algorithmic-bias-of-aligning-larg]. No single approach dominates; the field is exploring *combinations* (e.g., DMPO+VS, or creativity bonuses in GRPO for LLMs) but integration results are not widely reported.
+Mode collapse mitigation is an *active, fragmented research frontier* rather than a settled practice. Distribution-matching methods (DMPO) show strong gains on verifiable-reward reasoning tasks but have not been demonstrated on open-ended RLHF with learned rewards [source:arxiv:2605.19461]. Inference-time prompting (VS) is immediately deployable and scales with model size, but compute cost and small-model reliability limit adoption [source:arxiv:2510.01171]. Creativity bonuses and structure-aware regularization (DiverseGRPO) are established in diffusion-based image generation but untested for LLM token generation [source:openaccess:diversegrpo-mitigating-mode-collapse-in-]. ACTDE remains a theoretical curiosity with "finicky" deep-RL behavior and no large-scale validation [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the]. Game-theoretic alignment (NLHF) offers desirable social-choice properties but faces an impossibility result for exact preference matching [source:researchgate:on-the-algorithmic-bias-of-aligning-larg]. Variance-regularized offline RL (OVR) and stabilized Q-learning (MXQL) show promise in offline settings but need online RLHF validation [source:arxiv:2212.14405][source:arxiv:2406.04896]. Bayesian reward modeling (BNRM) demonstrates strong debiasing and data efficiency but untested in long-horizon alignment [source:arxiv:2602.10623]. Diffusion alignment (DAV) achieves mode-covering via forward KL but incurs computational overhead [source:arxiv:2510.00502]. Structural diversity optimization provides a supervised learning analogue [source:arxiv:1504.04596]. No single approach dominates; the field is exploring *combinations* (e.g., DMPO+VS, or creativity bonuses in GRPO for LLMs) but integration results are not widely reported.
+
+**New Disagreements Surfaced:**
+- The scaling laws paper [source:arxiv:2210.10760] finds KL penalty does not improve the gold-reward–KL frontier (equivalent to early stopping), while DMPO [source:arxiv:2605.19461] and DiverseGRPO [source:openaccess:diversegrpo-mitigating-mode-collapse-in-] rely on modified KL/regularization as a core mechanism.
+- BNRM [source:arxiv:2602.10623] achieves debiasing via probabilistic non-negative factorization, whereas typicality bias analysis [source:arxiv:2510.01171] attributes bias to $\alpha \log \pi_{\text{ref}}$ term in reward—different root-cause diagnoses.
+- DAV [source:arxiv:2510.00502] advocates forward KL (mode-covering) via variational EM, while standard RLHF uses reverse KL (mode-seeking); the scaling laws paper notes RL (reverse KL) is less KL-efficient than BoN but similar proxy-gold relationship.
+- Neural collapse theory [source:arxiv:2106.02073] shows MSE dynamics drive features to Simplex ETF asymptotically, suggesting representation collapse is a *generic* optimization phenomenon, not specific to RLHF objectives.
 
 ## Key Takeaways
 
@@ -113,6 +159,10 @@ Mode collapse mitigation is an *active, fragmented research frontier* rather tha
 - Training-free inference-time methods (Verbalized Sampling) recover substantial pretrained diversity (66.8% vs 23.8% on Tulu-3) and scale with model size [source:arxiv:2510.01171].
 - Diffusion-specific insights (early-step regularization, spectral clustering bonuses) may transfer to LLMs via timestep-analogous token-position regularization, but this is unproven [source:openaccess:diversegrpo-mitigating-mode-collapse-in-].
 - ACTDE's bounded-update property is theoretically appealing for tabular cases but shows unstable convergence in function approximation; not ready for production RLHF [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the].
+- Overoptimization follows predictable scaling laws: gold reward peaks at similar KL distance regardless of policy size; RL is less KL-efficient than BoN; KL penalty ≈ early stopping [source:arxiv:2210.10760].
+- Neural collapse under MSE provides a theoretical template: feature diversity collapses geometrically toward a low-dimensional simplex as optimization progresses [source:arxiv:2106.02073].
+- Variance regularization (OVR), Maclaurin-expanded losses (MXQL), Bayesian non-negative reward modeling (BNRM), and variational EM diffusion alignment (DAV) are emerging mitigation families with complementary strengths.
+- Structural diversity optimization via DCEM-direct supervision offers a supervised learning analogue with strong empirical gains on ranking tasks [source:arxiv:1504.04596].
 
 ## Related Topics
 
@@ -139,10 +189,18 @@ Mode collapse mitigation is an *active, fragmented research frontier* rather tha
 - [Process vs outcome reward models](process-vs-outcome-rewards.md)
 
 ## References
-- [source:arxiv:2310.06452] [Understanding the Effects of RLHF on LLM Generalisation and Diversity](https://arxiv.org/abs/2310.06452)
-- [source:arxiv:2605.19461] [Beyond Mode Collapse: Distribution Matching for Diverse Reasoning](https://arxiv.org/html/2605.19461v1)
-- [source:openaccess:diversegrpo-mitigating-mode-collapse-in-] [DiverseGRPO: Mitigating Mode Collapse in Image Generation via Diversity-Aware GRPO](https://openaccess.thecvf.com/content/CVPR2026/papers/Liu_DiverseGRPO_Mitigating_Mode_Collapse_in_Image_Generation_via_Diversity-Aware_GRPO_CVPR_2026_paper.pdf)
 - [source:lesswrong:mode-collapse-in-rl-may-be-fueled-by-the] [Mode collapse in RL may be fueled by the update equation](https://www.lesswrong.com/posts/A7RgYuYH4HywNeYWD/mode-collapse-in-rl-may-be-fueled-by-the-update-equation)
-- [source:bmva-archive:overcoming-mode-collapse-with-adaptive-m] [Overcoming Mode Collapse with Adaptive Multi Adversarial Training](https://www.bmva-archive.org.uk/bmvc/2021/assets/papers/0690.pdf)
-- [source:researchgate:on-the-algorithmic-bias-of-aligning-larg] [On the Algorithmic Bias of Aligning Large Language Models with RLHF: Preference Collapse and Matching Regularization](https://www.researchgate.net/publication/398985488_On_the_Algorithmic_Bias_of_Aligning_Large_Language_Models_with_RLHF_Preference_Collapse_and_Matching_Regularization)
 - [source:arxiv:2510.01171] [How to Mitigate Mode Collapse and Unlock LLM Diversity](https://arxiv.org/html/2510.01171v1)
+- [source:arxiv:2605.19461] [Beyond Mode Collapse: Distribution Matching for Diverse Reasoning](https://arxiv.org/html/2605.19461v1)
+- [source:researchgate:on-the-algorithmic-bias-of-aligning-larg] [On the Algorithmic Bias of Aligning Large Language Models with RLHF: Preference Collapse and Matching Regularization](https://www.researchgate.net/publication/398985488_On_the_Algorithmic_Bias_of_Aligning_Large_Language_Models_with_RLHF_Preference_Collapse_and_Matching_Regularization)
+- [source:openaccess:diversegrpo-mitigating-mode-collapse-in-] [DiverseGRPO: Mitigating Mode Collapse in Image Generation via Diversity-Aware GRPO](https://openaccess.thecvf.com/content/CVPR2026/papers/Liu_DiverseGRPO_Mitigating_Mode_Collapse_in_Image_Generation_via_Diversity-Aware_GRPO_CVPR_2026_paper.pdf)
+- [source:bmva-archive:overcoming-mode-collapse-with-adaptive-m] [Overcoming Mode Collapse with Adaptive Multi Adversarial Training](https://www.bmva-archive.org.uk/bmvc/2021/assets/papers/0690.pdf)
+- [source:arxiv:2310.06452] [Understanding the Effects of RLHF on LLM Generalisation and Diversity](https://arxiv.org/abs/2310.06452)
+- [source:arxiv:2210.10760] [Scaling Laws for Reward Model Overoptimization](https://arxiv.org/abs/2210.10760)
+- [source:arxiv:2106.02073] [Neural Collapse Under MSE Loss: Proximity to and Dynamics on the Central Path](https://arxiv.org/abs/2106.02073)
+- [source:arxiv:2212.14405] [Offline Policy Optimization in RL with Variance Regularization](https://arxiv.org/abs/2212.14405)
+- [source:arxiv:1701.08300] [Collapse. What else?](https://arxiv.org/abs/1701.08300)
+- [source:arxiv:2406.04896] [Stabilizing Extreme Q-learning by Maclaurin Expansion](https://arxiv.org/abs/2406.04896)
+- [source:arxiv:2602.10623] [Mitigating Reward Hacking in RLHF via Bayesian Non-negative Reward Modeling](https://arxiv.org/abs/2602.10623)
+- [source:arxiv:2510.00502] [Diffusion Alignment as Variational Expectation-Maximization](https://arxiv.org/abs/2510.00502)
+- [source:arxiv:1504.04596] [Structural Learning of Diverse Ranking](https://arxiv.org/abs/1504.04596)
