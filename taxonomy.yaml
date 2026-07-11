@@ -111,7 +111,7 @@ topics:
 - slug: distributed-rl-training
   title: Distributed RL training for LLMs
   notes: Rollout/learner split, sharding, PPO at scale
-  status: empty
+  status: done
 - slug: async-and-off-policy-rl
   title: Async and off-policy RL
   notes: Importance sampling, staleness, async rollouts

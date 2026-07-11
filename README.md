@@ -29,7 +29,7 @@ _Auto-generated 2026-07-11._
 - ✅ [LLM-as-judge](topics/llm-as-judge.md)
 - ✅ [Alignment and win-rate evals](topics/alignment-and-winrate-evals.md)
 - ⬜ Judging bias and contamination
-- ⬜ Distributed RL training for LLMs
+- ✅ [Distributed RL training for LLMs](topics/distributed-rl-training.md)
 - ⬜ Async and off-policy RL
 - ✅ [Rollout generation infrastructure](topics/rollout-generation-infra.md)
 - ✅ [RL for math and code](topics/rl-for-math-and-code.md)
