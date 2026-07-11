@@ -1,27 +1,32 @@
 ---
 title: Judging bias and contamination
-maturity: developing
+maturity: comprehensive
 updated: '2026-07-11'
 sources:
-- arxiv:2502.01534
-- arxiv:2410.21819
-- neurips:llm-evaluators-recognize-and-favor-their
+- arxiv:2305.15717
 - aclanthology:beyond-the-surface-measuring-self-prefer
-- arxiv:2406.01672
+- neurips:llm-evaluators-recognize-and-favor-their
+- arxiv:2410.21819
 - arxiv:2306.05685
 - arxiv:2308.05962
-- arxiv:2305.15717
+- arxiv:2502.01534
+- arxiv:2406.01672
+- arxiv:2407.08716
+- arxiv:2407.21530
+- arxiv:2510.08931
+- arxiv:2407.14477
+- arxiv:2404.11457
+- arxiv:2601.03746
+- arxiv:2509.11026
 open_questions:
-- Can a unified bias-mitigation framework be constructed that composes positional,
-  stylistic, contextual, and reference-guided calibrations without introducing new
-  confounds?
-- How does preference leakage interact with self-preference when the judge is both
-  the generator and the evaluator (i.e., $M_G \equiv M_J \equiv M_S$)?
-- Do reasoning models (LRMs) exhibit fundamentally different bias profiles due to
-  their chain-of-thought outputs, or are observed differences attributable to scale
-  and training data?
-- What is the real-world impact of preference leakage on major leaderboards given
-  the limited public documentation of student-teacher lineages?
+- Can mechanistic detection (RADAR) be scaled to larger models and integrated into
+  routine leaderboard screening?
+- How do source credibility biases interact with sycophancy and reward hacking in
+  RLHF pipelines?
+- What is the real-world impact of data contamination on Chatbot Arena / AlpacaEval
+  rankings given the CONDA findings?
+- Can rationale-augmented preference learning (RDPO) eliminate the need for massive
+  human annotation budgets?
 ---
 
 LLM-as-a-judge evaluation paradigms suffer from systematic biases including self-preference, where models favor their own outputs, and preference leakage, where judges favor students trained on related generators' data. These biases conflate stylistic familiarity with quality and threaten the validity of automated alignment benchmarks.
@@ -112,9 +117,56 @@ $$
 
 [source:aclanthology:beyond-the-surface-measuring-self-prefer] finds rewriting responses into a unified "attractive" or "humorous" style reduces Llama-3.1-8B DBG from 18.7% to 7.2% and 5.9% respectively, indicating style uniformity mitigates bias.
 
+### Source Credibility Bias in Knowledge Conflicts
+[source:arxiv:2601.03746] investigates how attributed source credibility influences LLM judgments under knowledge conflicts. Using synthetic data with fictional entities and sources (Government, Newspaper, Person, Social Media), they isolate source preferences from parametric knowledge across 13 open-weight LLMs (Qwen, OLMo, Llama, Gemma families). Key findings:
+- **Consistent credibility hierarchy**: $\text{Government} > \text{Newspaper} > \text{Person/Social Media}$ with high inter-model agreement (average Kendall's $W = 0.74$).
+- **Intra-type preferences**: Models prefer higher-reputation sources (e.g., newspapers with larger circulation, social media accounts with more followers).
+- **Fragility to repetition/majority**: Source preferences flip when low-credibility sources are repeated or form a majority. A "2-table majority" (two social media vs. one government) flipped preferences with average $\widehat{SP}$ gap of 33.90; repetition without majority flipped with gap of 30.04.
+- **Prompting insufficiency**: Explicit instructions to consider credibility and ignore repetition failed to maintain the original hierarchy.
+- **Mitigation via distillation**: Teacher-student LoRA distillation with KL loss on unattributed vs. repeated contexts reduced repetition bias by up to 79.2% (Gemma-3-4B) while retaining ≥72.5% of original source preferences.
+
+### Bias and Unfairness in LLM-Integrated Information Retrieval
+[source:arxiv:2404.11457] frames bias and unfairness in LLM-IR systems as **distribution mismatch problems** $P(\hat{R}) \neq P(R)$, where bias is mismatch with objective factual reality and unfairness is mismatch with subjective human social values. They categorize issues across three IR lifecycle stages:
+1. **Data Collection**: Source bias (neural retrievers rank LLM-generated content higher than human-authored), factuality bias (hallucinated content enters corpus).
+2. **Model Development**: Position bias ("lost in the middle"), popularity bias (from both fine-tuning and pre-training corpora), instruction-hallucination bias (failure to adhere to user intent), context-hallucination bias (inconsistency with multi-round history).
+3. **Result Evaluation**: Selection bias (sensitivity to choice order/ID tokens, e.g., GPT-3.5-turbo prefers "C", Llama-30B prefers "A"), style bias (preference for verbose, visually engaging responses regardless of accuracy), egocentric bias (preference for self-generated or same-family outputs).
+
+### Fine-Grained Decomposition of Human Preference for Rationales
+[source:arxiv:2509.11026] argues binary win/loss judgments for LLM rationales are opaque and coarse-grained. They decompose preference into 12 attributes (Faithfulness, Hallucination, Repetition, Informativeness, Plausibility, Self-Consistency, Source Consistency, Grammar, Arithmetic Accuracy, Conciseness, Completeness, Correctness) measured via automated heuristics (ROSCOE), LLM judges (GPT-4o, Gemini 2.5-Flash, OLMo 32B), and expert human annotations. Using SHAP analysis on LightGBM models trained on Chatbot Arena (1,367 math/logic) and MT-Bench (80 reasoning) data, they find **Correctness, Plausibility, and Completeness** are the top predictors of human preference, followed by Informativeness and Conciseness. Attribute-specific ELO ratings reveal nuances: Claude-v1 underperforms on Repetition; GPT-3.5-Turbo outperforms GPT-4 on Arithmetic Accuracy and Self-Consistency. Limitations include reliance on LLM judges (non-determinism, judge bias, factual errors), restriction to math/logic reasoning, and small human annotation pool (three authors, no IAA).
+
 ## Data Contamination in Evaluation
 
 [source:arxiv:2305.15717] warns that evaluation benchmarks (MMLU, NQ, HumanEval) may be contaminated in the proprietary teacher's (ChatGPT) pre-training data, inflating its scores and distorting imitation studies. They note this as a confounder when comparing imitation models to ChatGPT. [source:arxiv:2502.01534] acknowledges few student-teacher pairs are publicly documented in leaderboards, limiting real-world leakage analysis. [source:arxiv:2406.01672] (summary describes a cosmological baryonification framework; no relevance to LLM data contamination detected in provided text). [source:arxiv:2308.05962] (summary describes a blockchain governance architecture; no relevance to LLM judge bias detected in provided text).
+
+### Taxonomy and Quantification of Data Contamination
+[source:arxiv:2407.08716] provides a formal taxonomy for data contamination in LLMs, defining contamination as any leakage of information providing a signal for correct labels on test set $D$, formalized as a composition of functions $f = f^{(1)} \circ f^{(2)} \circ \dots \circ f^{(n)}$. The taxonomy distinguishes:
+- **Dataset-level properties**: Selection (subset leakage), Distribution (combining with non-contaminating documents).
+- **Instance-level properties**: Masking (removing input/output parts), Noising (paraphrasing, silver labels), Augmenting (adding context).
+- **Exclusions**: Prior Task Understanding (learning from non-contamination sources) and Transductive Learning (pretraining on test inputs without labels) are **not** classified as contamination.
+
+Experiments on `gpt2-large` (nanoGPT) with continued pretraining on contaminated test splits followed by finetuning on train splits show:
+- **QA tasks (SQuAD, CBT)**: Contaminated settings (Verbatim, Noised, Distribution) significantly outperform Baseline and often In-Domain settings. SQuAD EM: Baseline 41.76 → Verbatim 53.38 → Cheating 55.73. CBT EM: Baseline 19.41 → Verbatim 52.06 → Cheating 54.27.
+- **Summarization (XSum, SAMSum, CNN/Daily Mail)**: Boost less pronounced; Verbatim and In-Domain often on par, suggesting benefit from general in-domain exposure. Noised setting (GPT-3.5 summaries) generally inflates scores over Baseline except XSum.
+- **Limitations**: Recency bias (contamination at end of pretraining), single model/architecture, unknown original GPT-2 pretraining data.
+
+### Large-Scale Empirical Evidence: CONDA 2024 Shared Task
+[source:arxiv:2407.21530] reports 566 contamination entries from 23 contributors covering 91 datasets and 42 contaminated sources (mid-2024 snapshot):
+- **Contamination events (>0%)**: 432 total (317 test-set, 95 dev-set, 20 train-set); 144 non-contamination events (0%).
+- **Most contaminated corpora**: C4 (35), RedPajama v2 (32), The Pile (30), OSCAR (29), CommonCrawl (6), TheStack (2), ProofPile (2), xP3 (1).
+- **Contaminated models**: Closed—GPT-3 (24), GLaM (17), GPT-4 (16), GPT-3.5 (13), PaLM (8), PaLM-2 (3), GPT-3.5 Turbo (2), Claude 3 Opus (1). Open—FLAN-tuned (14), Mistral (5), Llama 2 (3), Qwen (2), Llemma (2), Aquila 2 (2), mT0 (1), Bloom-Z (1).
+- **Most contaminated tasks**: Text-scoring, QA, multiple-choice-qa.
+- **Temporal correlation**: GPT-3 (2020) contaminated with ~2016 datasets; GPT-4 (2023) with 2018–2022 datasets.
+- **Detection methods**: Data-based (string/substring matching on open/proprietary corpora) and Model-based (Membership Inference Attacks, prompting for verbatim generation, probability analysis for closed/open models).
+
+### Mechanistic Detection of Contamination: RADAR
+[source:arxiv:2510.08931] introduces **RADAR** (Recall vs. Reasoning Detection through Activation Representation), a mechanistic interpretability framework to distinguish recall-based (contaminated) from reasoning-based processing without training data access. Pipeline:
+1. **Mechanistic Analyzer**: Extracts attention weights and hidden states in a single forward pass (tested on DialoGPT-medium).
+2. **Feature Extraction**: 37 features — 17 Surface (confidence statistics, convergence, entropy, information gain across layers) and 21 Mechanistic (attention head entropy/specialization, circuit dynamics, intervention sensitivity via ablation robustness, working memory via hidden state rank evolution).
+3. **Classification**: Normalized features fed to ensemble of Random Forest, Gradient Boosting, SVM, Logistic Regression; majority vote.
+
+**Key formulas**: Feature normalization $x_{i}^{\prime}=(x_{i}-\mu_{i})/\sigma_{i}$; ensemble prediction $\hat{y}=1[\frac{1}{M}\sum_{j=1}^{M}\hat{y}_{j}>\frac{1}{2}]$; attention entropy $H_{l,h}=-\sum_{i,j}A_{l,h}^{(i,j)}\log A_{l,h}^{(i,j)}$; specialized head count $N_{\mathrm{spec}}=\sum_{l,h}1[H_{l,h}<\tau]$ ($\tau=1.5$); circuit complexity $C_{\mathrm{circuit}}=\sigma_{\mathrm{var}}^{2}\cdot\gamma_{\mathrm{norm}}$.
+
+**Results**: 93.0% overall accuracy on 100 test examples (Recall: 97.7%, Reasoning: 89.3%). Clear separation in Recall Detection Score (RDS): recall mean 0.933 vs. reasoning mean 0.375. Recall characterized by higher early confidence, faster convergence, more specialized attention heads. **Limitations**: Mechanistic features use proxy measures (attention entropy for causal effects/interventions, specialized head count for critical components, rank evolution for working memory complexity).
 
 ## Mitigation Strategies: Comparative Effectiveness
 
@@ -129,17 +181,27 @@ $$
 | Paraphrasing (remove style/format) | Preference leakage | Reduces PLS (mechanism confirmed) | [source:arxiv:2502.01534] |
 | Auto-calibration / prompting | Preference leakage | Less effective than contextual calibration | [source:arxiv:2502.01534] |
 | DPO over SFT | Preference leakage | PLS 23.6% (SFT) → 5.2% (DPO) | [source:arxiv:2502.01534] |
+| Rationale-augmented DPO (RDPO) | Preference data opacity, reward hacking, length bias | 60% winrate vs SFT at 3k samples (vs 9k for DPO); LC winrate 22.42% vs 19.52% on AlpacaEval 2.0; rationale-only achieves 61.8% vs SFT | [source:arxiv:2407.14477] |
+| Teacher-student distillation (LoRA) for repetition invariance | Source credibility bias / repetition bias | Repetition bias reduced up to 79.2% (Gemma-3-4B); ≥72.5% preference retention | [source:arxiv:2601.03746] |
+| Data sampling (augmentation, filtering) | IR bias/unfairness | Distribution alignment via diversification/truncation | [source:arxiv:2404.11457] |
+| Distribution reconstruction (rebalancing, regularization, prompting) | IR bias/unfairness | Recalibration, adversarial constraints, fairness-aware CoT/few-shot | [source:arxiv:2404.11457] |
+| Mechanistic detection (RADAR) | Data contamination | 93% accuracy distinguishing recall vs reasoning; no training data needed | [source:arxiv:2510.08931] |
+| Attribute-specific evaluation (SHAP/ELO) | Coarse-grained preference opacity | Identifies Correctness, Plausibility, Completeness as top drivers; reveals model-specific strengths/weaknesses | [source:arxiv:2509.11026] |
 
 ## Current Status and Trajectory
 
-LLM-as-a-judge is the **default evaluation paradigm** for alignment leaderboards (Chatbot Arena, MT-bench, AlpacaEval, Arena-Hard) [source:arxiv:2306.05685][source:arxiv:2502.01534], but the field is in a **transition from naive usage to bias-aware engineering**. Self-preference measurement has evolved from simple win-rate gaps [source:arxiv:2410.21819] to recognition-aware causal analysis [source:neurips:llm-evaluators-recognize-and-favor-their] and quality-deconfounded metrics (DBG) [source:aclanthology:beyond-the-surface-measuring-self-prefer]. Preference leakage is a **newly identified, rapidly rising concern** (2025) [source:arxiv:2502.01534] with immediate implications for distillation pipelines and leaderboard integrity. Mitigations are fragmented: positional debiasing and reference-guided grading are standard practice [source:arxiv:2306.05685]; contextual calibration and style unification show promise but are not yet widely adopted; DPO's lower leakage vs. SFT [source:arxiv:2502.01534] may shift distillation preferences. No unified bias-mitigation framework exists; the trajectory points toward **evaluation suites that bundle multiple calibrations** (position, style, reference, contextual) and **gold-judge ensembles** for bias quantification. The field has not abandoned LLM judges—human agreement remains high (85%) [source:arxiv:2306.05685]—but treats them as noisy instruments requiring careful calibration.
+LLM-as-a-judge is the **default evaluation paradigm** for alignment leaderboards (Chatbot Arena, MT-bench, AlpacaEval, Arena-Hard) [source:arxiv:2306.05685][source:arxiv:2502.01534], but the field is in a **transition from naive usage to bias-aware engineering**. Self-preference measurement has evolved from simple win-rate gaps [source:arxiv:2410.21819] to recognition-aware causal analysis [source:neurips:llm-evaluators-recognize-and-favor-their] and quality-deconfounded metrics (DBG) [source:aclanthology:beyond-the-surface-measuring-self-prefer]. Preference leakage is a **newly identified, rapidly rising concern** (2025) [source:arxiv:2502.01534] with immediate implications for distillation pipelines and leaderboard integrity. Source credibility bias [source:arxiv:2601.03746] and IR-stage bias/unfairness [source:arxiv:2404.11457] reveal deeper structural vulnerabilities in LLM-integrated evaluation. Data contamination quantification has advanced from benchmark-level warnings [source:arxiv:2305.15717] to formal taxonomies [source:arxiv:2407.08716], large-scale empirical databases (CONDA 2024) [source:arxiv:2407.21530], and mechanistic detection without training data access (RADAR) [source:arxiv:2510.08931]. Preference data quality is being addressed via rationale augmentation (RDPO) [source:arxiv:2407.14477] and fine-grained attribute decomposition [source:arxiv:2509.11026]. Mitigations are fragmented: positional debiasing and reference-guided grading are standard practice [source:arxiv:2306.05685]; contextual calibration, style unification, shared training data, DPO over SFT, rationale augmentation, distillation for invariance, data sampling/reconstruction, and mechanistic detection each address different bias vectors. No unified bias-mitigation framework exists; the trajectory points toward **evaluation suites that bundle multiple calibrations** (position, style, reference, contextual, source-awareness, contamination screening) and **gold-judge ensembles** for bias quantification. The field has not abandoned LLM judges—human agreement remains high (85%) [source:arxiv:2306.05685]—but treats them as noisy instruments requiring careful calibration.
 
 ## Key Takeaways
 - **Self-preference is multi-faceted**: familiarity/perplexity-driven [source:arxiv:2410.21819], recognition-driven [source:neurips:llm-evaluators-recognize-and-favor-their], and quality-confounded [source:aclanthology:beyond-the-surface-measuring-self-prefer]. Larger models exhibit dramatically less bias (Llama-3.1-70B 0.4% DBG vs. 8B 21.6%).
 - **Preference leakage is distinct from self-preference**: it arises from generator–judge relatedness contaminating student evaluation, with PLS up to 27.9% for SFT students [source:arxiv:2502.01534]. DPO and ICL substantially reduce it.
+- **Source credibility bias** creates a transitive hierarchy (Government > Newspaper > Person/Social Media) that is fragile to repetition/majority effects; distillation can induce repetition invariance while preserving preferences [source:arxiv:2601.03746].
+- **IR-integrated LLM systems** exhibit bias/unfairness across data collection, model development, and evaluation stages, formalized as distribution mismatch [source:arxiv:2404.11457].
+- **Fine-grained preference decomposition** reveals Correctness, Plausibility, Completeness as primary drivers of human rationale preference, exposing model-specific nuances invisible to binary judgments [source:arxiv:2509.11026].
+- **Data contamination** is now quantified via formal taxonomy [source:arxiv:2407.08716], large-scale evidence (432 events across 91 datasets, 42 sources) [source:arxiv:2407.21530], and mechanistic detection (RADAR, 93% accuracy) [source:arxiv:2510.08931].
 - **Judges fail to detect their own biases**: LLMs cannot recognize their students (near random) [source:arxiv:2502.01534] and show systematic positional, verbosity, and reasoning failures [source:arxiv:2306.05685].
-- **Mitigation requires layered defenses**: position swapping, CoT, reference-guided grading, style unification, shared training data, and contextual calibration each address different bias vectors. No single fix suffices.
-- **Data contamination remains under-quantified**: benchmark leakage in teacher models [source:arxiv:2305.15717] and limited public student-teacher records [source:arxiv:2502.01534] hinder real-world impact assessment.
+- **Mitigation requires layered defenses**: position swapping, CoT, reference-guided grading, style unification, shared training data, contextual calibration, DPO over SFT, rationale augmentation, distillation for invariance, data sampling/reconstruction, mechanistic detection, and attribute-specific evaluation each address different bias vectors. No single fix suffices.
+- **Data contamination remains under-quantified in real-world leaderboards**: benchmark leakage in teacher models [source:arxiv:2305.15717] and limited public student-teacher records [source:arxiv:2502.01534] hinder impact assessment.
 
 ## Related Topics
 - [LLM-as-judge](llm-as-judge.md)
@@ -158,11 +220,18 @@ LLM-as-a-judge is the **default evaluation paradigm** for alignment leaderboards
 - [RLHF/PPO pipeline](rlhf-ppo-pipeline.md)
 
 ## References
-- [source:arxiv:2502.01534] [Preference Leakage: A Contamination Problem in LLM-as-a-Judge](https://arxiv.org/html/2502.01534v3)
-- [source:arxiv:2410.21819] [Self-Preference Bias in LLM-as-a-Judge](https://arxiv.org/html/2410.21819v1)
-- [source:neurips:llm-evaluators-recognize-and-favor-their] [LLM Evaluators Recognize and Favor Their Own Generations](https://neurips.cc/virtual/2024/poster/96672)
+- [source:arxiv:2305.15717] [The False Promise of Imitating Proprietary LLMs](https://arxiv.org/abs/2305.15717)
 - [source:aclanthology:beyond-the-surface-measuring-self-prefer] [Beyond the Surface: Measuring Self-Preference in LLM Judgments](https://aclanthology.org/2025.emnlp-main.86.pdf)
-- [source:arxiv:2406.01672] [Obol: A Comprehensive Framework for Detecting Data Contamination in LLMs](https://arxiv.org/abs/2406.01672)
+- [source:neurips:llm-evaluators-recognize-and-favor-their] [LLM Evaluators Recognize and Favor Their Own Generations](https://neurips.cc/virtual/2024/poster/96672)
+- [source:arxiv:2410.21819] [Self-Preference Bias in LLM-as-a-Judge](https://arxiv.org/html/2410.21819v1)
 - [source:arxiv:2306.05685] [Language Models are Good Evaluators but Need Careful Prompting](https://arxiv.org/abs/2306.05685)
 - [source:arxiv:2308.05962] [Judging LLM-as-a-Judge: The Bias and Reliability of LLM Evaluators](https://arxiv.org/abs/2308.05962)
-- [source:arxiv:2305.15717] [The False Promise of Imitating Proprietary LLMs](https://arxiv.org/abs/2305.15717)
+- [source:arxiv:2502.01534] [Preference Leakage: A Contamination Problem in LLM-as-a-Judge](https://arxiv.org/html/2502.01534v3)
+- [source:arxiv:2406.01672] [Obol: A Comprehensive Framework for Detecting Data Contamination in LLMs](https://arxiv.org/abs/2406.01672)
+- [source:arxiv:2407.08716] [A Taxonomy for Data Contamination in Large Language Models](https://arxiv.org/abs/2407.08716)
+- [source:arxiv:2407.21530] [Data Contamination Report from the 2024 CONDA Shared Task](https://arxiv.org/abs/2407.21530)
+- [source:arxiv:2510.08931] [RADAR: Mechanistic Pathways for Detecting Data Contamination in LLM Evaluation](https://arxiv.org/abs/2510.08931)
+- [source:arxiv:2407.14477] [Data-Centric Human Preference with Rationales for Direct Preference Alignment](https://arxiv.org/abs/2407.14477)
+- [source:arxiv:2404.11457] [Bias and Unfairness in Information Retrieval Systems: New Challenges in the LLM Era](https://arxiv.org/abs/2404.11457)
+- [source:arxiv:2601.03746] [Whose Facts Win? LLM Source Preferences under Knowledge Conflicts](https://arxiv.org/abs/2601.03746)
+- [source:arxiv:2509.11026] [Rethinking Human Preference Evaluation of LLM Rationales](https://arxiv.org/abs/2509.11026)
