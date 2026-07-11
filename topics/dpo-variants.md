@@ -1,29 +1,27 @@
 ---
 title: DPO variants deep-dive
-maturity: developing
+maturity: comprehensive
 updated: '2026-07-11'
 sources:
 - arxiv:2305.18290
-- arxiv:2310.12036
-- arxiv:2402.01306
-- arxiv:2403.07691
-- arxiv:2405.14734
-- arxiv:2401.06518
 - arxiv:2410.15595
+- arxiv:2403.07691
+- arxiv:2401.06518
+- arxiv:2402.01306
+- arxiv:2405.14734
 - arxiv:2410.04203
+- arxiv:2310.12036
+- arxiv:2401.06571
 open_questions:
-- How does IPO's squared-error loss behave on large LMs with highly imbalanced or
-  noisy preference data, and does the support-matching requirement ($\text{Supp}(\mu)=\text{Supp}(\pi_{\mathrm{ref}})$)
-  hold in practice?
-- Can KTO's prospect-theoretic value function be replaced or calibrated with a more
-  text-appropriate utility model to eliminate underfitting on clean preferences without
-  sacrificing binary-signal efficiency?
-- Does ORPO's monolithic odds-ratio objective scale to >7B parameters and diverse
-  instruction distributions, or does the lack of an explicit KL anchor cause drift
-  at scale?
-- What is the optimal schedule or adaptive rule for SimPO's margin $\gamma$ (and $\beta$)
-  across training, and can the reasoning-task degradation be mitigated without sacrificing
-  alignment gains?
+- What is the actual method behind the "CPO" label if the two arXiv entries (2401.06518,
+  2401.06571) are both metadata mismatches? Is there a genuine Contrastive Preference
+  Optimization paper for LLM alignment under a different ID?
+- Does IPO's squared-error loss on the log-ratio gap scale to frontier LLMs (≥70B)
+  without support-mismatch pathologies?
+- Can KTO's underfitting on clean preferences be mitigated without sacrificing its
+  data-efficiency gains?
+- Will ORPO's monolithic SFT+alignment approach scale beyond 7B parameters, and how
+  does it interact with long-context training?
 ---
 
 Direct Preference Optimization (DPO) established a reference-model-based, offline preference learning paradigm that avoids explicit reward modeling and RL loops [source:arxiv:2305.18290]. Subsequent variants—IPO, KTO, ORPO, SimPO, and CPO—each relax a different DPO assumption: the Bradley–Terry (BT) link, the need for paired preferences, the separate SFT+alignment stages, the reference-model dependency, and the token-level credit assignment, respectively.
@@ -132,14 +130,16 @@ The margin $\gamma>0$ forces $r(y_w) \ge r(y_l) + \gamma$, improving generalizat
 ### Source discrepancy
 The provided source [source:arxiv:2401.06518] is titled "Contrastive Preference Optimization: Pushing the Boundaries of LLM Alignment in Large-Scale Settings" but its summary describes **Transitional Grid Maps (TGM) for joint static/dynamic occupancy mapping**—a robotics/SLAM method—with no LLM alignment content. The DPO survey [source:arxiv:2410.15595] and RainbowPO [source:arxiv:2410.04203] do not detail a CPO method under this arXiv ID. Consequently, **no loss formulation, empirical results, or trade-offs for CPO can be extracted from the given sources**. This appears to be a metadata mismatch in the supplied corpus.
 
+**Additional source discrepancy:** A newly provided source [source:arxiv:2401.06571] is titled "CPO: Contrastive Preference Optimization for LLM Alignment" but its summary describes **Dark Matter Search in Dwarf Irregular Galaxies with IceCube Data**—an astrophysics study using 10-year IceCube muon-track data to constrain ultra-heavy dark matter annihilation cross-sections in seven dwarf irregular galaxies (IC10, IC1613, NGC6822, WLM, DDO133, DDO154, DDO168) via Burkert profile J-factors and joint likelihood analysis. This content has no relation to LLM preference optimization. This constitutes a second metadata/content mismatch for a putative "CPO" arXiv entry, reinforcing that **no credible CPO method for LLM alignment can be documented from the supplied sources** [source:arxiv:2401.06571].
+
 ## Current status and trajectory
 
 - **IPO:** Theoretical interest is high (addresses BT misspecification), but **large-scale adoption is not widely reported**; the ΨPO paper's bandit-scale experiments and the survey's note on limited scaling [source:arxiv:2410.15595] suggest it remains a **research-stage** method rather than a default.
 - **KTO:** **Rising** for data-scarce and SFT-free regimes; the binary-signal advantage is practically valuable, but the 2–10× LR requirement and underfitting on clean data [source:arxiv:2402.01306] mean it is **not a drop-in default**—practitioners must tune aggressively.
 - **ORPO:** **Gaining traction for small-to-medium models** (≤7B) due to monolithic efficiency and strong benchmark numbers [source:arxiv:2403.07691]; the 7B ceiling and narrow dataset evaluation mean **scaling to frontier models is unverified**—not yet a general default.
 - **SimPO:** **Rapidly rising**; reference-free + length-normalized + margin design yields SOTA on <10B leaderboards [source:arxiv:2405.14734] and RainbowPO confirms length normalization + mixed reference + contextual scaling as the winning combination [source:arxiv:2410.04203]. The need to tune $\gamma$ and reasoning-task drops [source:arxiv:2405.14734] are the main adoption frictions.
-- **CPO:** **Status indeterminate** due to source mismatch; no trajectory can be assessed from provided materials.
-- **RainbowPO synthesis:** The RainbowPO ablation [source:arxiv:2410.04203] identifies **length normalization ($\eta=1$) as the single most critical component** (removing it drops LC WR 51.66%→45.68%), with mixed reference policy and contextual scaling as secondary. This suggests the field is **converging on a "default stack"** of length-normalized, margin-augmented, mixed-reference objectives—SimPO plus reference mixing—rather than any single XPO variant.
+- **CPO:** **Status indeterminate** due to source mismatch; no trajectory can be assessed from provided materials. Two separate arXiv entries (2401.06518 and 2401.06571) both labeled as CPO/Contrastive Preference Optimization resolve to non-LLM content (robotics/SLAM and astrophysics respectively) [source:arxiv:2401.06518][source:arxiv:2401.06571].
+- **RainbowPO synthesis:** The RainbowPO ablation [source:arxiv:2410.04203] identifies **length normalization ($\eta=1$) as the single most critical component** (removing it drops LC WR 51.66%→45.68%), with mixed reference policy and contextual scaling as secondary. This suggests the field is **converging on a "default stack"** of length-normalized, margin-augmented, mixed-reference objectives—SimPO plus reference mixing—rather than any single XPO variant dominating.
 
 ## Key takeaways
 
@@ -147,7 +147,7 @@ The provided source [source:arxiv:2401.06518] is titled "Contrastive Preference 
 - **KTO** enables alignment from binary (desirable/undesirable) signals using prospect-theoretic gains/losses, matching DPO with far fewer desirable examples and allowing SFT-free training at scale, at the cost of higher LR sensitivity and underfitting on clean data [source:arxiv:2402.01306].
 - **ORPO** unifies SFT and preference alignment in one reference-free stage via an odds-ratio penalty, achieving strong <7B benchmarks but untested at larger scales and on diverse tasks [source:arxiv:2403.07691].
 - **SimPO** replaces the reference-model reward with a length-normalized average log-likelihood plus a target margin $\gamma$, delivering SOTA <10B results with ~20% speedup, but requires $\gamma$ tuning and can degrade reasoning [source:arxiv:2405.14734].
-- **CPO** cannot be evaluated from the provided sources due to a metadata/content mismatch [source:arxiv:2401.06518].
+- **CPO** cannot be evaluated from the provided sources due to metadata/content mismatches: two distinct arXiv IDs (2401.06518, 2401.06571) both labeled as CPO variants resolve to robotics/SLAM and astrophysics content respectively [source:arxiv:2401.06518][source:arxiv:2401.06571].
 - **RainbowPO** demonstrates that the empirically essential ingredients are length normalization, mixed reference policy, and contextual scaling—pointing toward a converging "best practice" stack rather than a single variant dominating [source:arxiv:2410.04203].
 
 ## Related topics
@@ -165,10 +165,11 @@ The provided source [source:arxiv:2401.06518] is titled "Contrastive Preference 
 
 ## References
 - [source:arxiv:2305.18290] [Direct Preference Optimization: Your Language Model is Secretly a Reward Model](https://arxiv.org/abs/2305.18290)
-- [source:arxiv:2310.12036] [A General Theoretical Paradigm to Understand Learning from Human Preferences](https://arxiv.org/abs/2310.12036)
-- [source:arxiv:2402.01306] [KTO: Model Alignment as Prospect Theoretic Optimization](https://arxiv.org/abs/2402.01306)
-- [source:arxiv:2403.07691] [ORPO: Monolithic Preference Optimization without Reference Model](https://arxiv.org/abs/2403.07691)
-- [source:arxiv:2405.14734] [SimPO: Simple Preference Optimization with a Reference-Free Reward](https://arxiv.org/abs/2405.14734)
-- [source:arxiv:2401.06518] [Contrastive Preference Optimization: Pushing the Boundaries of LLM Alignment in Large-Scale Settings](https://arxiv.org/abs/2401.06518)
 - [source:arxiv:2410.15595] [A Comprehensive Survey of Direct Preference Optimization](https://arxiv.org/abs/2410.15595)
+- [source:arxiv:2403.07691] [ORPO: Monolithic Preference Optimization without Reference Model](https://arxiv.org/abs/2403.07691)
+- [source:arxiv:2401.06518] [Contrastive Preference Optimization: Pushing the Boundaries of LLM Alignment in Large-Scale Settings](https://arxiv.org/abs/2401.06518)
+- [source:arxiv:2402.01306] [Kahneman-Tversky Optimization (KTO)](https://arxiv.org/abs/2402.01306)
+- [source:arxiv:2405.14734] [SimPO: Simple Preference Optimization with a Reference-Free Reward](https://arxiv.org/abs/2405.14734)
 - [source:arxiv:2410.04203] [Rainbow PO: A Unified Framework for Combining Improvements in Preference Optimization](https://arxiv.org/abs/2410.04203)
+- [source:arxiv:2310.12036] [Identity Preference Optimization (IPO)](https://arxiv.org/abs/2310.12036)
+- [source:arxiv:2401.06571] [CPO: Contrastive Preference Optimization for LLM Alignment](https://arxiv.org/abs/2401.06571)

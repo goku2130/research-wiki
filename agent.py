@@ -366,12 +366,10 @@ def search_web(query: str, max_results: int = 6) -> list[dict]:
         return []
 
 
-def arxiv_search(query: str, n: int = 8) -> list[dict]:
-    """Query the arXiv API directly, recency-sorted — primary literature, incl. the
-    newest papers that general web search under-indexes. Returns [{title,url,snippet}]."""
+def _arxiv_query(search_query: str, n: int, sort: str) -> list[dict]:
     from urllib.parse import quote
-    url = (f"http://export.arxiv.org/api/query?search_query=all:{quote(query)}"
-           f"&sortBy=submittedDate&sortOrder=descending&max_results={n}")
+    url = (f"http://export.arxiv.org/api/query?search_query={quote(search_query)}"
+           f"&sortBy={sort}&sortOrder=descending&max_results={n}")
     try:
         r = requests.get(url, timeout=30, headers={"User-Agent": "research-wiki/1.0"})
         r.raise_for_status()
@@ -391,27 +389,42 @@ def arxiv_search(query: str, n: int = 8) -> list[dict]:
     return out
 
 
+def arxiv_search(query: str, n: int = 8, sort: str = "relevance",
+                 loose: bool = True) -> list[dict]:
+    """Query the arXiv API directly — primary literature, incl. the newest papers that
+    general web search under-indexes. Returns [{title,url,snippet}]. sort='relevance'
+    for on-topic seminal work, 'submittedDate' for the newest variants/follow-ups.
+    Exact-phrase match first; if `loose`, fall back to an all-terms match when the phrase
+    is too rare (good for variant-name lists, but risks common-word noise on vague text)."""
+    # arXiv needs a clean phrase; punctuation/parens break its boolean syntax.
+    phrase = re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", query)).strip()
+    if not phrase:
+        return []
+    sort = sort if sort in ("relevance", "submittedDate") else "relevance"
+    res = _arxiv_query(f'all:"{phrase}"', n, sort)         # precise phrase match
+    if loose and len(res) < 2:                             # rare phrase -> loosen
+        res = _arxiv_query(f"all:{phrase}", n, sort)        # all-terms fallback
+    return res
+
+
 def arxiv_related(aid: str, n: int = 6) -> list[dict]:
-    """Papers that CITE a seed arXiv paper (Semantic Scholar) — walks the citation
-    graph to reach follow-up work / variants the seed spawned. arXiv-only, best-effort."""
+    """Papers that CITE a seed arXiv paper (Semantic Scholar), ranked by their OWN
+    citation count so influential descendant variants surface above recent noise.
+    arXiv-only, best-effort — S2 rate-limits without a key, so this fails silently."""
     try:
         r = requests.get(
             f"https://api.semanticscholar.org/graph/v1/paper/arXiv:{aid}/citations",
-            params={"fields": "title,externalIds", "limit": n * 4}, timeout=30)
+            params={"fields": "title,externalIds,citationCount", "limit": 500}, timeout=40)
         r.raise_for_status()
         data = r.json().get("data", [])
     except Exception:  # noqa: BLE001
         return []
-    out = []
-    for c in data:
-        p = c.get("citingPaper") or {}
-        aid2 = (p.get("externalIds") or {}).get("ArXiv")
-        if aid2 and p.get("title"):
-            out.append({"title": p["title"].strip(),
-                        "url": f"https://arxiv.org/abs/{aid2}", "snippet": ""})
-        if len(out) >= n:
-            break
-    return out
+    papers = [c.get("citingPaper") or {} for c in data]
+    arx = [p for p in papers if (p.get("externalIds") or {}).get("ArXiv") and p.get("title")]
+    arx.sort(key=lambda p: p.get("citationCount") or 0, reverse=True)
+    return [{"title": p["title"].strip(),
+             "url": f"https://arxiv.org/abs/{(p['externalIds'])['ArXiv']}", "snippet": ""}
+            for p in arx[:n]]
 
 
 def arxiv_seed(topic: dict) -> list[dict]:
@@ -419,14 +432,20 @@ def arxiv_seed(topic: dict) -> list[dict]:
     expansion, then citation-traversal from the top hits to catch descendant variants."""
     seeds: list[dict] = []
     seen: set[str] = set()
-    queries = [topic["title"], f"{topic['title']} variants improvements"]
+    title = topic["title"]
+    # Notes first (they hold the real technical terms / variant names) with loose
+    # matching; title only as an EXACT phrase (loose=False) to avoid common-word noise
+    # like "deep dive". relevance = seminal; submittedDate = newest follow-ups.
+    passes = []
     if topic.get("notes"):
-        queries.append(topic["notes"])
-    for q in queries:
-        for s in arxiv_search(q, 6):
+        passes.append(arxiv_search(topic["notes"], 8, "relevance", loose=True))
+    passes.append(arxiv_search(title, 6, "relevance", loose=False))
+    passes.append(arxiv_search(title, 4, "submittedDate", loose=False))
+    for lst in passes:
+        for s in lst:
             if s["url"] not in seen:
                 seen.add(s["url"]); seeds.append(s)
-    for s in list(seeds[:3]):                       # follow citations from the top hits
+    for s in list(seeds[:3]):                       # follow citations -> descendant variants
         aid = arxiv_id(s["url"])
         for c in (arxiv_related(aid, 4) if aid else []):
             if c["url"] not in seen:

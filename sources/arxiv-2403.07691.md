@@ -5,7 +5,7 @@ title: 'ORPO: Monolithic Preference Optimization without Reference Model'
 url: https://arxiv.org/abs/2403.07691
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: rl-for-llms-overview
+topic: dpo-variants
 ---
 
 # ORPO: Monolithic Preference Optimization without Reference Model
