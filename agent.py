@@ -78,10 +78,16 @@ def mistral_client() -> OpenAI:
 
 
 _ORK = os.getenv("OPENROUTER_API_KEY")
+_NVK = os.getenv("NVIDIA_API_KEY")
+_NV_PREFIXES = ("nvidia/", "meta/", "deepseek-ai/", "qwen/", "mistralai/", "microsoft/")
 
 
 def openrouter_client() -> OpenAI:
     return OpenAI(base_url="https://openrouter.ai/api/v1", api_key=_ORK)
+
+
+def nvidia_client() -> OpenAI:
+    return OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=_NVK)
 
 
 def content_text(msg) -> str:
@@ -115,8 +121,11 @@ else:
 
 
 def route(model: str) -> OpenAI:
-    """Backend client for a model id — used by every LLM role. '/' => OpenRouter,
-    mistral*/magistral* => Mistral, gemma*/gemini* => Google, else local Qwen GPU."""
+    """Backend client for a model id — used by every LLM role. NVIDIA-hosted
+    (nvidia/, meta/, deepseek-ai/, qwen/...) => NVIDIA build API (free); other '/'
+    (google/, openai/...) => OpenRouter; mistral* => Mistral; else local Qwen GPU."""
+    if model.startswith(_NV_PREFIXES) and _NVK:
+        return nvidia_client()
     if "/" in model and _ORK:
         return openrouter_client()
     if model.startswith(("mistral", "magistral")) and _MKEYS:
@@ -133,11 +142,9 @@ REVIEWER, REVIEWER_MODEL = QWEN, os.getenv("REVIEWER_MODEL", "google/gemini-2.5-
 
 
 def writer_client() -> OpenAI:
-    if "/" in WRITER_MODEL and _ORK:
-        return openrouter_client()
     if WRITER_MODEL.startswith(("mistral", "magistral")) and _MKEYS:
         return mistral_client()   # next key in the round-robin
-    return WRITER
+    return route(WRITER_MODEL)
 
 
 def reviewer_client() -> OpenAI:
