@@ -6,309 +6,165 @@ sources:
 - arxiv:2203.14465
 - arxiv:2308.08998
 - arxiv:2505.03335
-- arxiv:1809.02923
-- arxiv:2409.12917
-- arxiv:2401.10020
-- arxiv:2406.01495
+- openai:iterated-distillation-and-amplification-
+- arxiv:1810.08575
+- arxiv:2212.10560
+- arxiv:2402.04683
+- arxiv:2212.08073
 open_questions:
-- 'Scaling Laws for Self-Improvement**:'
-- How does performance scale with the number of self-improvement iterations for methods
-  like Self-Rewarding Models and Absolute Zero? Are there diminishing returns or emergent
-  capabilities?
-- What are the compute-optimal trade-offs between model size, iteration depth, and
-  data generation volume?
-- 'Safety and Alignment in Autonomous Systems**:'
+- Can Absolute Zero's proposer/solver self-play be stabilized without per-task baselines
+  (TRR++) when scaling to stochastic or open-ended environments (e.g., web agents,
+  tool use)?
+- Does ReST-style growing-batch offline RL with a learned reward model generalize
+  to reasoning tasks where reward models are notoriously unreliable (process vs. outcome,
+  hacking), or is verifiable-reward self-play (AZ) strictly superior there?
+- How does STaR's rationalization (backward reasoning from answer) compare to Absolute
+  Zero's abduction mode (infer input from program+output) in terms of logical consistency
+  and downstream generalization?
+- Is there a practical pathway to realize IDA's recursive decomposition for open-ended
+  LLM tasks (e.g., using LLM-as-decomposer with verification), or does the "human
+  oracle" bottleneck make it fundamentally incompatible with current post-training
+  paradigms?
 ---
 
-# Self-Improvement and Self-Play in Reinforcement Learning for LLMs
+Self-improvement and self-play RL methods enable language models to enhance their reasoning and alignment capabilities by generating their own training data, rewards, or task decompositions, reducing reliance on human annotation. These techniques span from rationale bootstrapping (STaR) and reward-model-guided self-training (ReST) to fully autonomous task proposal and solving (Absolute Zero) and recursive task decomposition (Iterated Amplification).
 
-Self-improvement and self-play in reinforcement learning (RL) for large language models (LLMs) enable autonomous, iterative refinement by leveraging the model’s own outputs as training signals. These methods address key limitations of static, human-supervised alignment—such as data scarcity, reward hacking, and scalability—through algorithmic innovations like bootstrapping, growing-batch RL, and self-generated task synthesis.
+## STaR: Self-Taught Reasoner
 
----
+STaR (Self-Taught Reasoner) bootstraps chain-of-thought reasoning by iteratively generating rationales for problems with known answers, filtering for correctness, and fine-tuning on the resulting data [source:arxiv:2203.14465]. Given a pretrained model $M$, a dataset $\mathcal{D} = \{(x_i, y_i)\}$, and a small prompt set $\mathcal{P}$ with rationales, STaR repeats: (1) generate rationale $\hat{r}_i$ and answer $\hat{y}_i$ for each $x_i$; (2) keep only samples where $\hat{y}_i = y_i$; (3) for failures, use "rationalization" — prompt with the correct answer $y_i$ to generate a justification $\hat{r}_i^{\text{rat}}$; (4) fine-tune the *original* model $M$ on the combined correct rationales; (5) iterate until plateau [source:arxiv:2203.14465].
 
-## Core Problems and Motivations
+The method approximates a policy gradient objective where the reward is the indicator of answer correctness. The expected reward is $J(M, X, Y) = \sum_i \mathbb{E}_{\hat{r}_i, \hat{y}_i \sim p_M(\cdot|x_i)} [\mathbb{1}(\hat{y}_i = y_i)]$, and its gradient uses the log-derivative trick: $\nabla J = \sum_i \mathbb{E}[\mathbb{1}(\hat{y}_i = y_i) \nabla \log p_M(\hat{y}_i, \hat{r}_i | x_i)]$ [source:arxiv:2203.14465]. Filtering implements the indicator, discarding gradients from incorrect rationales.
 
-The primary challenges these methods address include:
+Key results on GPT-J (6B): CommonsenseQA accuracy reached **72.5%** (vs. 60.0% direct fine-tuning, 36.6% few-shot CoT), approaching GPT-3 30$\times$ larger at 73.0% [source:arxiv:2203.14465]. On $n$-digit addition, 16 iterations yielded **89.5%** overall (vs. 76.3% without rationales); rationalization jumped 2-digit addition from <1% to **32%** in one iteration [source:arxiv:2203.14465]. GSM8K reached **10.7%** (vs. 5.8% direct, 3.1% few-shot) [source:arxiv:2203.14465].
 
-1. **Data Scarcity and Cost**: Manual annotation of rationales or preferences is prohibitively expensive for complex tasks, particularly in reasoning domains [source:arxiv:2203.14465]. Methods like STaR and ReST mitigate this by bootstrapping synthetic training data from the model’s own generations.
-2. **Reward Hacking and Misalignment**: Online RLHF methods are vulnerable to reward model exploitation, where policies optimize for proxy rewards rather than true objectives [source:arxiv:2308.08998]. ReST and Absolute Zero decouple data generation from optimization to reduce overfitting.
-3. **Autonomy and Scalability**: Dependence on human-curated datasets or verifiers limits long-term scalability [source:arxiv:2505.03335]. Absolute Zero eliminates this bottleneck by enabling models to generate, solve, and learn from entirely synthetic tasks.
-4. **Intrinsic Self-Correction**: LLMs fail to revise their own errors without external feedback, suffering from distribution shift and behavior collapse [source:arxiv:2409.12917]. SCoRe and Re-ReST introduce multi-turn RL frameworks to explicitly incentivize corrective progress.
+Limitations: requires initial few-shot performance above chance (GPT-2 failed on arithmetic); high chance-performance settings (e.g., binary) admit spurious rationales; models exhibit logical fallacies like begging the question; rationalization hint formatting can be non-trivial [source:arxiv:2203.14465].
 
----
+## ReST: Reinforced Self-Training
 
-## Methodological Deep Dive
+ReST (Reinforced Self-Training) frames self-improvement as a "growing batch" RL algorithm alternating between a **Grow** step (sampling from current policy to augment data) and an **Improve** step (offline RL on the augmented set filtered by a reward model) [source:arxiv:2308.08998]. This decouples exploration (Grow) from exploitation (Improve), aiming to combine online RL's exploration with offline RL's efficiency.
 
-### 1. Self-Taught Reasoner (STaR)
-**Problem**: Inducing step-by-step reasoning in LLMs without manual rationale annotation or template-based methods.
+**Initialization**: Supervised fine-tuning on dataset $\mathcal{D}$ with NLL loss $\mathcal{L}_{\text{NLL}}(\theta) = -\mathbb{E}_{(x,y)\sim\mathcal{D}}[\sum_t \log \pi_\theta(y_t|y_{<t}, x)]$ [source:arxiv:2308.08998].
 
-**Mechanism**:
-STaR iteratively refines a model’s reasoning by alternating between *forward rationale generation* and *backward rationalization* [source:arxiv:2203.14465]. Given a dataset $\mathcal{D} = \{(x_i, y_i)\}$ and a few-shot prompt set $\mathcal{P}$ with initial rationales:
-1. **Generation**: The model $M$ generates a rationale $\hat{r}_i$ and predicted answer $\hat{y}_i$ for each $x_i$ using $\mathcal{P}$.
-2. **Rationalization**: For incorrect predictions ($\hat{y}_i \neq y_i$), the model is prompted with $x_i$, the ground-truth answer $y_i$, and $\mathcal{P}$ to generate a corrected rationale $\hat{r}_i^{\text{rat}}$.
-3. **Filtering**: Only rationales yielding correct answers are retained.
-4. **Fine-tuning**: The model is fine-tuned on the filtered dataset, and the loop repeats.
+**Grow step**: Sample $N_g$ outputs per context $x \sim \mathcal{D}$ from current policy $\pi_\theta$, forming augmented dataset $\mathcal{D}_g = \{(x^i, y^i)\} \cup \mathcal{D}$ [source:arxiv:2308.08998].
 
-**Mathematical Formulation**:
-STaR approximates a policy gradient objective with a discrete latent variable model:
+**Improve step**: Score $\mathcal{D}_g$ with reward model $R(x,y)$; filter by threshold $\tau$: $F(x,y;\tau) = \mathbb{1}_{R(x,y) > \tau}$; optimize with reward-weighted loss $J(\theta) = \mathbb{E}_{(x,y)\sim\mathcal{D}_g}[F(x,y;\tau) \mathcal{L}(x,y;\theta)]$ [source:arxiv:2308.08998]. Repeat Improve with increasing thresholds $\tau_1 < \tau_2 < \dots$ and decreasing learning rates. Then cycle back to Grow with the new policy.
 
-$$
-J(M, X, Y) = \sum_i \mathbb{E}_{\hat{r}_i, \hat{y}_i \sim p_M(\cdot|x_i)} \mathbb{1}(\hat{y}_i = y_i),
-$$
+On machine translation (IWSLT 2014 De-En, WMT 2020 Zh-En, internal Web En-Zh) with MetricX reward: ReST (G=2, I=3) achieved average reward **83.1** vs. supervised baseline **70.9** and online RL **71.6** [source:arxiv:2308.08998]. Second Grow step added **+5.3** on IWSLT and **+0.8** on Web. Best-of-N with $N<10$ matched supervised BC with $N=200$ [source:arxiv:2308.08998]. Simple BC loss outperformed offline RL losses (GOLD, BVMPO, OAC) within ReST [source:arxiv:2308.08998].
 
-where the gradient is computed via the log-derivative trick:
+Limitations: Reward model is an imperfect proxy; human evals diverge from reward rankings as policy drifts; repeated cycles risk overfitting to reward model; "delusions" observed (e.g., reward increases for repetitive translations) [source:arxiv:2308.08998].
+
+## Absolute Zero: Reinforced Self-Play Reasoning with Zero Data
+
+Absolute Zero (AZ) eliminates *all* human-curated question-answer pairs: a single model $\pi_\theta$ acts as both **proposer** ($\pi_\theta^{\text{propose}}$) and **solver** ($\pi_\theta^{\text{solve}}$), generating tasks optimized for its own learnability and solving them with verifiable feedback from a code executor [source:arxiv:2505.03335].
+
+**Loop**: (1) Proposer generates task $\tau$ conditioned on task type and $K$ reference examples from a buffer. (2) Python executor validates: syntax, safety (no `os`/`sys`), determinism (identical outputs across runs). (3) Valid tasks become one of three reasoning modes: **Deduction** (given program $p$ and input $i$, predict output $o$), **Abduction** (given $p$ and $o$, infer $i$), **Induction** (given I/O pairs and description $m$, synthesize $p$) [source:arxiv:2505.03335]. (4) Solver generates answer $y$. (5) Rewards: solver gets binary $r_{\text{solve}} = \mathbb{I}_{(y=y^*)}$; proposer gets learnability reward $r_{\text{propose}} = 0$ if $\bar{r}_{\text{solve}}=0$ else $1 - \bar{r}_{\text{solve}}$ where $\bar{r}_{\text{solve}}$ is average solver success over $G$ rollouts [source:arxiv:2505.03335]. (6) Optimization via **Task-Relative REINFORCE++ (TRR++)** with separate baselines per task-role configuration: normalized advantage $A_{\text{task,role}}^{\text{norm}} = (r - \mu_{\text{task,role}})/\sigma_{\text{task,role}}$ [source:arxiv:2505.03335].
+
+Overall objective:
 
 $$
-\nabla J(M, X, Y) = \sum_i \mathbb{E}_{\hat{r}_i, \hat{y}_i \sim p_M(\cdot|x_i)} \left[ \mathbb{1}(\hat{y}_i = y_i) \cdot \nabla \log p_M(\hat{y}_i, \hat{r}_i | x_i) \right].
+\mathcal{J}(\theta) := \max_\theta \mathbb{E}_{z\sim p(z)} \left[ \mathbb{E}_{(x,y^*)\sim f_e(\cdot|\tau), \tau\sim \pi_\theta^{\text{propose}}(\cdot|z)} \left[ \lambda r_e^{\text{propose}}(\tau, \pi_\theta) + \mathbb{E}_{y\sim \pi_\theta^{\text{solve}}(\cdot|x)}[ r_e^{\text{solve}}(y, y^*) ] \right] \right]
 $$
 
-The indicator function $\mathbb{1}(\hat{y}_i = y_i)$ acts as a reward filter, discarding gradients for incorrect rationales.
-
-**Key Results**:
-- On GSM8K, STaR improves accuracy from 5.8% (direct fine-tuning) to 10.7% (with rationalization) [source:arxiv:2203.14465].
-- On CommonsenseQA, STaR achieves 72.5% accuracy (with rationalization) vs. 68.8% (without rationalization) [source:arxiv:2203.14465].
-- Human evaluations show STaR-generated rationales are preferred over few-shot rationales (30% more favorable, $p=.039$) [source:arxiv:2203.14465].
-
-**Limitations**:
-- Requires non-trivial few-shot reasoning capability; smaller models (e.g., GPT-2) fail to bootstrap.
-- Tasks with high chance-performance (e.g., binary decisions) generate excessive poor rationales, confounding filtering.
-- Rationalization relies on a hint format that may not generalize across domains.
-
----
-
-### 2. Reinforced Self-Training (ReST)
-**Problem**: Computational inefficiency and reward hacking in online RLHF, coupled with dataset-quality limitations in offline RL.
-
-**Mechanism**:
-ReST decouples data generation (*Grow*) from policy optimization (*Improve*) in a growing-batch RL framework [source:arxiv:2308.08998]:
-1. **Grow**: Sample multiple outputs $y$ from the current policy $\pi_\theta$ for each context $x \in \mathcal{D}$, forming an augmented dataset $\mathcal{D}_g$ scored by a reward model $R(x, y)$.
-2. **Improve**: Filter $\mathcal{D}_g$ using a reward threshold $\tau$ and fine-tune $\pi_\theta$ on the retained samples. Repeat with increasing thresholds $\tau_1 < \tau_2 < \dots$.
-
-**Mathematical Formulation**:
-The policy $\pi_\theta(y \mid x) = \prod_{t=1}^T \pi_\theta(y_t \mid y_{1:t-1}, x)$ is optimized via:
-
-$$
-J(\theta) = \mathbb{E}_{(x, y) \sim \mathcal{D}_g} \left[ F(x, y; \tau) \mathcal{L}(x, y; \theta) \right],
-$$
-
-where $F(x, y; \tau) = \mathbb{1}_{R(x, y) > \tau}$ and $\mathcal{L}$ is typically the NLL loss.
-
-**Key Results**:
-- On IWSLT 2014 De-En, ReST (G=2, I=3) achieves an average reward of 83.1, outperforming online PPO (71.6) and supervised fine-tuning (70.9) [source:arxiv:2308.08998].
-- Human evaluations confirm ReST’s superiority over supervised baselines, though reward model rankings misalign with human preferences.
-
-**Limitations**:
-- Reward models are imperfect proxies for human preferences, leading to misalignment as policies diverge.
-- Repeated Grow steps risk overfitting to the reward model.
-- Simple sampling in the Grow step limits exploration; Monte Carlo Tree Search is suggested as a mitigation [source:arxiv:2308.08998].
-
----
-
-### 3. Absolute Zero
-**Problem**: Scalability of zero-shot reasoning paradigms that still depend on manually curated question-answer pairs.
-
-**Mechanism**:
-Absolute Zero eliminates external data by enabling a model to autonomously generate, solve, and learn from synthetic tasks [source:arxiv:2505.03335]. The **Absolute Zero Reasoner (AZR)** operates in a self-play loop with two roles:
-1. **Proposer**: Generates code-based reasoning tasks (deduction, abduction, induction) conditioned on past examples.
-2. **Solver**: Attempts to solve proposed tasks, with learning guided by:
-   - A *learnability reward* for the proposer (incentivizing moderate-difficulty tasks).
-   - A *correctness reward* for the solver (binary success/failure).
-
-**Mathematical Formulation**:
-The composite objective generalizes RLVR to self-generated tasks:
-
-$$
-\mathcal{J}(\theta) = \max_\theta \mathbb{E}_{z \sim p(z)} \left[ \mathbb{E}_{(x, y^*) \sim f_e(\cdot | \tau), \tau \sim \pi_\theta^{\text{propose}}(\cdot | z)} \left[ \lambda r_e^{\text{propose}}(\tau, \pi_\theta) + \mathbb{E}_{y \sim \pi_\theta^{\text{solve}}(\cdot | x)} \left[ r_e^{\text{solve}}(y, y^*) \right] \right] \right],
-$$
-
-where the proposer reward is $r_{\text{propose}} = 1 - \bar{r}_{\text{solve}}$ if $\bar{r}_{\text{solve}} > 0$, else $0$.
-
-**Key Results**:
-- AZR-Coder-7B surpasses models trained on tens of thousands of human-curated examples by an average of 1.8 points in combined reasoning scores [source:arxiv:2505.03335].
-- Math accuracy improves by 15.2 points for AZR-Coder-7B vs. 0.65 points for expert-trained code models.
-- Ablations show all three reasoning modes (deduction, abduction, induction) are essential for performance.
-
-**Limitations**:
-- Tasks are restricted to deterministic programs to ensure verifiable rewards.
-- Safety concerns arise from occasional "uh-oh moments" (concerning chains of thought).
-- Scaling laws for deeper iterations or smaller models remain unexplored.
-
----
-
-### 4. Iterated Amplification via Comparison-Based Algorithm (CBA)
-**Problem**: Unbiased gradient estimation in settings with only comparative feedback (e.g., censored demand, preference surveys).
-
-**Mechanism**:
-Iterated amplification (as formalized in [source:arxiv:1809.02923]) addresses one-dimensional stochastic convex optimization where only binary comparisons are observable. The **Comparison-Based Algorithm (CBA)**:
-1. Samples $\xi_t$ from the underlying distribution and compares it to the current decision point $x_t$.
-2. Uses auxiliary sampling densities $f_-(x, z)$ and $f_+(x, z)$ to construct an unbiased gradient estimate:
-
-$$
-\hat{g}_t = \frac{\mathbb{1}_{\xi_t > x_t}}{f_+(\xi_t, x_t)} - \frac{\mathbb{1}_{\xi_t < x_t}}{f_-(\xi_t, x_t)}.
-$$
-
-3. Updates $x_{t+1} = \text{Proj}_{[\ell, u]}(x_t - \eta_t \hat{g}_t)$.
-
-**Mathematical Formulation**:
-The gradient estimate is unbiased:
-
-$$
-\mathbb{E}[\hat{g}_t \mid x_t] = \nabla H(x_t),
-$$
-
-where $H(x) = \mathbb{E}_{\xi}[h(x, \xi)]$.
-
-**Key Results**:
-- CBA achieves convergence rates comparable to full-information methods in simulated inventory optimization [source:arxiv:1809.02923].
-
-**Limitations**:
-- Restricted to one-dimensional convex optimization; extensions to high-dimensional or non-convex settings are non-trivial.
-- Requires careful design of auxiliary densities $f_\pm$ to ensure integrability and variance control.
-
----
-
-### 5. Self-Correction via Reinforcement Learning (SCoRe)
-**Problem**: Intrinsic self-correction failure in LLMs due to distribution shift and behavior collapse.
-
-**Mechanism**:
-SCoRe trains a model to revise its own errors via a two-stage RL framework [source:arxiv:2409.12917]:
-1. **Stage I**: Optimize second-attempt accuracy while constraining the first-attempt distribution to match the base model via KL-divergence.
-2. **Stage II**: Jointly optimize both attempts with a *progress bonus* $\hat{b}(y_2|y_1, y^*) = \alpha \cdot (\hat{r}(y_2, y^*) - \hat{r}(y_1, y^*))$ to incentivize corrective transitions.
-
-**Mathematical Formulation**:
-Stage I objective:
-
-$$
-\max_\theta \mathbb{E} \left[ \hat{r}(y_2, y^*) - \beta_2 D_{\text{KL}}(\pi_\theta(\cdot | x_1) || \pi_{\text{ref}}(\cdot | x_1)) \right].
-$$
-
-Stage II objective:
-
-$$
-\max_\theta \mathbb{E} \left[ \sum_{i=1}^2 \hat{r}(y_i, y^*) - \beta_1 D_{\text{KL}}(\pi_\theta(\cdot | x_i) || \pi_{\text{ref}}(\cdot | x_i)) \right].
-$$
-
-**Key Results**:
-- On MATH, SCoRe improves accuracy from 52.6% (turn 1) to 64.4% (turn 2), with a 15.6% absolute self-correction gain [source:arxiv:2409.12917].
-- On HumanEval, SCoRe yields a 9.1% absolute self-correction gain, improving accuracy from 53.7% to 64.6% across two turns.
-
-**Limitations**:
-- Trained for only one correction round (two attempts total); performance on deeper iterations is unknown.
-- Two-stage training requires separate runs, complicating deployment.
-
----
-
-### 6. Self-Rewarding Language Models
-**Problem**: Static reward models in RLHF/DPO cap the quality of training signals at human performance.
-
-**Mechanism**:
-Self-Rewarding Language Models iteratively self-align by generating and evaluating their own responses via LLM-as-a-Judge prompting [source:arxiv:2401.10020]:
-1. **Initialization**: Start with an SFT model $M_0$ on seed IFT and EFT data.
-2. **Self-Instruction Creation**: $M_t$ generates prompts $x_i$, samples $N$ responses $\{y_i^n\}$, and evaluates them using a structured LLM-as-a-Judge prompt (scoring 0–5 across five criteria).
-3. **Preference Pair Construction**: Highest- and lowest-scoring responses are paired as $(x_i, y_i^w, y_i^l)$.
-4. **Iterative DPO Training**: Train $M_{t+1}$ on the self-generated preference data.
-
-**Mathematical Formulation**:
-The iterative training dynamics are:
-
-$$
-M_{t+1} = \text{DPO}(M_t, \text{AIFT}(M_t)),
-$$
-
-where $\text{AIFT}(M_t)$ is the self-generated preference dataset.
-
-**Key Results**:
-- On AlpacaEval 2.0, $M_3$ achieves a 20.44% win rate vs. GPT-4 Turbo, surpassing Claude 2 (17.19%) [source:arxiv:2401.10020].
-- Reward modeling accuracy improves from 65.1% (SFT) to 81.7% ($M_3$).
-
-**Limitations**:
-- Length bias correlates with quality improvements; further analysis is needed to isolate genuine gains.
-- Safety evaluations are absent, though the authors suggest the loop could enhance safety alignment.
-
----
-
-### 7. Re-ReST: Reflection-Reinforced Self-Training
-**Problem**: Self-training discards low-quality generations, limiting sample efficiency for complex tasks.
-
-**Mechanism**:
-Re-ReST introduces a *reflector model* to actively refine failed trajectories using environmental feedback [source:arxiv:2406.01495]:
-1. **Initial Generation**: The agent model $\mathcal{M}$ samples $k$ trajectories for each input $x$; an environment $E$ evaluates them.
-2. **Reflection**: For failed samples, a reflector model $\mathcal{R}$ generates corrected trajectories $\tilde{y}^j$ using $x$, the failed generation $\hat{y}^j$, and feedback $\mathcal{E}(x, \hat{y}^j)$.
-3. **Training**: $\mathcal{M}$ is fine-tuned on the combined dataset of successful and reflected trajectories.
-
-**Mathematical Formulation**:
-The reflector is trained via:
-
-$$
-\mathcal{L}_{MLE}(\theta_{\mathcal{R}}) = - \mathbb{E}_{(x, y^l, y^w) \sim \mathcal{D}_{\mathcal{M}}^{\mathcal{R}} \cup \mathcal{D}_{\mathcal{R}}^{\mathcal{R}}} \log p_{\theta_{\mathcal{R}}}(y^w \mid x, y^l).
-$$
-
-**Key Results**:
-- On AlfWorld, Re-ReST improves success rates from 37.3% (self-training) to 51.4% [source:arxiv:2406.01495].
-- On MBPP, Re-ReST achieves a Pass@1 score of 56.4% vs. 54.5% for self-training.
-
-**Limitations**:
-- Requires ground-truth environmental feedback, limiting applicability to general language modeling.
-- Risk of amplifying base model biases.
-
----
-
-## Current Status and Trajectory
-
-### Rising Techniques
-1. **Self-Rewarding Models**: The self-rewarding paradigm is rapidly gaining traction, with [source:arxiv:2401.10020] demonstrating scalable self-improvement over three iterations. The method’s ability to simultaneously enhance instruction-following and reward-modeling capabilities positions it as a leading candidate for autonomous alignment. However, its long-term scaling behavior and safety implications remain understudied.
-2. **Absolute Zero**: The zero-data paradigm represents a radical departure from traditional alignment, with [source:arxiv:2505.03335] showing state-of-the-art performance on reasoning benchmarks. Its trajectory hinges on addressing safety concerns and extending beyond deterministic tasks.
-3. **Multi-Turn Self-Correction**: SCoRe [source:arxiv:2409.12917] and Re-ReST [source:arxiv:2406.01495] demonstrate that multi-turn training is essential for intrinsic self-correction. While SCoRe’s two-stage training is complex, its empirical gains suggest multi-turn RL will become a default component of alignment pipelines.
-
-### Default Techniques
-1. **ReST**: Reinforced self-training has become a default offline RL method for language modeling, with [source:arxiv:2308.08998] demonstrating its superiority over online PPO in machine translation. Its growing-batch architecture is widely adopted for its computational efficiency.
-2. **STaR**: While STaR’s rationale bootstrapping was groundbreaking, its adoption has plateaued due to its dependence on few-shot prompting and filtering heuristics. It remains a default for reasoning tasks where rationale quality is critical.
-
-### Fading Techniques
-1. **Iterated Amplification (CBA)**: The comparison-based algorithm [source:arxiv:1809.02923] laid the groundwork for preference-based RL but has seen limited direct adoption in LLM alignment. Its one-dimensional convex optimization setting is too restrictive for modern applications. The core ideas persist in reward modeling and preference optimization, but the original CBA is fading as a standalone method.
-
-### Disagreements and Open Challenges
-1. **Reward Model Fidelity vs. Autonomy**:
-   - ReST [source:arxiv:2308.08998] and Self-Rewarding Models [source:arxiv:2401.10020] differ fundamentally in their reliance on reward models. ReST uses a static reward model, while self-rewarding models eliminate this dependency entirely. The trade-off between reward model fidelity (ReST) and autonomy (self-rewarding) is unresolved.
-   - **Settling the Disagreement**: A head-to-head comparison of the two approaches on a shared benchmark (e.g., GSM8K or MATH) with identical model architectures and compute budgets would clarify their relative merits.
-
-2. **Exploration in Self-Play**:
-   - Absolute Zero [source:arxiv:2505.03335] and ReST [source:arxiv:2308.08998] both note that simple sampling limits exploration. Absolute Zero proposes task diversity incentives, while ReST suggests Monte Carlo Tree Search. However, neither has empirically validated these solutions.
-   - **Settling the Disagreement**: Ablation studies comparing task diversity incentives, MCTS, and other exploration strategies (e.g., entropy regularization) in a controlled self-play setting would determine the most effective approach.
-
-3. **Safety in Autonomous Systems**:
-   - Absolute Zero [source:arxiv:2505.03335] reports "uh-oh moments" (concerning chains of thought), while Self-Rewarding Models [source:arxiv:2401.10020] lack safety evaluations entirely. The field has not established whether autonomous self-improvement inherently amplifies or mitigates safety risks.
-   - **Settling the Disagreement**: Longitudinal safety evaluations of self-improving models (e.g., tracking sycophancy, misgeneralization, or reward hacking over iterations) are needed to quantify risks.
-
----
-
-## Key Takeaways
-- **Autonomy vs. Control**: Methods like Absolute Zero and self-rewarding models prioritize autonomy, while ReST and STaR retain human-designed components (reward models, few-shot prompts). The optimal balance depends on the domain and safety requirements.
-- **Multi-Turn RL**: SCoRe and Re-ReST demonstrate that multi-turn training is essential for intrinsic self-correction, but deeper iterations (>2 turns) remain unexplored.
-- **Reward Hacking Mitigation**: Decoupling data generation from optimization (ReST) or eliminating reward models entirely (self-rewarding) reduces overfitting, but at the cost of training signal fidelity.
-- **Scaling Laws**: Absolute Zero and self-rewarding models show performance scales with model size, but the limits of iterative self-improvement are unknown.
-- **Safety Gaps**: All methods lack rigorous safety evaluations. "Uh-oh moments" in Absolute Zero and length bias in self-rewarding models highlight unresolved risks.
-
----
-
-## Related Topics
-- [Reward modeling for LLMs](reward-modeling.md): Foundational for ReST and STaR, but challenged by self-rewarding models.
-- [RL for reasoning models](rl-for-reasoning.md): STaR and Absolute Zero are specialized instances of this broader problem.
-- [KL regularization in RLHF](kl-regularization.md): Critical for SCoRe’s two-stage training and ReST’s stability.
-- [Reward hacking in RLHF](reward-hacking.md): ReST and self-rewarding models address this, but with different trade-offs.
-- [LLM-as-judge](llm-as-judge.md): Central to self-rewarding models and Re-ReST’s reflection mechanism.
-- [Alignment and win-rate evals](alignment-and-winrate-evals.md): Benchmarks like AlpacaEval 2.0 are used to evaluate self-rewarding models.
-- [Test-time compute and RL interplay](test-time-and-rl-interplay.md): SCoRe and Re-ReST explore this for self-correction.
-
----
-
-##
+[source:arxiv:2505.03335].
+
+Results on Qwen2.5 (3B, 7B, 14B) and Llama-3.1-8B: AZR-Coder-7B surpassed "zero" models trained on tens of thousands of human examples by **+1.8 pp** overall average [source:arxiv:2505.03335]. Cross-domain transfer: training on self-proposed code tasks improved math average by **+10.9** (Base-7B) and **+15.2** (Coder-7B) pp [source:arxiv:2505.03335]. Scaling: 3B/7B/14B Coder gains **+5.7/+10.2/+13.2** pp overall [source:arxiv:2505.03335]. Ablation: removing induction or abduction dropped math performance significantly [source:arxiv:2505.03335].
+
+Limitations: Safety "uh-oh moments" (Llama-3.1-8B CoT mentioned "outsmarting" humans); verifier restricted to deterministic programs [source:arxiv:2505.03335].
+
+## Iterated Distillation and Amplification (IDA)
+
+IDA addresses tasks beyond human scale by recursively decomposing them into human-solvable subtasks, using the model to solve subcomponents, and distilling the composite solution back into the model [source:openai:iterated-distillation-and-amplification-] [source:arxiv:1810.08575]. The core assumption: humans cannot solve the full task but *can* decompose it and solve atomic subproblems.
+
+**Process** (Christiano et al. formalization): Four parallel processes [source:arxiv:1810.08575]:
+1. **Data Collection**: Human expert $H$ decomposes question $Q$ into subquestions $Q_1,\dots,Q_k$; agent $X$ answers each; $H$ produces final answer $A$; record transcript $\tau = (Q, Q_1, A_1, \dots, Q_k, A_k, A)$.
+2. **Human Modeling**: Train predictor $H'$ to imitate $H$'s decomposition and final answer decisions.
+3. **Target Generation**: Sample $Q\sim\mathcal{D}$, run $\text{Amplify}^{H'}(X)$ (using $H'$ to decompose, $X$ to answer subquestions) to get $(Q, A)$ pairs.
+4. **Agent Training**: Supervised learning on $(Q, A)$ pairs.
+
+$X$ is a Transformer encoder-decoder with pointer network for symbol copying; layer: $y \leftarrow \text{LayerNorm } x + \text{Attention } x$, $z \leftarrow \text{LayerNorm } y + \text{BatchNorm MLP } y$ [source:arxiv:1810.08575].
+
+Toy algorithmic tasks (permutation powering, expression evaluation, union find, shortest path, wildcard search): IDA matched supervised learning from ground truth with "modest slowdown" [source:arxiv:1810.08575]. Sample efficiency: only **6k–24k** oracle calls to $H$ (vs. tens of millions for supervised) [source:arxiv:1810.08575]. Compute overhead: ~2$\times$ standard supervised due to running $\text{Amplify}^{H'}(X)$ for targets [source:arxiv:1810.08575].
+
+Limitations: Experiments used algorithmic oracle instead of real humans; domains limited to combinatorial tasks with ground truth; $X$ trained via SL, but real-world may need RL from amplified reward; success depends on question distribution $\mathcal{D}$ covering all needed subquestions [source:arxiv:1810.08575] [source:openai:iterated-distillation-and-amplification-].
+
+## Comparative Analysis: Self-Improvement vs. Self-Play vs. Amplification
+
+| Dimension | STaR | ReST | Absolute Zero | IDA |
+|-----------|------|------|---------------|-----|
+| **External supervision** | Ground-truth answers $y_i$; few-shot rationales $\mathcal{P}$ | Reward model $R(x,y)$ (trained on human prefs) | None (code executor verifies); seed triplet only | Human expert $H$ (or oracle) for decomposition & atomic answers |
+| **Self-generated signal** | Rationales filtered by answer correctness | Samples filtered by reward threshold | Tasks proposed for learnability; solutions verified by executor | Subtask answers from current model; decomposition from $H'$ |
+| **Optimization** | Offline SL on filtered rationales (re-train from init each outer loop) | Offline RL (BC loss) on filtered samples; growing batch | Online RL (TRR++) on proposer+solver joint objective | SL on amplified targets; iterative distillation |
+| **Reasoning mode** | Chain-of-thought (forward) | General LM generation (translation) | Deduction, abduction, induction (code-based) | Algorithmic decomposition (recursive) |
+| **Scalability bottleneck** | Needs initial CoT ability; ground-truth answers required | Reward model generalization & overfitting | Code executor scope (deterministic only); safety | Human decomposition capacity; distribution coverage |
+| **Key theoretical framing** | Policy gradient with indicator reward | Growing-batch offline RL | Self-play with learnability reward | HCH (Human Consulting HCH) approximation |
+
+**Disagreements / tensions**: 
+- STaR and ReST both use filtering but STaR's filter is *ground-truth correctness* (exact, sparse) while ReST's is a *learned reward model* (dense, proxy) [source:arxiv:2203.14465] [source:arxiv:2308.08998]. ReST explicitly argues offline RL losses (GOLD, BVMPO) underperform simple BC within its framework [source:arxiv:2308.08998]; STaR's gradient derivation suggests REINFORCE with baseline could be used but they implement SL on filtered data [source:arxiv:2203.14465].
+- Absolute Zero claims "zero data" but relies on a *code executor* as an external verifier — a form of environment supervision distinct from human labels [source:arxiv:2505.03335]. IDA requires human decomposition, which Christiano et al. acknowledge is untested on real-world "messy" tasks [source:arxiv:1810.08575].
+- STaR re-trains from the original model each outer loop to avoid overfitting [source:arxiv:2203.14465]; ReST continues training the same policy across Grow/Improve cycles with decreasing LR [source:arxiv:2308.08998]; Absolute Zero uses TRR++ with per-task baselines to stabilize online RL [source:arxiv:2505.03335].
+- On generalization: STaR shows cross-task transfer within domain (arithmetic iterations help larger digits) [source:arxiv:2203.14465]; Absolute Zero demonstrates *cross-domain* transfer (code $\to$ math +10–15 pp) [source:arxiv:2505.03335]; ReST evaluates only within translation; IDA only on algorithmic toys.
+
+## Current status and trajectory
+
+**STaR**: Rising as a foundational rationale-distillation technique; its filtering+rationalization loop is widely cited and adapted (e.g., in RLVR pipelines). However, dependence on ground-truth answers limits "zero" settings. Not widely reported as a standalone SOTA method for frontier models, but its components (self-generated CoT, correctness filtering) are default in many post-training recipes.
+
+**ReST**: Fading as a named algorithm; the Grow/Improve paradigm persists in spirit (e.g., iterative DPO, online DPO, RL with periodic data refresh) but the specific ReST formulation (BC loss on reward-thresholded samples, increasing thresholds) is less common than PPO/GRPO/DPO variants. The finding that simple BC outperforms complex offline RL losses on filtered data remains influential [source:arxiv:2308.08998].
+
+**Absolute Zero**: Rising rapidly; represents the frontier of "zero human data" reasoning. The self-play proposer/solver with code verification and learnability reward is a active research direction (e.g., follow-ups on task diversity, safety, stochastic programs). Scaling trends (+13 pp at 14B) suggest continued investment. Safety "uh-oh moments" and deterministic-only verifier are open constraints [source:arxiv:2505.03335].
+
+**IDA**: Fading as a practical training recipe for LLMs; the recursive decomposition ideal remains conceptually central to alignment theory (HCH, scalable oversight) but the algorithmic implementation (Transformer pointer nets, algorithmic oracles, SL distillation) has not translated to LLM post-training at scale. Current "scalable oversight" work (e.g., debate, recursive reward modeling) inherits the motivation but not the method. Not widely reported in recent LLM RL literature.
+
+**Overall trajectory**: The field is converging on *verifiable-reward self-play* (Absolute Zero style) and *iterative self-training with learned rewards* (ReST spirit via DPO/GRPO) for reasoning, while IDA's decomposition paradigm lives on in theoretical alignment research rather than engineering practice. STaR's rationale bootstrapping is a standard building block.
+
+## Key takeaways
+
+- **STaR** proves that filtering model-generated CoT by ground-truth correctness, augmented with rationalization, can bootstrap strong reasoning from minimal seeds — but requires answer labels and initial CoT competence [source:arxiv:2203.14465].
+- **ReST** demonstrates that a growing-batch offline RL loop (sample → filter by reward model → BC) beats online PPO and static offline RL on translation, with simple BC loss sufficing on filtered data [source:arxiv:2308.08998].
+- **Absolute Zero** achieves SOTA "zero-data" reasoning by self-play proposer/solver with code execution verification and a learnability reward ($1 - \text{solve rate}$), showing strong cross-domain transfer (code $\to$ math) and scaling with model size [source:arxiv:2505.03335].
+- **IDA** establishes the theoretical framework for amplifying weak supervision via recursive decomposition and distillation, but practical LLM adoption is blocked by reliance on human decomposers and algorithmic toy domains [source:arxiv:1810.08575] [source:openai:iterated-distillation-and-amplification-].
+- **Unifying thread**: All four methods replace human annotation with model-generated signals (rationales, samples, tasks, subtask answers) filtered or verified by an external oracle (ground truth, reward model, code executor, human decomposer). The trend is toward *weaker oracles* (code executor > reward model > human decomposer > ground truth) and *stronger self-generation* (proposer/solver > sampler > rationale generator > subproblem solver).
+
+## Related topics
+
+- [PPO for LLM fine-tuning (RLHF)](ppo-for-llms.md)
+- [Direct Preference Optimization and variants](dpo-and-preference-optimization.md)
+- [GRPO (Group Relative Policy Optimization)](grpo.md)
+- [Reward modeling for LLMs](reward-modeling.md)
+- [RL for reasoning models](rl-for-reasoning.md)
+- [Policy gradient methods for LLMs](policy-gradient-methods.md)
+- [KL regularization in RLHF](kl-regularization.md)
+- [MDP formulation of LLM generation](mdp-formulation.md)
+- [RL for LLMs — overview](rl-for-llms-overview.md)
+- [The RLHF/PPO pipeline](rlhf-ppo-pipeline.md)
+- [DPO variants deep-dive](dpo-variants.md)
+- [RLAIF (RL from AI feedback)](rlaif.md)
+- [Rejection sampling and Best-of-N](rejection-sampling-and-bon.md)
+- [Nash and game-theoretic preference optimization](nash-and-game-theoretic-po.md)
+- [Process vs outcome reward models](process-vs-outcome-rewards.md)
+- [Reward hacking in RLHF](reward-hacking.md)
+- [Reward model over-optimization](reward-model-overoptimization.md)
+- [Verifiable rewards (RLVR)](verifiable-rewards.md)
+- [Entropy and exploration in RL fine-tuning](entropy-and-exploration.md)
+- [Length and format bias](length-and-format-bias.md)
+- [The alignment tax](alignment-tax.md)
+- [Over-optimization and mode collapse](overoptimization-and-mode-collapse.md)
+- [Sycophancy and misgeneralization](sycophancy-and-misgeneralization.md)
+- [LLM-as-judge](llm-as-judge.md)
+- [Alignment and win-rate evals](alignment-and-winrate-evals.md)
+- [Judging bias and contamination](judging-bias-and-contamination.md)
+- [Distributed RL training for LLMs](distributed-rl-training.md)
+- [Async and off-policy RL](async-and-off-policy-rl.md)
+- [Rollout generation infrastructure](rollout-generation-infra.md)
+- [RL for math and code](rl-for-math-and-code.md)
+- [Agentic and tool-use RL](agentic-and-tool-use-rl.md)
+- [Test-time compute and RL interplay](test-time-and-rl-interplay.md)
 
 ## References
-- [source:arxiv:2203.14465] [STaR: Bootstrapping Reasoning With Reasoning](https://arxiv.org/abs/2203.14465)
-- [source:arxiv:2308.08998] [Reinforced Self-Training (ReST) for Language Modeling](https://arxiv.org/abs/2308.08998)
+- [source:arxiv:2203.14465] [STaR: Self-Taught Reasoner: Bootstrapping Reasoning With Reasoning](https://arxiv.org/abs/2203.14465)
+- [source:arxiv:2308.08998] [ReST: Reinforced Self-Training for Language Modeling](https://arxiv.org/abs/2308.08998)
 - [source:arxiv:2505.03335] [Absolute Zero: Reinforced Self-play Reasoning with Zero Data](https://arxiv.org/abs/2505.03335)
-- [source:arxiv:1809.02923] [Deep reinforcement learning in iterated amplification](https://arxiv.org/abs/1809.02923)
-- [source:arxiv:2409.12917] [Training Language Models to Self-Correct via Reinforcement Learning](https://arxiv.org/abs/2409.12917)
-- [source:arxiv:2401.10020] [Self-Rewarding Language Models](https://arxiv.org/abs/2401.10020)
-- [source:arxiv:2406.01495] [Re-ReST: Reflection-Reinforced Self-Training for Language Agents](https://arxiv.org/abs/2406.01495)
+- [source:openai:iterated-distillation-and-amplification-] [Iterated Distillation and Amplification (IDA) - OpenAI Blog](https://openai.com/index/learning-complex-goals-with-iterated-amplification/)
+- [source:arxiv:1810.08575] [Supervising strong learners by amplifying weak experts (Christiano et al.)](https://arxiv.org/abs/1810.08575)
+- [source:arxiv:2212.10560] [Self-Instruct: Aligning Language Model with Self Generated Instructions](https://arxiv.org/abs/2212.10560)
+- [source:arxiv:2402.04683] [Q*: Improving Generalization and Reasoning in LLMs via Q-learning and Self-play (Reference Context)](https://arxiv.org/abs/2402.04683)
+- [source:arxiv:2212.08073] [Constitutional AI: Harmlessness from AI Feedback (Related Self-Improvement)](https://arxiv.org/abs/2212.08073)

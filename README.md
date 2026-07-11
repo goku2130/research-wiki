@@ -16,7 +16,7 @@ _Auto-generated 2026-07-11._
 - ✅ [RLAIF (RL from AI feedback)](topics/rlaif.md)
 - ✅ [Rejection sampling and Best-of-N](topics/rejection-sampling-and-bon.md)
 - ✅ [Nash and game-theoretic preference optimization](topics/nash-and-game-theoretic-po.md)
-- ⬜ Self-improvement and self-play RL
+- ✅ [Self-improvement and self-play RL](topics/self-improvement-and-self-play.md)
 - ⬜ Process vs outcome reward models
 - ⬜ Reward hacking in RLHF
 - ⬜ Reward model over-optimization

@@ -59,7 +59,7 @@ topics:
 - slug: self-improvement-and-self-play
   title: Self-improvement and self-play RL
   notes: STaR, ReST, Absolute Zero, iterated amplification
-  status: empty
+  status: done
 - slug: process-vs-outcome-rewards
   title: Process vs outcome reward models
   notes: PRMs, ORMs, step-level supervision, OmegaPRM
