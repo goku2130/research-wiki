@@ -77,6 +77,13 @@ def mistral_client() -> OpenAI:
     return OpenAI(base_url="https://api.mistral.ai/v1", api_key=key)
 
 
+_ORK = os.getenv("OPENROUTER_API_KEY")
+
+
+def openrouter_client() -> OpenAI:
+    return OpenAI(base_url="https://openrouter.ai/api/v1", api_key=_ORK)
+
+
 def content_text(msg) -> str:
     """Read message text across backends. Mistral reasoning models (magistral)
     return content as a list of {'type': 'thinking'|'text', ...} blocks."""
@@ -97,7 +104,9 @@ def content_text(msg) -> str:
 # Defaults: writer = Gemma 4 31B via API if a key is present else local Gemma;
 #           reviewer = local Qwen (its tool loop / reasoning).
 WRITER_MODEL = os.getenv("WRITER_MODEL", "gemma-4-31b-it" if _GKEY else "local")
-if WRITER_MODEL.startswith(("mistral", "magistral")) and _MKEYS:
+if "/" in WRITER_MODEL and _ORK:                       # OpenRouter models: provider/name:tag
+    WRITER = openrouter_client()
+elif WRITER_MODEL.startswith(("mistral", "magistral")) and _MKEYS:
     WRITER = mistral_client()
 elif WRITER_MODEL.startswith(("gemma", "gemini")) and _GKEY:
     WRITER = google_client()
@@ -107,7 +116,9 @@ REVIEWER, REVIEWER_MODEL = QWEN, "local"
 
 
 def writer_client() -> OpenAI:
-    """Writer client for a single call — rotates Mistral keys when writing with Mistral."""
+    """Writer client for a single call — rotates Mistral keys; routes OpenRouter models."""
+    if "/" in WRITER_MODEL and _ORK:
+        return openrouter_client()
     if WRITER_MODEL.startswith(("mistral", "magistral")) and _MKEYS:
         return mistral_client()   # next key in the round-robin
     return WRITER
