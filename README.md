@@ -34,4 +34,4 @@ _Auto-generated 2026-07-11._
 - ✅ [Rollout generation infrastructure](topics/rollout-generation-infra.md)
 - ✅ [RL for math and code](topics/rl-for-math-and-code.md)
 - ⬜ Agentic and tool-use RL
-- ⬜ Test-time compute and RL interplay
+- ✅ [Test-time compute and RL interplay](topics/test-time-and-rl-interplay.md)

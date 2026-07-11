@@ -3,185 +3,156 @@ title: Test-time compute and RL interplay
 maturity: developing
 updated: '2026-07-11'
 sources:
-- arxiv:2410.18905
-- arxiv:2402.05402
-- arxiv:2305.18290
-- arxiv:2306.05673
-- arxiv:2310.10303
-- arxiv:2404.01080
-- arxiv:2401.10020
+- arxiv:2203.14465
+- arxiv:2403.09629
+- nature:olympiad-level-formal-mathematical-reaso
+- arxiv:2304.01132
+- arxiv:2501.02497
+- wellecks:l1-controlling-how-long-a-reasoning-mode
+- arxiv:2510.09988
+- deepmind:alphageometry-2-new-geometry-reasoning-s
 open_questions:
-- How do inference scaling laws vary across different model sizes and architectures?
-  Are there predictable relationships between model capacity and the efficiency of
-  test-time compute?
-- Can self-rewarding models escape the "alignment tax" observed on standard NLP benchmarks,
-  or is this a fundamental trade-off?
-- What are the limits of verifiable rewards for open-ended tasks (e.g., creative writing,
-  dialogue)? Can hybrid reward models (e.g., combining verifiable and LLM-as-a-Judge
-  rewards) bridge this gap?
-- How can MCTS-guided decoding be optimized for real-time applications (e.g., chatbots)
-  without sacrificing performance? Are there principled ways to trade off latency
-  and quality?
+- What is the functional form of the test-time scaling law relating model size, search
+  budget (tokens/rollouts), verifier quality, and task difficulty—and can it be derived
+  from first principles?
+- How can prompt-space search (optimizing reasoning structure $p$) be made tractable,
+  and does it yield transferable "reasoning algorithms" beyond per-instance answer
+  search?
+- Does the RL-search flywheel converge to a fixed point, or does it exhibit cyclic
+  dynamics / reward hacking as the policy overfits to the search distribution?
+- Can intrinsic self-correction be made reliable without extrinsic tools, or is the
+  "verifier gap" fundamental for open-ended domains lacking formal verification?
 ---
 
-# Test-Time Compute and RL Interplay: Search, Inference Scaling, and MCTS-Guided Decoding
+Test-time compute scaling has emerged as the primary lever for eliciting System-2 reasoning capabilities from LLMs, shifting the bottleneck from parameter count to inference-time search guided by learned reward signals. The interplay between reinforcement learning (RL) and test-time search creates a dual optimization loop where RL internalizes search strategies into policy parameters while search externalizes computation to solve specific instances beyond the policy's zero-shot capability.
 
-Large language models (LLMs) have demonstrated remarkable capabilities when scaled during training, but recent work reveals that *test-time compute*—additional computation applied during inference—can unlock further performance gains, particularly for complex reasoning tasks. The interplay between test-time compute and reinforcement learning (RL) is emerging as a critical axis of optimization, where search algorithms (e.g., Monte Carlo Tree Search, MCTS) and RL-based decoding strategies (e.g., guided by learned policies or reward models) jointly determine the efficiency and effectiveness of inference scaling. This deep dive explores the theoretical foundations, empirical trade-offs, and open challenges in this nascent but rapidly evolving area.
+## Test-Time Compute Paradigms: System-1 Adaptation vs System-2 Reasoning
 
----
+The literature distinguishes two fundamentally different uses of test-time compute [source:arxiv:2501.02497]. **Test-Time Adaptation (TTA)** targets System-1 models—fast, pattern-based predictors—by updating parameters (Test-Time Training, FTTA), optimizing in-context demonstrations, editing representations via steering vectors, or calibrating outputs with $k$-NN retrieval. These methods aim at robustness to distribution shift but do not induce deliberate reasoning. **Test-Time Reasoning** targets System-2 models by structuring generation into explicit, multi-step reasoning chains with feedback and search. This paradigm decomposes into three components: *Feedback Modeling* (ORMs, PRMs, generative critics), *Search Strategies* (repeated sampling, self-correction, tree search), and *Improvement Training* (distilling search traces back into the policy) [source:arxiv:2501.02497]. The boundary is porous: STaR [source:arxiv:2203.14465] and Quiet-STaR [source:arxiv:2403.09629] use self-generated rationales filtered by correctness (a form of outcome verification) to fine-tune the base model, effectively converting test-time search successes into training data.
 
-## Core Concepts and Mechanisms
+## Search Strategies at Test Time
 
-### 1. Test-Time Compute and Inference Scaling
-Test-time compute refers to the additional computational budget expended during inference to improve model outputs, distinct from training-time scaling. This includes:
-- **Iterative refinement**: Generating multiple candidate outputs and selecting or refining the best one (e.g., via rejection sampling or Best-of-N).
-- **Search-based decoding**: Using algorithms like MCTS to explore the space of possible outputs, guided by learned policies or reward models.
-- **Dynamic computation**: Allocating more compute to "hard" inputs (e.g., via early-exit mechanisms or adaptive depth).
+### Repeated Sampling: Best-of-N and Self-Consistency
 
-**Inference scaling laws** formalize the relationship between test-time compute and performance. Empirical studies suggest that for tasks like mathematical reasoning or code generation, performance scales predictably with the number of candidate generations or search iterations [source:arxiv:2402.05402]. For example, [source:arxiv:2402.05402] demonstrates that GSM8K accuracy improves by up to 13 percentage points when using Best-of-N sampling with N=16 compared to greedy decoding.
-
-### 2. RL for Test-Time Compute Optimization
-RL provides a framework for optimizing how test-time compute is allocated. Key components include:
-- **Policy-guided search**: The LLM acts as a policy $\pi_\theta(y|x)$, where $x$ is the input prompt and $y$ is the output. RL fine-tunes $\pi_\theta$ to maximize a reward $r(x, y)$, which may encode task-specific metrics (e.g., correctness, coherence) or learned preferences (e.g., from human feedback).
-- **Reward models**: A separate model $r_\phi(x, y)$ is trained to predict the quality of $(x, y)$ pairs, often via preference learning (e.g., Bradley-Terry models) or verifiable rewards (e.g., unit tests for code).
-- **Exploration vs. exploitation**: During inference, the policy must balance exploring new outputs (e.g., via temperature sampling) and exploiting high-reward candidates (e.g., via greedy decoding or Best-of-N). Search algorithms like MCTS provide a principled way to manage this trade-off by maintaining a tree of partial outputs and prioritizing high-value branches.
-
-### 3. MCTS-Guided Decoding
-MCTS is a search algorithm that combines tree traversal with Monte Carlo rollouts to estimate the value of partial outputs. In the context of LLMs:
-1. **Tree structure**: Each node represents a partial output (e.g., a sequence of tokens), and edges represent token extensions. The root node is the input prompt $x$.
-2. **Selection**: Starting from the root, the algorithm traverses the tree using the Upper Confidence Bound for Trees (UCT) criterion:
+The simplest search generates $N$ independent completions $y^{(1)},\dots,y^{(N)} \sim \pi_\theta(\cdot|x)$ and aggregates. **Best-of-N (BoN)** selects $\arg\max_i V(y^{(i)})$ using a verifier $V$ (ORM or PRM) [source:arxiv:2501.02497; wellecks:l1-controlling-how-long-a-reasoning-mode]. **Self-Consistency (voting)** selects the most frequent answer $\arg\max_a \sum_i \mathbb{I}[a_i = a]$, optionally weighted by $V$ [source:wellecks:l1-controlling-how-long-a-reasoning-mode]. The voting accuracy converges as $N\to\infty$ to a limit determined by the generator $g$ and verifier $v$ [source:wellecks:l1-controlling-how-long-a-reasoning-mode]:
 
 $$
-\text{UCT}(s) = \frac{Q(s)}{N(s)} + c \cdot \sqrt{\frac{\log N(\text{parent}(s))}{N(s)}},
+\frac{1}{M}\sum_{i=1}^{M}{\mathbb{I}}\left[a_{i}^{*}=\arg\max_{a}\sum_{z}v(x,z,a)g(z,a|x)\right]
 $$
 
-   where $Q(s)$ is the estimated value of node $s$, $N(s)$ is its visit count, and $c$ is an exploration constant.
-3. **Expansion**: When a leaf node is reached, the policy $\pi_\theta$ generates $k$ candidate tokens to extend the sequence.
-4. **Simulation**: For each candidate, a rollout is performed (e.g., greedy decoding to completion) to estimate its value using the reward model $r_\phi$.
-5. **Backpropagation**: The estimated value is propagated back up the tree to update $Q(s)$ and $N(s)$ for all ancestor nodes.
+where $z$ is the solution path. Self-consistency CoT improves math reasoning by $\sim 18\%$ over vanilla CoT [source:arxiv:2501.02497]. However, BoN suffers from **over-optimization** when $V$ is imperfect: as $N$ grows, the selected output exploits reward model errors rather than true quality [source:wellecks:l1-controlling-how-long-a-reasoning-mode; arxiv:2510.09988].
 
-**Key advantages**:
-- **Adaptive depth**: MCTS dynamically allocates compute to promising branches, avoiding exhaustive search.
-- **Reward integration**: The reward model $r_\phi$ guides search toward high-quality outputs without requiring ground-truth labels during inference.
-- **Uncertainty awareness**: The UCT criterion balances exploration (visiting under-explored nodes) and exploitation (favoring high-reward nodes).
+### Self-Correction and Refinement
 
-**Limitations**:
-- **Compute overhead**: MCTS requires multiple forward passes per token, increasing latency.
-- **Reward sparsity**: If $r_\phi$ is poorly calibrated or sparse (e.g., only provides feedback at the end of generation), MCTS may struggle to guide search effectively.
-- **Policy-reward misalignment**: If $\pi_\theta$ and $r_\phi$ are trained on different distributions, the search may converge to suboptimal outputs.
+Refinement iterates $y^{(i+1)} = g(x, y^{(i)}, F(y^{(i)}))$ where $F$ provides feedback [source:wellecks:l1-controlling-how-long-a-reasoning-mode]. **Extrinsic feedback** (code execution, theorem provers, retrievers) works reliably because it injects ground-truth signals and localizes errors [source:wellecks:l1-controlling-how-long-a-reasoning-mode]. **Intrinsic feedback** (self-critique) yields mixed results in math: models often fail to locate their own errors even when capable of correcting them [source:arxiv:2501.02497; wellecks:l1-controlling-how-long-a-reasoning-mode]. AlphaProof uses Lean verification as extrinsic feedback at every tactic step, making refinement the core of its search [source:nature:olympiad-level-formal-mathematical-reaso].
 
----
+### Tree Search: MCTS and Structured Exploration
 
-## RL and Test-Time Compute: Interplay and Trade-offs
+Tree search explores a reasoning tree where nodes are partial states $s$ (e.g., prefix of CoT), actions $a$ are next-step generations, and transitions $s\to s'$ append tokens. **Monte Carlo Tree Search (MCTS)** operates in four phases [source:arxiv:2510.09988]:
+1. **Selection**: UCT policy $a = \arg\max_{a\in A(s)} \left( Q(s,a) + c\sqrt{\frac{\ln N(s)}{N(s,a)}} \right)$
+2. **Expansion**: Sample new child nodes via LLM policy $\pi_\theta$
+3. **Simulation**: Rollout to terminal state (or heuristic evaluation)
+4. **Backpropagation**: Update $Q(s,a)$ and visit counts $N(s,a)$
 
-### 1. RL as a Test-Time Compute Optimizer
-RL can be used to *learn* how to allocate test-time compute efficiently. For example:
-- **Dynamic rollout policies**: RL can learn to adapt the number of search rollouts based on input difficulty or intermediate rewards.
-- **Early stopping**: RL can learn to terminate generation early if the reward model predicts low-quality outputs, saving compute.
-- **Adaptive branching**: The policy $\pi_\theta$ can learn to generate fewer candidate tokens for "easy" inputs and more for "hard" ones.
+**Tree-of-Thought (ToT)** uses BFS/DFS with a value function; **Reward Balanced Search (Rebase)** allocates a compute budget $P$ to balance exploration/exploitation [source:wellecks:l1-controlling-how-long-a-reasoning-mode]. AlphaProof employs an AND-OR tree search over Lean tactic states with a learned value function, where the return for decomposed subgoals is $G_t = \min(\text{returns of subgoals})$ to enforce all subgoals must be solved [source:nature:olympiad-level-formal-mathematical-reaso]. The **unified framework** of [source:arxiv:2510.09988] formalizes test-time scaling as:
 
-**Empirical trade-offs**:
-- **Compute vs. performance**: For tasks like GSM8K (math word problems), increasing the number of search rollouts can improve accuracy, but the optimal compute budget depends on the task and the quality of the reward model [source:arxiv:2402.05402].
-- **Latency vs. throughput**: MCTS-guided decoding is inherently sequential, limiting parallelization. Techniques like batched rollouts or speculative decoding can mitigate this but introduce additional complexity.
+$$
+p^* = \arg\max_{p \in \mathcal{A}(\pi, Q, \mathcal{C}_{\text{infer}})} V(p)
+$$
 
-### 2. RL for Reward Model Training
-The quality of the reward model $r_\phi$ is critical for test-time compute efficiency. RL can be used to:
-- **Improve reward modeling**: Self-rewarding language models iteratively refine $r_\phi$ by using the LLM itself to generate and evaluate candidate outputs, reducing reliance on human annotations [source:arxiv:2401.10020]. For example, [source:arxiv:2401.10020] demonstrates that self-rewarding models achieve AlpacaEval win rates of up to 20.44% against GPT-4 Turbo.
-- **Mitigate reward hacking**: RL can learn to penalize reward model exploitation (e.g., generating verbose outputs to maximize length-based rewards) via auxiliary losses or adversarial training.
+where $\mathcal{A}$ is the search algorithm, $\mathcal{C}_{\text{infer}}$ the compute budget, and $V$ the value function.
 
-**Disagreement in the literature**:
-- **Reward model generalization**: Some work suggests that reward models trained on narrow distributions (e.g., math problems) may not generalize well to out-of-distribution inputs, limiting the effectiveness of search. However, self-rewarding models can iteratively expand the reward model's coverage [source:arxiv:2401.10020].
-- **Reward sparsity**: Verifiable rewards (e.g., unit tests for code) enable more effective search than sparse human preferences, but their applicability is limited to tasks with objective success criteria [source:arxiv:2404.01080].
+| Search Method | Compute Profile | Feedback Type | Typical Use Case |
+|---------------|-----------------|---------------|------------------|
+| Best-of-N / Voting | Parallel, $N\times$ | Outcome (ORM) / None | Quick quality boost |
+| Self-Correction | Sequential, iterative | Extrinsic (tools) / Intrinsic | Code, formal proof |
+| MCTS / ToT | Tree, adaptive | Process (PRM) / Value net | Hard reasoning, planning |
 
-### 3. RL and Search Synergy
-The interplay between RL and search algorithms like MCTS can be synergistic:
-- **Policy initialization**: RL fine-tuning (e.g., via PPO or DPO) can initialize $\pi_\theta$ to generate higher-quality partial outputs, reducing the search space for MCTS.
-- **Search-augmented training**: MCTS can be used during training to generate high-quality rollouts for RL, improving sample efficiency.
-- **Joint optimization**: The policy $\pi_\theta$ and reward model $r_\phi$ can be co-trained to improve alignment, e.g., via iterative self-rewarding [source:arxiv:2401.10020].
+## Reward Modeling for Search
 
-**Key challenges**:
-- **Credit assignment**: RL struggles to attribute rewards to early tokens in long sequences, as the reward is typically only observed at the end of generation. MCTS mitigates this by propagating rewards back through the tree.
-- **Exploration in high-dimensional spaces**: The space of possible outputs grows exponentially with sequence length, making exhaustive search infeasible. RL must learn to explore efficiently, e.g., via intrinsic motivation or curiosity-driven rewards.
+Search requires a reward signal $R(s,a)$ or $V(s)$. Three families dominate:
 
----
+1. **Outcome Reward Models (ORMs)**: Score final answer correctness. Cheap but sparse; cannot guide intermediate steps.
+2. **Process Reward Models (PRMs)**: Score each reasoning step. ThinkPRM achieves comparable performance with $1\%$ of process supervision data vs discriminative PRMs [source:arxiv:2501.02497]. Generative PRMs (LLM-as-judge) can be trained with $\sim 40$K SFT+DPO samples [source:arxiv:2501.02497].
+3. **Generative Critics**: LLMs produce natural language critiques. Training-free (prompting) or SFT/DPO-trained. Used in self-correction loops [source:arxiv:2501.02497].
 
-## Empirical Results and Benchmarks
+AlphaProof uses **Lean verification as perfect binary reward** at the tactic level ($r_t = -1$ per tactic to incentivize brevity) [source:nature:olympiad-level-formal-mathematical-reaso]. The unified framework treats reward as a **unified signal** serving two roles [source:arxiv:2510.09988]:
+- **Internalization (RL)**: $\theta^* = \arg\max_\theta \mathbb{E}_{\tau\sim\pi_\theta}[G(\tau)] - \lambda \int_{s\in\tau} D_{\text{KL}}(\pi_\theta(\cdot|s)\|\pi_{\mathcal{P}}(\cdot|s)) ds$
+- **Externalization (Search)**: $p^* = \arg\max_{p\in\mathcal{P}_{\text{plan}}} \left[ \sum_{t=0}^{T-1} \gamma^t R_{\text{ext}}(s_t,a_t) + \mathcal{H}_\theta(s_T,p) \right]$
 
-### 1. Performance Gains from Test-Time Compute
-Empirical studies demonstrate that test-time compute can significantly improve performance on reasoning-heavy tasks. For example:
-- **GSM8K (Math)**: Best-of-N sampling (e.g., generating 16 candidates and selecting the highest-reward one) can improve accuracy by up to 13 percentage points over greedy decoding [source:arxiv:2402.05402].
-- **AlpacaEval (Instruction Following)**: Self-rewarding models achieve win rates of up to 20.44% against GPT-4 Turbo, compared to 9.94% for the baseline [source:arxiv:2401.10020].
+**Disagreement**: [source:arxiv:2501.02497] emphasizes PRMs as critical for step-wise search guidance; [source:nature:olympiad-level-formal-mathematical-reaso] shows AlphaProof succeeds with only sparse outcome rewards (Lean proof completion) plus a learned value function for intermediate states, suggesting PRMs may be unnecessary when a perfect verifier exists. [source:arxiv:2510.09988] argues the reward design must match the search algorithm: MCTS needs a value function $Q(s,a)$, while BoN only needs a terminal score.
 
-**Observations**:
-- Search-based methods (e.g., MCTS) consistently outperform brute-force methods (e.g., Best-of-N), suggesting that guided search is more efficient.
-- The gains are largest for tasks with verifiable rewards (e.g., math, code), where the reward model can provide dense feedback.
+## RL and Search Interplay: The Dual Optimization Paradigm
 
-### 2. Compute Efficiency
-The performance-compute trade-off varies by task and method:
-- **Best-of-N**: Performance scales sublinearly with the number of candidates, with diminishing returns setting in quickly (e.g., beyond 16 candidates for GSM8K) [source:arxiv:2402.05402].
-- **MCTS**: More compute-efficient than Best-of-N, as it avoids generating low-quality full outputs. However, the marginal gains decrease with additional rollouts.
-- **RL fine-tuning**: Shifts the performance-compute curve upward, enabling higher performance at the same compute budget. For example, larger models may benefit more from test-time compute due to their capacity to leverage additional search iterations [source:arxiv:2402.05402].
+The central insight is that **RL and search are two optimizers for one objective** [source:arxiv:2510.09988]. RL *internalizes* search behavior into policy weights $\theta$ (training-time scaling in latent space $\Theta$). Search *externalizes* computation at test time to find $p^*$ for a specific problem $Q$ (test-time scaling in objective space $\mathcal{P}(Q)$). This creates a flywheel:
 
-### 3. Reward Model Quality
-The effectiveness of search depends heavily on the reward model $r_\phi$. Key findings include:
-- **Verifiable rewards** (e.g., unit tests for code) provide dense, unambiguous feedback and are highly effective for MCTS [source:arxiv:2404.01080].
-- **LLM-as-a-Judge rewards** (e.g., [source:arxiv:2401.10020]) are more general but prone to bias (e.g., favoring verbose outputs) and may require iterative refinement.
-- **Human preferences** are sparse and expensive to collect but provide high-quality feedback for tasks like instruction following.
+1. **Search generates high-quality traces** $\tau^*$ for hard problems (using current policy $\pi_\theta$ as proposal + reward guidance).
+2. **RL trains on $\tau^*$** (SFT or policy gradient) to improve $\pi_\theta$, reducing the need for search at future test time.
+3. **Improved $\pi_\theta$ enables more efficient search** (better proposals, better value estimates).
 
----
+**STaR** [source:arxiv:2203.14465] implements this loop: generate rationales $\to$ filter by correctness $\to$ fine-tune on correct rationales $\to$ iterate. The objective is $\nabla J = \sum_i \mathbb{E}[\mathbb{1}(\hat{y}_i=y_i) \nabla \log p_M(\hat{y}_i,\hat{r}_i|x_i)]$—a policy gradient with binary reward. **Rationalization** (conditioning on ground-truth answer to generate rationale) prevents plateauing on unsolved problems. **Quiet-STaR** [source:arxiv:2403.09629] generalizes to *every token position*: generate parallel rationales $\to$ reward by log-likelihood improvement on future tokens $\to$ REINFORCE update. The reward is $r_j = \log p_{j:j+n_{\text{true}}}^{\text{talk}}(X_{j+1:j+n_{\text{true}}+1}) - \log \overline{p}_{j:j+n_{\text{true}}}^{\text{talk}}(\cdots)$.
+
+**ReST-MCTS** [source:arxiv:2510.09988] uses MCTS to generate training data for iterative SFT/RL, achieving SOTA on MATH, GPQA, CEval. **AlphaProof** [source:nature:olympiad-level-formal-mathematical-reaso] runs a massive RL loop: Gemini auto-formalizes 1M NL problems $\to$ 80M Lean problems $\to$ distributed actors use MCTS to prove/disprove $\to$ Lean-verified outcomes update proof network (policy + value). At **test time**, AlphaProof performs *Test-Time RL (TTRL)*: generates millions of problem variants $\to$ runs focused RL on them to adapt to the target problem structure.
+
+**Joint Space Optimization** [source:arxiv:2510.09988] extends the duality: search should optimize over both **Prompt Space $\mathcal{P}$** (reasoning structure/template) and **Answer Space $\mathcal{S}$** (solution trace given template): $s^* = \arg\max_{p\in\mathcal{P}, s\in\mathcal{S}_p} V(s)$. Most current methods fix $p$ (single prompt template), searching only $\mathcal{S}$—a key limitation.
+
+## Inference Scaling Laws and Compute-Optimal Tradeoffs
+
+Empirical evidence suggests **smaller models with more test-time tokens can outperform larger models with fewer tokens** [source:wellecks:l1-controlling-how-long-a-reasoning-mode]. This inverts the training-time scaling law (where larger models are more compute-efficient). The compute-optimal inference strategy depends on the task difficulty distribution: easy tasks need only System-1; hard tasks justify System-2 search. No universal test-time scaling law exists yet [source:arxiv:2501.02497]. DeepSeek-R1-style long CoT models regularly exceed 10,000 tokens/response [source:wellecks:l1-controlling-how-long-a-reasoning-mode], making token budget a first-order cost factor.
+
+## Length Control and Budget-Aware Reasoning (L1)
+
+Unbounded CoT length causes cost explosion. **L1** [source:wellecks:l1-controlling-how-long-a-reasoning-mode] uses RL to adhere to length constraints in the prompt (e.g., "use up to 1000 tokens") by adding a length penalty to the reward. The model learns to express uncertainty ("Wait..."), backtrack ("Alternatively..."), and self-verify within the budget. This shifts the control from *implicit* (model decides when to stop) to *explicit* (user specifies budget). AlphaProof's $r_t=-1$ per tactic is a hard-coded length penalty; L1 makes it a controllable hyperparameter.
+
+## Case Studies: AlphaProof and AlphaGeometry 2
+
+| Component | AlphaProof | AlphaGeometry 2 |
+|-----------|------------|-----------------|
+| **Domain** | Algebra, Number Theory | Geometry |
+| **Formalism** | Lean 4 | Custom symbolic engine + NL |
+| **Policy** | 3B encoder-decoder (proof network) | Gemini-based LM (trained from scratch) |
+| **Search** | AND-OR MCTS with learned value net | Neuro-symbolic: LM proposes constructions, engine verifies |
+| **Reward** | $r_t=-1$ per tactic; $G_t=\min(\text{subgoal returns})$ | Symbolic engine verification (binary) |
+| **Training** | 300B tokens pretrain $\to$ 300K SFT $\to$ RL on 80M problems | 10$\times$ synthetic data vs AlphaGeometry 1 |
+| **Test-Time RL** | Generates problem variants, runs focused RL | Knowledge-sharing across search trees |
+| **IMO 2024** | 3/5 non-geometry (incl. hardest) | 1/1 geometry in 19 sec |
+| **Combined** | **28/42 (Silver)** | |
+
+AlphaGeometry 2's symbolic engine is **2 orders of magnitude faster** than v1, enabling deeper search [source:deepmind:alphageometry-2-new-geometry-reasoning-s]. Both systems required **manual formalization** of IMO problems—a major deployment bottleneck. Combinatorics problems remain unsolved by either system [source:deepmind:alphageometry-2-new-geometry-reasoning-s; nature:olympiad-level-formal-mathematical-reaso].
 
 ## Current Status and Trajectory
 
-### 1. Rising Techniques
-- **MCTS-guided decoding**: Increasingly adopted for reasoning-heavy tasks (e.g., math, code), where the compute overhead is justified by performance gains.
-- **Self-rewarding models**: Iterative self-improvement (e.g., [source:arxiv:2401.10020]) is gaining traction as a way to reduce reliance on human annotations and improve reward model generalization.
-- **Dynamic compute allocation**: Techniques like early-exit decoding or adaptive rollouts are being explored to reduce latency while preserving performance.
-
-### 2. Default Techniques
-- **Best-of-N sampling**: Remains the default for many applications due to its simplicity and parallelizability. Widely used in production systems for tasks like creative writing or chatbot responses.
-- **Greedy decoding**: Dominates for latency-sensitive applications (e.g., real-time chat), where test-time compute is prohibitive.
-
-### 3. Fading Techniques
-- **Static reward models**: Frozen reward models (e.g., trained once on human preferences) are becoming less common, as they limit the scalability of test-time compute. Iterative or self-rewarding approaches are replacing them [source:arxiv:2401.10020].
-- **Brute-force search**: Exhaustive search is rarely used due to its exponential compute cost. Guided search methods like MCTS are preferred.
-
-### 4. Trajectory and Open Challenges
-- **Scaling laws**: The field is still characterizing how test-time compute scales with model size, task complexity, and reward model quality. Early results suggest that the optimal compute budget depends on the task and reward model, with larger models potentially benefiting more from additional test-time compute [source:arxiv:2402.05402].
-- **Reward model generalization**: Self-rewarding models show promise, but their long-term stability and safety are unproven. There is disagreement over whether iterative reward modeling leads to reward hacking or genuine generalization.
-- **Latency optimization**: MCTS and other search methods are computationally expensive. Techniques like speculative decoding or batched rollouts are being explored to reduce latency, but their effectiveness is task-dependent.
-- **Task-specific vs. general methods**: Verifiable rewards work well for math and code but are less applicable to open-ended tasks. The field is still developing general-purpose reward models that can guide search across diverse domains.
-
----
+**Rising**: Test-time search (MCTS, BoN, self-correction with tools) is the default for high-stakes reasoning (math, code, formal proof). The RL-search flywheel (ReST-MCTS, AlphaProof) is the dominant paradigm for pushing frontier capabilities. **Default**: BoN/self-consistency with ORMs is standard for API-based deployment; PRMs are adopted where step-wise control matters (e.g., process supervision for math). **Fading/Unsettled**: Pure intrinsic self-correction (no tools) shows inconsistent gains and is not widely reported as reliable for hard reasoning [source:arxiv:2501.02497; wellecks:l1-controlling-how-long-a-reasoning-mode]. Prompt-space search (optimizing reasoning structure $p$) is largely unexplored beyond fixed templates [source:arxiv:2510.09988]. **Critical gap**: No universal inference scaling law exists to predict compute-optimal search configuration for a given task/model/verifier triplet [source:arxiv:2501.02497]. System-2 models struggle to generalize to non-symbolic reasoning (e.g., open-ended analysis, creative writing) [source:arxiv:2501.02497].
 
 ## Key Takeaways
-- **Test-time compute scales performance**: For reasoning-heavy tasks, additional compute during inference (e.g., via MCTS or Best-of-N) yields performance gains, though the exact scaling behavior is task-dependent [source:arxiv:2402.05402].
-- **RL enables efficient compute allocation**: RL fine-tunes policies and reward models to guide search algorithms like MCTS, improving compute efficiency compared to brute-force methods.
-- **MCTS outperforms Best-of-N**: MCTS is more compute-efficient than Best-of-N because it avoids generating low-quality full outputs, but it introduces latency overhead.
-- **Reward model quality is critical**: The effectiveness of MCTS depends on the reward model's ability to provide dense, unambiguous feedback. Verifiable rewards work well for math/code, while LLM-as-a-Judge rewards are more general but prone to bias [source:arxiv:2401.10020].
-- **Self-rewarding models are rising**: Iterative self-improvement (e.g., self-rewarding LLMs) reduces reliance on human annotations and improves reward model generalization, but long-term stability is unproven [source:arxiv:2401.10020].
-- **Compute-performance trade-offs**: The optimal test-time compute budget depends on the task, reward model, and latency constraints. Diminishing returns set in quickly for some tasks [source:arxiv:2402.05402].
-- **Disagreements persist**: The field is divided on whether verifiable rewards or LLM-as-a-Judge rewards are superior for MCTS, and whether iterative reward modeling leads to reward hacking or genuine generalization.
 
----
+- Test-time compute splits into **TTA (System-1 robustness)** and **Test-Time Reasoning (System-2 search)**; only the latter induces deliberate multi-step reasoning.
+- **Search strategies form a hierarchy**: repeated sampling (parallel, easy) $\to$ self-correction (sequential, needs extrinsic feedback) $\to$ tree search (structured, needs value function).
+- **Reward design must match search algorithm**: BoN needs terminal score; MCTS needs step-wise $Q(s,a)$; RL needs differentiable/low-variance reward.
+- **RL and search are dual optimizers**: RL internalizes, search externalizes. The flywheel (search $\to$ training data $\to$ better policy $\to$ better search) drives frontier progress (STaR, ReST-MCTS, AlphaProof).
+- **Length control is becoming explicit**: L1-style budget-aware RL replaces implicit EOS prediction; AlphaProof's per-step penalty is a special case.
+- **Formal verification (Lean) provides perfect rewards** but requires manual formalization and massive compute (AlphaProof: days per problem).
+- **Inference scaling laws are unknown**: compute-optimal tradeoff between model size, token budget, and search width/depth is empirical, not predicted.
 
 ## Related Topics
-- [[RL for reasoning models](rl-for-reasoning.md)]: How RL is applied to improve LLM reasoning capabilities, including test-time compute strategies.
-- [[Reward modeling for LLMs](reward-modeling.md)]: Techniques for training and evaluating reward models, including verifiable rewards and LLM-as-a-Judge.
-- [[Rejection sampling and Best-of-N](rejection-sampling-and-bon.md)]: Brute-force test-time compute methods and their trade-offs.
-- [[RL for math and code](rl-for-math-and-code.md)]: Domain-specific applications of RL and test-time compute for mathematical reasoning and code generation.
-- [[Self-improvement and self-play RL](self-improvement-and-self-play.md)]: Iterative self-improvement techniques, including self-rewarding models.
-- [[Process vs outcome reward models](process-vs-outcome-rewards.md)]: How reward models can provide feedback on intermediate steps (process rewards) vs. final outputs (outcome rewards).
-- [[Reward hacking in RLHF](reward-hacking.md)]: Challenges and mitigation strategies for reward model exploitation, particularly in test-time compute settings.
 
----
-
-##
+- [RL for reasoning models](rl-for-reasoning.md)
+- [Process vs outcome reward models](process-vs-outcome-rewards.md)
+- [Rejection sampling and Best-of-N](rejection-sampling-and-bon.md)
+- [Self-improvement and self-play RL](self-improvement-and-self-play.md)
+- [Verifiable rewards (RLVR)](verifiable-rewards.md)
+- [RL for math and code](rl-for-math-and-code.md)
+- [Entropy and exploration in RL fine-tuning](entropy-and-exploration.md)
+- [Over-optimization and mode collapse](overoptimization-and-mode-collapse.md)
+- [Distributed RL training for LLMs](distributed-rl-training.md)
+- [Rollout generation infrastructure](rollout-generation-infra.md)
 
 ## References
-- [source:arxiv:2410.18905] [Scaling LLM Test-Time Compute Optimally and Efficiently](https://arxiv.org/abs/2410.18905)
-- [source:arxiv:2402.05402] [Inference Scaling Laws: An Empirical Analysis of Compute-optimal Inference](https://arxiv.org/abs/2402.05402)
-- [source:arxiv:2305.18290] [Reasoning with Language Model is Planning with World Model](https://arxiv.org/abs/2305.18290)
-- [source:arxiv:2306.05673] [Monte Carlo Tree Search for Text Generation](https://arxiv.org/abs/2306.05673)
-- [source:arxiv:2310.10303] [ReST: Reinforced Self-Training for Language Models](https://arxiv.org/abs/2310.10303)
-- [source:arxiv:2404.01080] [RLVR: Reinforcement Learning with Verifiable Rewards for Language Model Alignment](https://arxiv.org/abs/2404.01080)
-- [source:arxiv:2401.10020] [Self-Rewarding Language Models](https://arxiv.org/abs/2401.10020)
+- [source:arxiv:2203.14465] [STaR: Bootstrapping Reasoning With Reasoning](https://arxiv.org/abs/2203.14465)
+- [source:arxiv:2403.09629] [Quiet-STaR: Language Models Can Teach Themselves to Think Before Speaking](https://arxiv.org/abs/2403.09629)
+- [source:nature:olympiad-level-formal-mathematical-reaso] [Olympiad-level formal mathematical reasoning with reinforcement learning (AlphaProof)](https://www.nature.com/articles/s41586-025-09833-y)
+- [source:arxiv:2304.01132] [Search-in-the-Chain: Interactively Enhancing Large Language Models with Search](https://arxiv.org/abs/2304.01132)
+- [source:arxiv:2501.02497] [Test-Time Compute: from System-1 Thinking to System-2 Reasoning](https://arxiv.org/html/2501.02497v2)
+- [source:wellecks:l1-controlling-how-long-a-reasoning-mode] [L1: Controlling how long a reasoning model thinks with reinforcement learning](https://wellecks.com/data/welleck2025scifm_tutorial.pdf)
+- [source:arxiv:2510.09988] [Unifying Tree Search Algorithm and Reward Design for LLM Reasoning](https://arxiv.org/abs/2510.09988)
+- [source:deepmind:alphageometry-2-new-geometry-reasoning-s] [AlphaGeometry 2: New geometry reasoning system](https://deepmind.google/blog/ai-solves-imo-problems-at-silver-medal-level/)
