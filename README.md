@@ -20,7 +20,7 @@ _Auto-generated 2026-07-11._
 - ✅ [Process vs outcome reward models](topics/process-vs-outcome-rewards.md)
 - ✅ [Reward hacking in RLHF](topics/reward-hacking.md)
 - ✅ [Reward model over-optimization](topics/reward-model-overoptimization.md)
-- ⬜ Verifiable rewards (RLVR)
+- ✅ [Verifiable rewards (RLVR)](topics/verifiable-rewards.md)
 - ✅ [Entropy and exploration in RL fine-tuning](topics/entropy-and-exploration.md)
 - ✅ [Length and format bias](topics/length-and-format-bias.md)
 - ⬜ The alignment tax
