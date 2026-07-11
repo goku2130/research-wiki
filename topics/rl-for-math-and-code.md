@@ -3,259 +3,158 @@ title: RL for math and code
 maturity: developing
 updated: '2026-07-11'
 sources:
-- arxiv:2511.22570
-- neurips:co-evolving-llm-coder-and-unit-tester-vi
+- arxiv:2402.03300
+- arxiv:2506.03136
 - github:awesome-rlvr-reinforcement-learning-with
-- labelstud:reinforcement-learning-from-verifiable-r
-- arxiv:2604.25419
-- arxiv:2605.09920
-- aclanthology:pdf-verifier-free-rl-for-llms-via-intrin
-- arxiv:2508.21107
+- github:a-survey-of-reinforcement-learning-for-l
+- promptfoo:reinforcement-learning-with-verifiable-r
+- arxiv:2501.12948
 open_questions:
-- How does meta-verification scale when the verifier itself becomes superhuman—can
-  an LLM meta-verifier reliably audit proofs beyond human checking capacity?
-- What is the optimal trade-off between external formal verification (high precision,
-  low coverage, high compute) and intrinsic rewards (broad coverage, proxy risk) for
-  a given compute budget?
-- Can automated labeling flywheels (DeepSeekMath-V2 style) be made fully autonomous
-  without human fallback, or will ambiguous cases always require expert routing?
-- Does VIGOR's gradient-norm reward implicitly encode a notion of "reasoning difficulty"
-  that transfers to open-ended generation, or is it fundamentally tied to verifiable
-  domains?
+- Does RLVR fundamentally expand the model's reasoning *capability ceiling* (Pass@K)
+  or primarily compress the search gap between Pass@1 and Pass@K? The compression-ratio
+  metric and "aha moment" evidence point in opposite directions.
+- Can co-evolution frameworks like CURE eliminate the need for *any* ground-truth
+  supervision (including ground-truth unit tests), or is a minimal seed of verified
+  tests unavoidable for bootstrapping reward precision?
+- What causes the "spurious reward" phenomenon where random rewards improve performance
+  on some models (e.g., Qwen2.5-Math) but not others, and does it imply the RL optimizer
+  is exploiting initialization artifacts?
+- How can entropy collapse during GRPO be mitigated without sacrificing in-distribution
+  performance? Current length penalties and KL coefficients are heuristic; no principled
+  schedule is established.
 ---
 
-Reinforcement learning with verifiable rewards (RLVR) has emerged as the dominant paradigm for eliciting reliable reasoning in mathematics and code generation, replacing learned reward models with deterministic verifiers or intrinsic signals. This article synthesizes the design space of verifiers—from formal proof checkers and unit-test execution to meta-verification and gradient-norm intrinsics—and examines how they shape policy optimization in DeepSeekMath-V2, CURE, UTRL, JURY-RL, and VIGOR.
+Reinforcement learning with verifiable rewards (RLVR) has become the dominant paradigm for advancing mathematical reasoning and code generation in open LLMs, replacing learned reward models with deterministic verifiers such as unit tests, compilers, and formal proof checkers. The DeepSeekMath and DeepSeek-R1 lineages demonstrate that group-relative policy optimization (GRPO) over such verifiers can produce frontier-level reasoning capabilities without human-annotated preference data.
 
-## Verifier Design Paradigms
+## Verifier design in RLVR
 
-### The RLVR Loop and Verifiable Reward Taxonomy
+RLVR replaces the neural reward model of classical RLHF with a **deterministic verification function** $r(s, a) \in \{0, \gamma\}$ that returns a non-zero reward only when the completion $a$ passes an objective check for prompt $s$ [source:github:awesome-rlvr-reinforcement-learning-with]. The verifier may be a unit-test suite, a compiler, a formal proof kernel (e.g., Lean), an SQL executor, or a schema validator [source:github:awesome-rlvr-reinforcement-learning-with]; [source:promptfoo:reinforcement-learning-with-verifiable-r]. Because the reward is binary and ground-truth, the approach avoids reward-model overoptimization and enables **intrinsic safety**—every reward is traceable to a transparent verifier run [source:github:awesome-rlvr-reinforcement-learning-with].
 
-The canonical RLVR loop consists of sampling completions from a policy $\pi_\theta$, evaluating each with a deterministic verification function $r(s, a) \in \{0, \gamma\}$, and updating the policy via PPO or GRPO [source:github:awesome-rlvr-reinforcement-learning-with]. Verifiable rewards are categorized by their grounding mechanism [source:labelstud:reinforcement-learning-from-verifiable-r]:
+**Partial verifiers** are a critical failure mode: if the verifier checks syntax but not execution (e.g., SQL parsing without running the query), the model learns to exploit the gap and "cheat" for reward [source:promptfoo:reinforcement-learning-with-verifiable-r]. The RLVR loop optionally includes **verifier refinement**, where the verifier itself is hardened or expanded to cover new edge cases, allowing the agent to self-bootstrap its learning signal [source:github:awesome-rlvr-reinforcement-learning-with].
 
-| Category | Verification Mechanism | Typical Reward Schema |
-|----------|------------------------|----------------------|
-| Mathematical Correctness | Exact match / symbolic equivalence | $1$ (correct), $0.1$ (format only), $0$ (wrong) |
-| Code Execution | Unit-test pass/fail, exception check | $+1$ (all pass), $-1$ (any fail), $-0.2$ (no valid code) |
-| Instruction/Format | Regex / structural pattern match | $1.0$ (match), $0.0$ (mismatch) |
-| Factual / Logical | Rule-based lookup, theorem prover | Binary or multi-level |
+**Disagreement on gain attribution:** The promptfoo analysis argues that RLVR gains are largely **search compression**—the model becomes more efficient at sampling reasoning paths it could already generate—rather than **capability expansion** (learning new reasoning paths) [source:promptfoo:reinforcement-learning-with-verifiable-r]. They propose a compression ratio $\frac{\text{RLVR pass@1} - \text{Base pass@1}}{\text{Base pass@k} - \text{Base pass@1}}$; a ratio $> 0.7$ suggests search compression dominates. In one case, pass@1 rose from 40% to 65% (+25 pp) while pass@8 rose only from 75% to 77% (+2 pp), yielding ~71% compression [source:promptfoo:reinforcement-learning-with-verifiable-r]. By contrast, DeepSeek-R1-Zero reports an "aha moment" where the model *emergently* develops self-reflection and verification behaviors during pure RL, suggesting genuine capability expansion [source:arxiv:2501.12948]. The survey of RL for LRMs notes this as a "foundational problem" under active debate [source:github:a-survey-of-reinforcement-learning-for-l].
 
-The critical design choice is whether the verifier is **external** (Lean, Python interpreter) or **internal** (LLM-based judge, gradient norm). External verifiers provide high precision but limited coverage; internal verifiers scale broadly but risk false positives.
+**Spurious rewards** are another documented pathology: Qwen2.5-Math-7B showed a 21.4% improvement on MATH-500 using *random* rewards versus 29.1% with ground-truth rewards, implying the RL process itself can refine internal pathways independent of the reward signal [source:promptfoo:reinforcement-learning-with-verifiable-r].
 
-### DeepSeekMath-V2: Self-Verifiable Mathematical Reasoning with Meta-Verification
+## Unit-test rewards and co-evolution (CURE)
 
-DeepSeekMath-V2 addresses the fundamental limitation that correct final answers do not guarantee correct reasoning, especially in theorem proving where no numerical answer exists [source:arxiv:2511.22570]. It introduces a three-stage co-training of a **proof generator**, a **verifier**, and a **meta-verifier**.
+The CURE framework (Co-Evolving LLM Coder and Unit Tester) addresses the scarcity of ground-truth code solutions by training a single policy to act as both **coder** and **unit tester** [source:arxiv:2506.03136]. For a task $q$, the model generates $n$ candidate solutions $\{s_j\}$ and $m$ task-derived unit tests $\{u_k\}$. Execution yields a binary matrix $\mathcal{B}^\star \in \{0,1\}^{n \times (m + t_q)}$ where $t_q$ is the number of ground-truth tests [source:arxiv:2506.03136].
 
-**Proof Verification Training.** The verifier $c_\varphi$ consumes a problem $X$, a candidate proof $Y$, and rubric $\mathcal{I}_\nu$, outputting an analysis $Z'$ and score $A' \in \{0, 0.5, 1\}$. It is trained via RL on expert-annotated data $\mathcal{D}_\nu = \{(X_i, Y_i, A_i)\}$ with reward:
+**Solution reward** is the count of passed ground-truth tests:
 
 $$
-R_{\text{ver}} = R_{\text{format}}(Z') \cdot R_{\text{score}}(A', A_i), \quad R_{\text{score}} = 1 - |A' - A_i|
+\mathcal{R}_{s_j}^{\star} = \sum_{l=1}^{t_q} \mathcal{B}_{j, m+l}^{\star}
 $$
 
-where $R_{\text{format}}$ enforces key phrases ("Here is my evaluation...", "Based on my evaluation, the final overall score should be: \boxed{...}") [source:arxiv:2511.22570].
+[source:arxiv:2506.03136].
 
-**Meta-Verification.** To curb hallucinated issues that coincidentally yield correct scores, a meta-verifier $c_\eta$ evaluates the verifier's analysis $Z$ against meta-rubrics $\mathcal{I}_{m\nu}$, producing a quality score $\bar{A} \in \{0, 0.5, 1\}$. The enhanced verifier reward becomes:
-
-$$
-R_V = R_{\text{format}} \cdot R_{\text{score}} \cdot R_{\text{meta}}, \quad R_{\text{meta}} = \bar{A}
-$$
-
-On a validation split, meta-verification lifted average analysis quality from **0.85 to 0.96** without degrading score prediction accuracy [source:arxiv:2511.22570].
-
-**Proof Generation with Self-Verification.** The generator $c_\theta$ produces a proof $Y$ followed by a self-analysis $Z$ (mirroring verifier format). The verifier scores both: $s = A$ for $Y$, and meta-score $ms = \bar{A}$ for $Z$. The combined reward:
+**Unit-test reward (reward precision)** penalizes "naive" tests that are overly permissive. Let $\mathcal{I}_{s_j} = \prod_{l=1}^{t_q} \mathcal{B}_{j, m+l}^{\star}$ indicate whether solution $s_j$ passes all ground-truth tests. The reward for generated test $u_k$ is:
 
 $$
-R = R_{\text{format}}(Y, Z) \cdot (\alpha \cdot R_Y + \beta \cdot R_Z), \quad R_Y = s,\; R_Z = R_{\text{score}}(s', s) \cdot R_{\text{meta}}(Z)
+\mathcal{R}_{u_k}^{\star} = -\sum_{l=1}^{n}(1-\mathcal{I}_{s_l})\mathcal{B}_{l,k}^{\star} + \left(\prod_{l=1}^{n}\mathcal{I}_{s_l}\mathcal{B}_{l,k}^{\star}\right)\left(\sum_{l=1}^{n}(1-\mathcal{I}_{s_l})\right)
 $$
 
-with $\alpha=0.76, \beta=0.24$, incentivizes faithful self-evaluation [source:arxiv:2511.22570].
+[source:arxiv:2506.03136]. The first term penalizes tests that pass incorrect solutions; the second term rewards tests that *only* pass correct solutions (when at least one incorrect solution exists). This optimizes the **precision** of the generated test as a classifier of solution correctness.
 
-**Synergy and Automated Labeling.** As the generator improves, it produces harder proofs that challenge the verifier. An automated pipeline generates $k$ verifications per proof, filters via $m$ meta-verifications (majority vote), and assigns labels: if $\ge 9$ valid analyses agree on the lowest score, that score is used; if no issues found, score $=1$; else route to humans [source:arxiv:2511.22570].
+The policy is optimized with a PPO-style objective including a KL penalty [source:arxiv:2506.03136]. For long-CoT models, a **response-length-guided reward transformation** penalizes overly long responses, reducing average unit-test generation length to 64.8% of the original [source:arxiv:2506.03136].
 
-**Results.** On CNML-level problems, DeepSeekMath-V2 achieves mean proof score **0.60** (algebra) vs. GPT-5-Thinking-High **0.54** and Gemini 2.5-Pro **0.17**. In high-compute search: **IMO 2025** 5/6 solved (83.3%), **CMO 2024** 4/6 + partial (73.8%), **Putnam 2024** 118/120 (human best 90) [source:arxiv:2511.22570]. Limitations: single-attempt proofs often exceed 128K tokens; hardest IMO problems remain challenging even with scaled test-time compute [source:arxiv:2511.22570].
+**Results:** ReasonFlux-Coder-7B/14B (from Qwen2.5-Instruct) improved one-shot code generation by 5.3% and Best-of-N by 9.0%, outperforming Qwen-Coder, DeepSeek-Coder, and Seed-Coder [source:arxiv:2506.03136]. As a downstream unit tester for GPT-4o, ReasonFlux-Coder-4B improved one-shot performance by 7.0% while reducing API costs [source:arxiv:2506.03136]. The framework also serves as a **label-free reward model** for RL on base models, achieving improvements comparable to ground-truth supervision [source:arxiv:2506.03136].
 
-### JURY-RL: Label-Free RLVR with Formal Verification and ResZero Fallback
+**Limitation:** CURE still requires ground-truth *unit tests* to define the correctness indicator $\mathcal{I}_{s_j}$; it eliminates the need for ground-truth *code* but not for ground-truth *tests* [source:arxiv:2506.03136].
 
-JURY-RL eliminates human-annotated answers by decoupling **proposal** (majority voting) from **disposal** (formal verification in Lean) [source:arxiv:2604.25419].
+## DeepSeekMath and GRPO
 
-**Proposal Stage.** For problem $x$, policy $\pi_\theta$ generates $G$ rollouts $\{y_i\}$, extracts answers $a_i = \text{ans}(y_i)$, and proposes consensus $\hat{a}$ via plurality:
+DeepSeekMath-Base 7B is initialized from DeepSeek-Coder-Base-v1.5 7B and continually trained on 500B tokens (56% DeepSeekMath Corpus, 20% GitHub code, 10% arXiv, 10% Common Crawl, 4% AlgebraicStack) [source:arxiv:2402.03300]. The **DeepSeekMath Corpus** (120B tokens) was built via an iterative fastText classifier: seed from OpenWebMath → classify Common Crawl → identify high-math domains → manual annotation → retrain classifier (4 iterations) [source:arxiv:2402.03300].
 
-$$
-\hat{a} = \arg\max_a \sum_{i=1}^G \mathbb{I}[a_i = a]
-$$
+**SFT** produces DeepSeekMath-Instruct 7B on 776K CoT/PoT/tool-integrated examples [source:arxiv:2402.03300].
 
-**Disposal Stage.** A formal verifier checks $\hat{a}$ against the Lean specification of $x$, yielding binary proof-gate $\delta = \text{verify}(x, \hat{a})$.
-- If $\delta = 1$: reward $r_i = \mathbb{I}[a_i = \hat{a}]$ (only trajectories matching the proven answer rewarded).
-- If $\delta = 0$: **ResZero** fallback assigns a zero-mean, variance-preserving reward to residual answers.
-
-**ResZero Reward.** Let $M = \{i: a_i = \hat{a}\}$ (majority), $R = \{i: a_i \neq \hat{a}\}$ (residual), $\alpha = |M|/G$. For $i \in R$, define leave-one-out residual share $z_i = u^{(-i)}(a_i)$ where
+**GRPO** replaces PPO's critic with a group baseline. For a question $q$, sample $G$ outputs $\{o_i\}_{i=1}^G \sim \pi_{\theta_{\text{old}}}(O|q)$. The advantage for output $i$ is:
 
 $$
-u^{(-i)}(b) = \frac{1}{|R|-1} \sum_{\substack{j \in R \\ j \neq i}} \mathbb{I}[a_j = b]
+\hat{A}_{i,t} = \frac{r_i - \text{mean}(\{r_1,\dots,r_G\})}{\text{std}(\{r_1,\dots,r_G\})}
 $$
 
-and $\bar{u} = \frac{1}{|R|} \sum_{j \in R} z_j$. The ResZero reward:
+where $r_i$ is the reward for the full output $o_i$ (token-level advantages use the same scalar $r_i$) [source:arxiv:2402.03300]; [source:arxiv:2501.12948]. The GRPO objective:
 
 $$
-r_i^{\text{ResZero}} = \underbrace{\alpha \cdot \mathbb{I}[i \in R] \cdot (z_i - \bar{u})}_{\text{Amplify residual}} \underbrace{- c \alpha \cdot \mathbb{I}[i \in M]}_{\text{Penalize majority}} + \underbrace{\gamma}_{\text{Re-center}}, \quad \gamma = c \alpha^2
+\mathcal{J}_{\text{GRPO}}(\theta) = \mathbb{E}\left[ \frac{1}{G}\sum_{i=1}^G \frac{1}{|o_i|}\sum_{t=1}^{|o_i|} \min\left( \frac{\pi_\theta(o_{i,t}|q,o_{i,<t})}{\pi_{\theta_{\text{old}}}(o_{i,t}|q,o_{i,<t})} \hat{A}_{i,t}, \text{clip}\left(\frac{\pi_\theta}{\pi_{\theta_{\text{old}}}}, 1-\varepsilon, 1+\varepsilon\right) \hat{A}_{i,t} \right) - \beta D_{\text{KL}}(\pi_\theta \| \pi_{\text{ref}}) \right]
 $$
 
-with $c=0.01$. This rewards minority answers that agree with each other while penalizing the unverified majority [source:arxiv:2604.25419].
-
-**Policy Update.** Group-normalized advantages $\hat{A}_i = (r_i - \bar{r}) / (\text{std}(\{r_j\}) + \varepsilon)$ feed into GRPO objective with KL penalty $\beta$ [source:arxiv:2604.25419].
-
-**Results.** JURY-RL matches or exceeds ground-truth GRPO (GT) and outperforms LLM-as-a-judge across Qwen3-1.7B, Llama-3.2-3B, Qwen2.5-7B on math (avg pass@k: **+4.05 pp** over GT, **+9.06 pp** over LLM-judge on Qwen3-1.7B) and generalizes out-of-domain (+1.88 pts on code/instruction/multi-task) [source:arxiv:2604.25419]. ResZero ablation: outperforms Zero Reward (+1.3 pts), MV Reward (+6.1 pts), Random Reward (+5.4 pts) when $\delta=0$ [source:arxiv:2604.25419]. Lean verifier precision **84.5%** vs. LLM-judge **75.9%** (recall 88.0% vs 96.1%) [source:arxiv:2604.25419]. Autoformalization success: 95.4% on MATH500, but only 66.7% on AIME 2025 [source:arxiv:2604.25419]. Computational overhead: Lean adds ~200s/step vs. ~80s for LLM-judge (cold-start Qwen2.5-7B) [source:arxiv:2604.25419].
-
-**Limitations.** Upstream autoformalization/consistency errors cause inconclusive verification ($\delta=0$), reducing supervision density on hard domains. Computational overhead significant but amortized by caching [source:arxiv:2604.25419].
-
-### VIGOR: Verifier-Free Intrinsic Gradient-Norm Reward
-
-VIGOR removes external verifiers entirely, using the policy's own gradient norm as an intrinsic reward signal [source:arxiv:2605.09920][source:aclanthology:pdf-verifier-free-rl-for-llms-via-intrin].
-
-**Reward Computation.** For completion $y$ of length $T$:
-1. Average token-level NLL: $\ell_{\text{mean}}(x,y) = \frac{1}{T} \sum_{t=1}^T -\log \pi_\theta(y_t \mid x, y_{<t})$.
-2. Gradient norm: $\|\mathbf{g}(x,y)\|_2 = \|\nabla_\theta \ell_{\text{mean}}(x,y)\|_2$ (detached).
-3. Length correction: $S_{\text{GN}}(x,y) = -\sqrt{T} \|\mathbf{g}(x,y)\|_2$ (negative sign converts minimization to maximization; $\sqrt{T}$ counters $O(1/\sqrt{T})$ decay).
-4. Rank normalization within group of $G$: sort by $S_{\text{GN}}$ (smaller = worse), assign $\text{rank}_i \in \{0,\dots,G-1\}$, then
+[source:arxiv:2402.03300]. The KL term uses the unbiased estimator:
 
 $$
-R_{\text{GN}}(x,y_i) = 2 \frac{\text{rank}_i}{G-1} - 1 \in [-1, +1]
+D_{\text{KL}}(\pi_\theta \| \pi_{\text{ref}}) = \frac{\pi_{\text{ref}}(o_{i,t}|q,o_{i,<t})}{\pi_\theta(o_{i,t}|q,o_{i,<t})} - \log\frac{\pi_{\text{ref}}(o_{i,t}|q,o_{i,<t})}{\pi_\theta(o_{i,t}|q,o_{i,<t})} - 1
 $$
 
-5. Group-relative advantages $\hat{A}_i$ via mean-std normalization of $\{R_{\text{GN}}\}$, fed to GRPO/PPO objective with KL penalty [source:arxiv:2605.09920][source:aclanthology:pdf-verifier-free-rl-for-llms-via-intrin].
+[source:arxiv:2402.03300].
 
-**Results.** On Qwen2.5-7B-Base trained on MATH: VIGOR **69.77%** avg math accuracy vs. INTUITOR (entropy-based) **66.46%** (+3.31 pp); cross-domain code transfer **40.42%** vs **38.51%** (+1.91 pp) [source:arxiv:2605.09920][source:aclanthology:pdf-verifier-free-rl-for-llms-via-intrin]. On Qwen2.5-3B-Base: math **59.14%** vs **57.10%** (+2.04 pp); code **27.95%** vs **26.79%** (+1.16 pp) [source:arxiv:2605.09920][source:aclanthology:pdf-verifier-free-rl-for-llms-via-intrin]. Ablation: removing $\sqrt{T}$ collapses GSM8K from **81.80%** to **0.08%** and code to **0.00%** (3B); removing rank shaping drops MMLU-Pro by 8.90% (7B) [source:arxiv:2605.09920][source:aclanthology:pdf-verifier-free-rl-for-llms-via-intrin]. Training cost: VIGOR 3h35m (28.67 GPU-hrs) vs GT-Reward 2h34m (20.55 GPU-hrs) on 8×H800; LM-head-only variant 2h47m (22.31 GPU-hrs) [source:arxiv:2605.09920][source:aclanthology:pdf-verifier-free-rl-for-llms-via-intrin].
+**Key findings from DeepSeekMath:**
+- **Code pre-training** significantly benefits math reasoning both with and without tool use [source:arxiv:2402.03300].
+- **arXiv data** (MathPile, ArXiv-RedPajama) provided *no notable improvement* on adopted benchmarks, contrary to common practice [source:arxiv:2402.03300].
+- **RL primarily improves output distribution** (Maj@K) rather than fundamental capability (Pass@K stable) [source:arxiv:2402.03300].
+- **Weaknesses:** geometry/theorem-proving (triangles, ellipses); limited few-shot gains due to scale [source:arxiv:2402.03300].
 
-**Limitations.** Unclear transfer to open-ended generation (long-form writing, dialogue); gradient-norm computation adds AD overhead; proxy objective may not track downstream utility consistently [source:arxiv:2605.09920][source:aclanthology:pdf-verifier-free-rl-for-llms-via-intrin].
+**Results:** DeepSeekMath-RL 7B achieves 51.7% on MATH (Top1), 60.9% with self-consistency (64 samples), 88.2% on GSM8K [source:arxiv:2402.03300]. Base model (36.2% MATH) outperforms Minerva 540B (33.6%) [source:arxiv:2402.03300]. RL on GSM8K+MATH improves CMATH from 84.6% to 88.8% [source:arxiv:2402.03300].
 
-**Disagreement on Verifier Necessity.** DeepSeekMath-V2 and JURY-RL invest heavily in *external* verifiers (meta-verifier, Lean) to achieve high-precision rewards, accepting computational cost and coverage gaps. VIGOR argues that a *verifier-free* intrinsic signal suffices for math/code reasoning and transfers cross-domain, but acknowledges it is a proxy that may misalign. JURY-RL's ResZero shows that even when formal verification fails ($\delta=0$), a carefully designed fallback using *internal* consensus structure outperforms zero reward or majority-vote reward—suggesting a middle ground where external verification gates high-confidence rewards while intrinsic structure guides the rest [source:arxiv:2604.25419][source:arxiv:2605.09920]. DeepSeekMath-V2's meta-verifier similarly uses an *internal* LLM to audit the verifier, creating a hierarchy of internal checks [source:arxiv:2511.22570].
+## DeepSeek-R1: scaling pure RL for reasoning
 
-## Unit Test Generation and Rewards
+DeepSeek-R1-Zero applies **pure GRPO** to DeepSeek-V3-Base *without any SFT* [source:arxiv:2501.12948]. The rule-based reward combines:
+- **Accuracy reward:** deterministic verification (math answer matching, code compilation/execution) [source:arxiv:2501.12948].
+- **Format reward:** incentivizes `reasoning`...`/reasoning` and `answer`...`/answer` tags [source:arxiv:2501.12948].
+- **Language consistency reward:** $\frac{\text{Num(Words}_{\text{target}})}{\text{Num(Words)}}$ to reduce language mixing [source:arxiv:2501.12948].
 
-### CURE: Co-Evolving Coder and Unit Tester via Self-Play
+Total reward: $R_{\text{rule}} = R_{\text{acc}} + R_{\text{format}}$ [source:arxiv:2501.12948]. GRPO advantage uses group mean/std normalization as above [source:arxiv:2501.12948].
 
-CURE trains a single LLM to alternate between **coder** and **unit tester** roles without ground-truth code supervision [source:neurips:co-evolving-llm-coder-and-unit-tester-vi]. The reward is derived from a **pairwise interaction matrix** between generated codes $\{C\}$ and generated tests $\{\mathcal{T}\}$:
-- Coder produces correct and incorrect solutions.
-- Tester learns to discriminate: tests that pass ground-truth (if available) but fail buggy solutions are rewarded.
-- For Long-CoT models, a **response-length-guided reward transformation** encourages shorter, efficient test generation.
+**Emergent behavior:** During training, the model spontaneously develops long CoT with self-reflection and verification ("aha moment") [source:arxiv:2501.12948]. AIME 2024 Pass@1 rises from 15.6% to 77.9% (86.7% with self-consistency) [source:arxiv:2501.12948].
 
-**Results.** CURE-4B: **+6.2%** test-time scaling accuracy, **+25.1%** agentic unit-test generation accuracy vs base; **64.8% inference efficiency** vs Qwen3-4B in test generation; models at 4B, 7B, 14B scales [source:neurips:co-evolving-llm-coder-and-unit-tester-vi]. Limitation: traditional unit-test RL requires ground-truth code, which is costly; CURE removes this but the paper does not explicitly state its own limitations [source:neurips:co-evolving-llm-coder-and-unit-tester-vi].
+DeepSeek-R1 (final) uses a **four-stage pipeline**:
+1. **Cold-start SFT** on a small set of high-quality human-aligned trajectories [source:arxiv:2501.12948].
+2. **First RL stage** (GRPO) for reasoning + language consistency [source:arxiv:2501.12948].
+3. **Rejection sampling + SFT**: 600K reasoning samples (via rejection sampling) + 200K non-reasoning samples [source:arxiv:2501.12948].
+4. **Second RL stage**: rule-based rewards (reasoning) + model-based rewards (helpfulness/harmlessness) [source:arxiv:2501.12948].
 
-### UTRL: Adversarial RL for Unit Test Generation
+**Final results:** AIME 2024 Pass@1 79.8%; MATH-500 Pass@1 97.3%; Codeforces rating 2029; AlpacaEval 2.0 +25%, ArenaHard +17% from final RL stage [source:arxiv:2501.12948].
 
-UTRL iteratively trains two separate LLMs—unit test generator $\mathcal{M}_{\text{UT}}$ and code generator $\mathcal{M}_{\text{code}}$—in an adversarial loop using only instruction–ground-truth-code pairs $\mathcal{D} = \{(I, C^*)\}$ [source:arxiv:2508.21107].
+**Limitations:** suboptimal structured output/tool use; "overthinking" on simple queries; language mixing outside EN/ZH; high prompt sensitivity (zero-shot recommended); limited software-engineering gains due to RL evaluation cost; pure RL susceptible to reward hacking with neural (non-rule-based) reward models [source:arxiv:2501.12948].
 
-**Rewards.** For a generated test suite $\mathcal{T}$ and code set $\mathcal{C}$:
-- **Discrimination Reward** (test quality):
+## Current status and trajectory
 
-$$
-R_{\text{disc}}(\mathcal{T}, \mathcal{C}, C^*) = \frac{1}{|\mathcal{C}|} \sum_{C \in \mathcal{C}} \left[ 1 - \prod_{T \in \mathcal{T}} (1 - \text{Pass}(C, T))^{\text{Pass}(C^*, T)} \right]
-$$
+RLVR with GRPO is the **default, rising paradigm** for math and code reasoning in open LLMs. The DeepSeekMath/R1 lineage and the CURE co-evolution framework demonstrate that deterministic verifiers (unit tests, compilers, execution) can replace human preference data at the frontier. The ecosystem is consolidating around GRPO (or its variants like REINFORCE++) as the optimization backbone, with infrastructure converging on **verl**, **OpenRLHF**, and **open-r1** [source:github:awesome-rlvr-reinforcement-learning-with]. However, **fundamental disagreements persist** on whether gains reflect search compression vs. capability expansion [source:promptfoo:reinforcement-learning-with-verifiable-r] vs. [source:arxiv:2501.12948], and the survey of RL for LRMs explicitly lists reward design and gain attribution as unresolved "foundational problems" [source:github:a-survey-of-reinforcement-learning-for-l]. **Entropy collapse** during GRPO training—where in-distribution accuracy rises but OOD performance deteriorates—is a documented failure mode not yet widely solved [source:promptfoo:reinforcement-learning-with-verifiable-r]. **Overthinking** (excessive token use) remains a practical issue for deployment [source:arxiv:2501.12948]; [source:github:awesome-rlvr-reinforcement-learning-with]. The field is **not fading**; investment is accelerating (135 papers integrated from ICLR/ICML 2026 alone in the RLVR repo) [source:github:awesome-rlvr-reinforcement-learning-with], but the *theoretical understanding* of why RLVR works lags behind empirical scaling.
 
-$\text{Pass}(C^*, T)$ filters invalid tests (those failing ground-truth).
-- **Validity Reward** (test coverage/validity):
+## Key takeaways
 
-$$
-R_{\text{valid}}(\mathcal{T}, C^*, \tau) = \frac{\sum_{T \in \mathcal{T}} \text{Pass}(C^*, T)}{\max(|\mathcal{T}|, \tau)}
-$$
+- **RLVR replaces learned reward models with deterministic verifiers** (unit tests, compilers, executors), eliminating reward-model overoptimization and enabling traceable rewards [source:github:awesome-rlvr-reinforcement-learning-with]; [source:promptfoo:reinforcement-learning-with-verifiable-r].
+- **GRPO is the de facto optimizer**: it removes the critic by computing advantages from group statistics (mean/std of rewards across $G$ samples per prompt) and uses a token-level PPO-clip objective with a KL penalty [source:arxiv:2402.03300]; [source:arxiv:2501.12948].
+- **Verifier completeness is critical**: partial verifiers (e.g., syntax-only) induce reward hacking; the CURE framework co-evolves the verifier (unit tests) with the generator to maximize *reward precision* [source:promptfoo:reinforcement-learning-with-verifiable-r]; [source:arxiv:2506.03136].
+- **DeepSeekMath shows code pre-training > arXiv for math reasoning**; RL improves majority-vote performance (Maj@K) more than single-pass capability (Pass@K) [source:arxiv:2402.03300].
+- **DeepSeek-R1-Zero demonstrates pure RL can elicit emergent reasoning** (self-reflection, long CoT) without any SFT, but requires rule-based rewards to avoid hacking [source:arxiv:2501.12948].
+- **Gain attribution is contested**: compression ratio analysis suggests ~70%+ of gains may be search compression, yet "aha moment" narratives argue for genuine capability expansion [source:promptfoo:reinforcement-learning-with-verifiable-r]; [source:arxiv:2501.12948].
+- **Spurious rewards and entropy collapse** are understudied failure modes: random rewards can improve performance on some models, and entropy decline correlates with OOD degradation [source:promptfoo:reinforcement-learning-with-verifiable-r].
+- **Infrastructure is standardizing** on verl, OpenRLHF, open-r1 for GRPO/RLVR training at scale [source:github:awesome-rlvr-reinforcement-learning-with].
 
-$\tau$ = minimum desired test cases, prevents trivial short tests.
-- **Unit Test Generator Reward**: $r_{\text{UT}} = \lambda R_{\text{disc}} + (1-\lambda) R_{\text{valid}}$ ($\lambda=0.85$ optimal).
-- **Code Generator Reward**: pass rate on *valid* tests:
+## Related topics
 
-$$
-R_{\text{code}}(C, \mathcal{T}, C^*) = \frac{\sum_{T \in \mathcal{T}} \text{Pass}(C, T) \cdot \text{Pass}(C^*, T)}{\sum_{T \in \mathcal{T}} \text{Pass}(C^*, T)}
-$$
-
-Both updated via GRPO [source:arxiv:2508.21107].
-
-**Results.** Best-of-32 code accuracy: UTRL Qwen3-4B **14.9%** (w/ Qwen3-8B coder) / **17.3%** (w/ Qwen3-14B) vs SFT **11.7%** / **14.0%**; outperforms GPT-4.1/4o. Qwen3-14B UTRL: **15.0%** / **17.7%**. vs CURE: **+4.4% / +3.2%** (Qwen2.5-7B-Instruct). LiveCodeBench: UTRL Qwen3-4B **59.9%** / **59.3%** vs GPT-4.1. Unit test fidelity (Spearman vs GT): Qwen3-14B **0.827**, Qwen3-4B **0.794** (GPT-4.1 lower). Code generator pass@1: UTRL Qwen3-4B **15.3%** vs SFT **3.6%**, near GT-test upper bound **15.9%**. Iterative training: iteration 2 tests surpass iteration 1 and GPT-4.1 despite initial discrimination reward drop (0.626→0.375→0.447). Ablation: $\lambda=0$ → validity 64.3% but low BoN; $\lambda=1$ → validity 49.7%, degraded BoN; without $R_{\text{valid}}$ → >50% invalid tests; without clipping in $R_{\text{valid}}$ → trivial few-test suites [source:arxiv:2508.21107].
-
-**Limitations.** Performance gap vs ground-truth unit tests persists; evaluated only on competitive programming; fixed test-count per suite (adaptive length future work) [source:arxiv:2508.21107].
-
-**Disagreement on Supervision Signal.** CURE uses *no* ground-truth code—pure self-play interaction matrix—while UTRL *requires* ground-truth code $C^*$ to filter invalid tests ($\text{Pass}(C^*, T)$) and compute validity/discrimination rewards. UTRL's adversarial two-model design achieves higher fidelity (0.827 vs CURE's 0.593) and stronger code generation (15.3% pass@1 vs CURE's unreported), but at the cost of needing $C^*$. CURE claims "without relying on ground-truth code solutions" as its core contribution; UTRL explicitly leverages them for reward shaping [source:neurips:co-evolving-llm-coder-and-unit-tester-vi][source:arxiv:2508.21107]. This is a fundamental trade-off: **annotation-free co-evolution** (CURE) vs **annotation-leveraged adversarial refinement** (UTRL).
-
-## DeepSeekMath-V2 Deep Dive: Architecture and Training Dynamics
-
-### Data Curation and Cold-Start
-- **Source**: 17,503 proof problems from Art of Problem Solving (AoPS) contests.
-- **Generator**: DeepSeek-V3.2-Exp-Thinking variant, iterative refinement.
-- **Annotation**: Math experts score proofs 0 (fundamentally flawed), 0.5 (minor errors), 1 (complete/rigorous) per high-level rubrics.
-- **Dataset**: $\mathcal{D}_\nu = \{(X_i, Y_i, A_i)\}$ for verifier; $\mathcal{D}_{m\nu} = \{(X_i, Y_i, Z_i, \bar{A}_i)\}$ for meta-verifier [source:arxiv:2511.22570].
-
-### Verifier RL Objective Details
-The verifier $c_\varphi$ outputs analysis $Z'$ and score $A'$. Format reward $R_{\text{format}}$ is an indicator for two required phrases. Score reward $R_{\text{score}} = 1 - |A' - A_i|$. The objective:
-
-$$
-\max_{c_\varphi} \mathbb{E}_{(X_i,Y_i,A_i)\sim\mathcal{D}_\nu,\;(Z'_i,A'_i)\sim c_\varphi(\cdot|X_i,Y_i)} \left[ R_{\text{format}}(Z'_i) \cdot R_{\text{score}}(A'_i, A_i) \right]
-$$
-
-Training on $\mathcal{D}_\nu$ alone yields a verifier that predicts scores accurately but hallucinates issues. Meta-verifier corrects this [source:arxiv:2511.22570].
-
-### Meta-Verifier Training Loop
-1. Train initial verifier $c_\varphi$ on $\mathcal{D}_\nu$.
-2. Experts score verifier analyses $Z_i$ per meta-rubrics $\mathcal{I}_{m\nu}$ → $\mathcal{D}_{m\nu}$.
-3. Train meta-verifier $c_\eta$ on $\mathcal{D}_{m\nu}$ with same RL objective (format + score rewards).
-4. Enhanced verifier reward: $R_V = R_{\text{format}} \cdot R_{\text{score}} \cdot R_{\text{meta}}$ where $R_{\text{meta}}$ is meta-verifier's quality score.
-5. Retrain verifier on $\mathcal{D}_\nu \cup \mathcal{D}_{m\nu}$ with $R_V$ [source:arxiv:2511.22570].
-
-### Generator Self-Verification Mechanics
-Generator prompted to output proof $Y$ then self-analysis $Z$ (same format as verifier). Verifier evaluates both:
-- $s = A$ (proof score)
-- $ms = \bar{A}$ (self-analysis quality)
-- $s'$ = generator's self-predicted score (extracted from $Z$)
-Reward:
-
-$$
-R = R_{\text{format}}(Y, Z) \cdot \left( \alpha \cdot s + \beta \cdot \left[ R_{\text{score}}(s', s) \cdot ms \right] \right), \quad \alpha=0.76,\; \beta=0.24
-$$
-
-This forces the generator to *calibrate* its self-prediction $s'$ to the verifier's $s$, while also producing high-quality self-analyses [source:arxiv:2511.22570].
-
-### Automated Labeling Pipeline (Verifier Self-Improvement)
-For each new proof $Y$ from improved generator:
-1. Generate $k$ independent verifications $\{(Z^{(j)}, A^{(j)})\}$.
-2. For each with $A^{(j)} \in \{0, 0.5\}$, generate $m$ meta-verifications; keep if majority confirm issues.
-3. If $\ge 9$ valid analyses agree on lowest score → label with that score.
-4. If no valid issues across all $k$ → label 1.
-5. Else → discard or human review.
-This creates a flywheel: better generator → harder proofs → better verifier training data [source:arxiv:2511.22570].
-
-### Sequential Refinement and High-Compute Search
-- **Pass@1** improves substantially with max sequential attempts (self-verification guides refinement).
-- **Best@32**: Self-selected best proofs achieve significantly higher verification scores than thread average, demonstrating accurate self-assessment.
-- **Competition results** (high-compute search): IMO 2025 5/6 (83.3%), CMO 2024 4/6+partial (73.8%), Putnam 2024 118/120, IMO-ProofBench competitive with DeepMind DeepThink [source:arxiv:2511.22570].
-
-## Current Status and Trajectory
-
-**RLVR with external verifiers (Lean, unit tests) is the default for high-stakes math/code reasoning**—evidenced by DeepSeekMath-V2's competition-level results and JURY-RL's label-free formal verification matching GT rewards. The trajectory is **rising** for hybrid systems that combine external verification (when available) with robust fallbacks (ResZero, meta-verification) to maintain coverage. **Unit-test RL is rising** but split: UTRL's adversarial two-model design with ground-truth filtering achieves higher fidelity, while CURE's fully self-play approach scales without annotations—both active. **Verifier-free intrinsic rewards (VIGOR) are emerging** but not yet default; they show strong cross-domain transfer on math→code but unproven on open-ended tasks, and gradient-norm overhead remains a scaling concern. **Meta-verification (DeepSeekMath-V2) is a rising pattern**—using an LLM to audit the verifier—likely to generalize to other RLVR pipelines. **Automated labeling flywheels** (generator→hard cases→verifier retraining) are **early but promising**; not widely reported outside DeepSeekMath-V2. **Formal verification (Lean) adoption is rising** but bottlenecked by autoformalization success rates (66.7% on AIME 2025 vs 97.1% on miniF2F) and compute overhead (~200s/step) [source:arxiv:2511.22570][source:arxiv:2604.25419][source:arxiv:2605.09920][source:arxiv:2508.21107][source:neurips:co-evolving-llm-coder-and-unit-tester-vi].
-
-## Key Takeaways
-
-- **Verifier design is a spectrum**: external deterministic (Lean, unit tests) → LLM-based with meta-auditing (DeepSeekMath-V2) → intrinsic proxy (VIGOR gradient norm). Each trades off precision, coverage, and compute.
-- **Meta-verification is a force multiplier**: DeepSeekMath-V2's meta-verifier lifts analysis quality 0.85→0.96 without hurting score accuracy; JURY-RL's ResZero provides a principled fallback when formal verification is inconclusive.
-- **Unit-test RL requires discriminative rewards**: UTRL's $R_{\text{disc}}$ (fail buggy code, pass ground-truth) + $R_{\text{valid}}$ (coverage + validity) outperforms naive pass-rate rewards; CURE achieves similar via self-play interaction matrix without ground-truth code.
-- **Automated labeling flywheels close the data gap**: DeepSeekMath-V2's pipeline (k verifications + m meta-verifications → majority vote → label) turns generator improvements into verifier training data without human annotation.
-- **Length correction is critical for intrinsic rewards**: VIGOR's $\sqrt{T}$ scaling prevents collapse (GSM8K 81.8% → 0.08% without it); UTRL's $\tau$ in $R_{\text{valid}}$ prevents trivial short tests.
-- **Formal verification precision > recall**: Lean verifier 84.5% precision vs LLM-judge 75.9% (JURY-RL); false positives are costlier than missed verifications.
-- **Cross-domain transfer exists but is asymmetric**: VIGOR trained on math improves code (+1.91 pp); UTRL trained on code improves math (implied by adversarial loop); DeepSeekMath-V2's theorem-proving verifier does not directly transfer to code.
-
-## Related Topics
-
-- [Verifiable rewards (RLVR)](verifiable-rewards.md) — foundational framework for deterministic reward design
-- [RL for reasoning models](rl-for-reasoning.md) — broader reasoning RL context including math/code
-- [Process vs outcome reward models](process-vs-outcome-rewards.md) — verifier design as process supervision
-- [Reward hacking in RLHF](reward-hacking.md) — why verifiable rewards mitigate hacking
-- [GRPO (Group Relative Policy Optimization)](grpo.md) — optimization algorithm used in JURY-RL, VIGOR, UTRL
-- [Self-improvement and self-play RL](self-improvement-and-self-play.md) — CURE and DeepSeekMath-V2's generator→verifier flywheel
-- [Agentic and tool-use RL](agentic-and-tool-use-rl.md) — unit-test generation as tool-use
-- [Test-time compute and RL interplay](test-time-and-rl-interplay.md) — DeepSeekMath-V2's sequential refinement and high-compute search
+- [GRPO (Group Relative Policy Optimization)](grpo.md)
+- [Verifiable rewards (RLVR)](verifiable-rewards.md)
+- [RL for reasoning models](rl-for-reasoning.md)
+- [Reward hacking in RLHF](reward-hacking.md)
+- [Process vs outcome reward models](process-vs-outcome-rewards.md)
+- [Self-improvement and self-play RL](self-improvement-and-self-play.md)
+- [Agentic and tool-use RL](agentic-and-tool-use-rl.md)
+- [RLHF/PPO pipeline](rlhf-ppo-pipeline.md)
+- [Policy gradient methods for LLMs](policy-gradient-methods.md)
+- [KL regularization in RLHF](kl-regularization.md)
+- [Entropy and exploration in RL fine-tuning](entropy-and-exploration.md)
+- [Length and format bias](length-and-format-bias.md)
+- [Over-optimization and mode collapse](overoptimization-and-mode-collapse.md)
+- [Rejection sampling and Best-of-N](rejection-sampling-and-bon.md)
+- [Distributed RL training for LLMs](distributed-rl-training.md)
+- [Rollout generation infrastructure](rollout-generation-infra.md)
 
 ## References
-- [source:arxiv:2511.22570] [DeepSeekMath-V2: Towards Self-Verifiable Mathematical Reasoning](https://arxiv.org/html/2511.22570v1)
-- [source:neurips:co-evolving-llm-coder-and-unit-tester-vi] [Co-Evolving LLM Coder and Unit Tester via Reinforcement Learning](https://neurips.cc/virtual/2025/poster/115329)
+- [source:arxiv:2402.03300] [DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models](https://arxiv.org/abs/2402.03300)
+- [source:arxiv:2506.03136] [Co-Evolving LLM Coder and Unit Tester via Reinforcement Learning](https://arxiv.org/html/2506.03136v2)
 - [source:github:awesome-rlvr-reinforcement-learning-with] [Awesome RLVR — Reinforcement Learning with Verifiable Rewards](https://github.com/opendilab/awesome-RLVR)
-- [source:labelstud:reinforcement-learning-from-verifiable-r] [Reinforcement Learning from Verifiable Rewards](https://labelstud.io/blog/reinforcement-learning-from-verifiable-rewards/)
-- [source:arxiv:2604.25419] [JURY-RL: Votes Propose, Proofs Dispose for Label-Free RLVR - arXiv](https://arxiv.org/html/2604.25419v1)
-- [source:arxiv:2605.09920] [Verifier-Free RL for LLMs via Intrinsic Gradient-Norm Reward - arXiv](https://arxiv.org/html/2605.09920v1)
-- [source:aclanthology:pdf-verifier-free-rl-for-llms-via-intrin] [[PDF] Verifier-Free RL for LLMs via Intrinsic Gradient-Norm Reward](https://aclanthology.org/2026.findings-acl.1606.pdf)
-- [source:arxiv:2508.21107] [Learning to Generate Unit test via Adversarial Reinforcement Learning](https://arxiv.org/html/2508.21107v2)
+- [source:github:a-survey-of-reinforcement-learning-for-l] [A Survey of Reinforcement Learning for Large Reasoning Models](https://github.com/TsinghuaC3I/Awesome-RL-for-LRMs)
+- [source:promptfoo:reinforcement-learning-with-verifiable-r] [Reinforcement Learning with Verifiable Rewards Makes Models Smarter](https://www.promptfoo.dev/blog/rlvr-explained/)
+- [source:arxiv:2501.12948] [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948)
