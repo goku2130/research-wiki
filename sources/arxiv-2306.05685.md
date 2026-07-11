@@ -5,7 +5,7 @@ title: Language Models are Good Evaluators but Need Careful Prompting
 url: https://arxiv.org/abs/2306.05685
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: alignment-and-winrate-evals
+topic: llm-as-judge
 ---
 
 # Summary: Language Models are Good Evaluators but Need Careful Prompting
