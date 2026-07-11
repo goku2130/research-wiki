@@ -5,7 +5,7 @@ title: 'STaR: Self-Taught Reasoner: Bootstrapping Reasoning With Reasoning'
 url: https://arxiv.org/abs/2203.14465
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: rl-for-reasoning
+topic: self-improvement-and-self-play
 ---
 
 # STaR: Self-Taught Reasoner

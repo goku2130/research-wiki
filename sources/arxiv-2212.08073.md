@@ -5,7 +5,7 @@ title: 'Constitutional AI: Harmlessness from AI Feedback'
 url: https://arxiv.org/abs/2212.08073
 retrieved: '2026-07-11'
 maturity: comprehensive
-topic: rlaif
+topic: self-improvement-and-self-play
 ---
 
 # Constitutional AI: Harmlessness from AI Feedback

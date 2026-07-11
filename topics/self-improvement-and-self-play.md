@@ -1,33 +1,32 @@
 ---
 title: Self-improvement and self-play RL
-maturity: developing
+maturity: comprehensive
 updated: '2026-07-11'
 sources:
-- arxiv:2203.14465
-- arxiv:2308.08998
-- arxiv:2505.03335
 - openai:iterated-distillation-and-amplification-
-- arxiv:1810.08575
-- arxiv:2212.10560
-- arxiv:2402.04683
 - arxiv:2212.08073
+- arxiv:1810.08575
+- arxiv:2505.03335
+- arxiv:2308.08998
+- arxiv:2203.14465
+- arxiv:2402.04683
+- arxiv:2212.10560
+- openai:iterated-amplification-supervising-stron
+- semanticscholar:machine-learning-projects-for-iterated-d
+- aclanthology:re-rest-reflection-reinforced-self-train
 open_questions:
-- Can Absolute Zero's proposer/solver self-play be stabilized without per-task baselines
-  (TRR++) when scaling to stochastic or open-ended environments (e.g., web agents,
-  tool use)?
-- Does ReST-style growing-batch offline RL with a learned reward model generalize
-  to reasoning tasks where reward models are notoriously unreliable (process vs. outcome,
-  hacking), or is verifiable-reward self-play (AZ) strictly superior there?
-- How does STaR's rationalization (backward reasoning from answer) compare to Absolute
-  Zero's abduction mode (infer input from program+output) in terms of logical consistency
-  and downstream generalization?
-- Is there a practical pathway to realize IDA's recursive decomposition for open-ended
-  LLM tasks (e.g., using LLM-as-decomposer with verification), or does the "human
-  oracle" bottleneck make it fundamentally incompatible with current post-training
-  paradigms?
+- Can Re-ReST's reflector mechanism be integrated with Absolute Zero's proposer/solver
+  loop to improve sample quality in zero-data settings?
+- Does IDA's recursive decomposition provide complementary benefits to verifiable-reward
+  self-play when applied to domains with natural hierarchical structure (e.g., software
+  engineering, theorem proving)?
+- How does the "learnability reward" in Absolute Zero ($1 - \text{solve rate}$) compare
+  theoretically to Re-ReST's implicit curriculum (reflector improves hard samples)?
+- Can Re-ReST's inference-time reflection without ground-truth feedback be formalized
+  as a test-time compute scaling method akin to Best-of-N or self-consistency?
 ---
 
-Self-improvement and self-play RL methods enable language models to enhance their reasoning and alignment capabilities by generating their own training data, rewards, or task decompositions, reducing reliance on human annotation. These techniques span from rationale bootstrapping (STaR) and reward-model-guided self-training (ReST) to fully autonomous task proposal and solving (Absolute Zero) and recursive task decomposition (Iterated Amplification).
+Self-improvement and self-play RL methods enable language models to enhance their reasoning and alignment capabilities by generating their own training data, rewards, or task decompositions, reducing reliance on human annotation. These techniques span from rationale bootstrapping (STaR) and reward-model-guided self-training (ReST) to fully autonomous task proposal and solving (Absolute Zero), recursive task decomposition (Iterated Amplification), and reflection-reinforced self-training (Re-ReST).
 
 ## STaR: Self-Taught Reasoner
 
@@ -53,6 +52,28 @@ On machine translation (IWSLT 2014 De-En, WMT 2020 Zh-En, internal Web En-Zh) wi
 
 Limitations: Reward model is an imperfect proxy; human evals diverge from reward rankings as policy drifts; repeated cycles risk overfitting to reward model; "delusions" observed (e.g., reward increases for repetitive translations) [source:arxiv:2308.08998].
 
+## Re-ReST: Reflection-Reinforced Self-Training for Language Agents
+
+Re-ReST (Reflection-Reinforced Self-Training) addresses the quality gap in self-training for language agents by introducing a "reflector" mechanism that refines inferior model-generated samples using environmental feedback [source:aclanthology:re-rest-reflection-reinforced-self-train].
+
+**Core Problem**: Finetuning language agents using reasoning-action trajectories is highly effective, but acquiring these trajectories is impractical or expensive via human annotations or stronger model demonstrations. Self-training—where the agent generates its own supervision—is limited by the quality of model-generated samples, which are often low-quality in challenging agent tasks.
+
+**Method**: Re-ReST follows a six-step process:
+1. **Sample Generation**: The language agent generates initial reasoning-action trajectories for target tasks.
+2. **Environmental Feedback**: The agent's outputs are submitted to an external environment to receive feedback (e.g., unit test results for code generation).
+3. **Refinement via Reflector**: A reflector takes the agent's original output and the environmental feedback to produce an improved, higher-quality version of the sample.
+4. **Dataset Enrichment**: These refined, high-quality samples enrich the self-training dataset, replacing or augmenting the low-quality initial attempts.
+5. **Self-Training (Finetuning)**: The agent is finetuned on this enriched dataset of high-quality trajectories.
+6. **Inference Application**: Re-ReST employs a method to utilize reflection during inference *without* requiring ground-truth feedback, overcoming a limitation of prior reflection methods.
+
+**Quantitative Results**: Evaluated across sequential decision-making, multi-hop QA, visual QA, text-to-image generation, and code generation:
+- **HotpotQA**: Standard self-training improved baseline by **7.6%**; Re-ReST added a further **2.0%** boost.
+- **AlfWorld**: Standard self-training improved baseline by **28.4%**; Re-ReST added a further **14.1%** boost.
+
+The reflector efficiently generates high-quality samples that significantly enhance self-training compared to standard self-training alone [source:aclanthology:re-rest-reflection-reinforced-self-train].
+
+**Limitations**: Prior reflection work required ground-truth feedback during inference; Re-ReST resolves this by demonstrating inference-time reflection without such feedback. No other specific limitations of Re-ReST itself are detailed in the source.
+
 ## Absolute Zero: Reinforced Self-Play Reasoning with Zero Data
 
 Absolute Zero (AZ) eliminates *all* human-curated question-answer pairs: a single model $\pi_\theta$ acts as both **proposer** ($\pi_\theta^{\text{propose}}$) and **solver** ($\pi_\theta^{\text{solve}}$), generating tasks optimized for its own learnability and solving them with verifiable feedback from a code executor [source:arxiv:2505.03335].
@@ -73,7 +94,7 @@ Limitations: Safety "uh-oh moments" (Llama-3.1-8B CoT mentioned "outsmarting" hu
 
 ## Iterated Distillation and Amplification (IDA)
 
-IDA addresses tasks beyond human scale by recursively decomposing them into human-solvable subtasks, using the model to solve subcomponents, and distilling the composite solution back into the model [source:openai:iterated-distillation-and-amplification-] [source:arxiv:1810.08575]. The core assumption: humans cannot solve the full task but *can* decompose it and solve atomic subproblems.
+IDA addresses tasks beyond human scale by recursively decomposing them into human-solvable subtasks, using the model to solve subcomponents, and distilling the composite solution back into the model [source:openai:iterated-distillation-and-amplification-] [source:arxiv:1810.08575] [source:openai:iterated-amplification-supervising-stron]. The core assumption: humans cannot solve the full task but *can* decompose it and solve atomic subproblems.
 
 **Process** (Christiano et al. formalization): Four parallel processes [source:arxiv:1810.08575]:
 1. **Data Collection**: Human expert $H$ decomposes question $Q$ into subquestions $Q_1,\dots,Q_k$; agent $X$ answers each; $H$ produces final answer $A$; record transcript $\tau = (Q, Q_1, A_1, \dots, Q_k, A_k, A)$.
@@ -83,26 +104,36 @@ IDA addresses tasks beyond human scale by recursively decomposing them into huma
 
 $X$ is a Transformer encoder-decoder with pointer network for symbol copying; layer: $y \leftarrow \text{LayerNorm } x + \text{Attention } x$, $z \leftarrow \text{LayerNorm } y + \text{BatchNorm MLP } y$ [source:arxiv:1810.08575].
 
-Toy algorithmic tasks (permutation powering, expression evaluation, union find, shortest path, wildcard search): IDA matched supervised learning from ground truth with "modest slowdown" [source:arxiv:1810.08575]. Sample efficiency: only **6k–24k** oracle calls to $H$ (vs. tens of millions for supervised) [source:arxiv:1810.08575]. Compute overhead: ~2$\times$ standard supervised due to running $\text{Amplify}^{H'}(X)$ for targets [source:arxiv:1810.08575].
+**Iterated Amplification Recipe** (OpenAI formulation): The process follows a recursive "recipe" to amplify a weak expert (the human) into a strong learner (the AI) [source:openai:iterated-amplification-supervising-stron]:
+1. **Initial Training**: Sample small sub-tasks that humans can solve. Train the AI to perform these using human demonstrations.
+2. **Task Decomposition**: Sample slightly larger tasks. A human breaks the task down into the smaller components from Step 1.
+3. **Composite Solving**: The AI systems from Step 1 solve these smaller components. The human coordinates assembly of these solutions to solve the larger task.
+4. **Direct Training**: The solutions from this human-assisted decomposition process become a new training signal. The AI is trained to solve these second-level tasks directly, without human help.
+5. **Iteration**: Repeat, using the AI's ability to solve increasingly complex composite tasks to generate training signals for even larger tasks.
 
-Limitations: Experiments used algorithmic oracle instead of real humans; domains limited to combinatorial tasks with ground truth; $X$ trained via SL, but real-world may need RL from amplified reward; success depends on question distribution $\mathcal{D}$ covering all needed subquestions [source:arxiv:1810.08575] [source:openai:iterated-distillation-and-amplification-].
+Toy algorithmic tasks (permutation powering, sequential assignments, wildcard search, shortest path, union find, expression evaluation): IDA matched supervised learning from ground truth with "modest slowdown" [source:arxiv:1810.08575] [source:openai:iterated-amplification-supervising-stron]. Sample efficiency: only **6k–24k** oracle calls to $H$ (vs. tens of millions for supervised) [source:arxiv:1810.08575]. Compute overhead: ~2$\times$ standard supervised due to running $\text{Amplify}^{H'}(X)$ for targets [source:arxiv:1810.08575].
 
-## Comparative Analysis: Self-Improvement vs. Self-Play vs. Amplification
+**Follow-up Work**: Evans, Saunders, and Stuhlmüller (2019) proposed three research projects extending IDA to high school mathematics problems, investigating whether learning to decompose problems via IDA outperforms standard supervised learning [source:semanticscholar:machine-learning-projects-for-iterated-d]. This work aimed to test IDA on more naturalistic reasoning domains beyond algorithmic toys, though the provided source is a proposal/review without reported quantitative results.
 
-| Dimension | STaR | ReST | Absolute Zero | IDA |
-|-----------|------|------|---------------|-----|
-| **External supervision** | Ground-truth answers $y_i$; few-shot rationales $\mathcal{P}$ | Reward model $R(x,y)$ (trained on human prefs) | None (code executor verifies); seed triplet only | Human expert $H$ (or oracle) for decomposition & atomic answers |
-| **Self-generated signal** | Rationales filtered by answer correctness | Samples filtered by reward threshold | Tasks proposed for learnability; solutions verified by executor | Subtask answers from current model; decomposition from $H'$ |
-| **Optimization** | Offline SL on filtered rationales (re-train from init each outer loop) | Offline RL (BC loss) on filtered samples; growing batch | Online RL (TRR++) on proposer+solver joint objective | SL on amplified targets; iterative distillation |
-| **Reasoning mode** | Chain-of-thought (forward) | General LM generation (translation) | Deduction, abduction, induction (code-based) | Algorithmic decomposition (recursive) |
-| **Scalability bottleneck** | Needs initial CoT ability; ground-truth answers required | Reward model generalization & overfitting | Code executor scope (deterministic only); safety | Human decomposition capacity; distribution coverage |
-| **Key theoretical framing** | Policy gradient with indicator reward | Growing-batch offline RL | Self-play with learnability reward | HCH (Human Consulting HCH) approximation |
+Limitations: Experiments used algorithmic oracle instead of real humans; domains limited to combinatorial tasks with ground truth; $X$ trained via SL, but real-world may need RL from amplified reward; success depends on question distribution $\mathcal{D}$ covering all needed subquestions [source:arxiv:1810.08575] [source:openai:iterated-distillation-and-amplification-] [source:openai:iterated-amplification-supervising-stron]. The OpenAI blog notes the technique is in preliminary stages, tested only on simple toy domains with algorithmic signals simulating human decomposition [source:openai:iterated-amplification-supervising-stron].
+
+## Comparative Analysis: Self-Improvement vs. Self-Play vs. Amplification vs. Reflection
+
+| Dimension | STaR | ReST | Re-ReST | Absolute Zero | IDA |
+|-----------|------|------|---------|---------------|-----|
+| **External supervision** | Ground-truth answers $y_i$; few-shot rationales $\mathcal{P}$ | Reward model $R(x,y)$ (trained on human prefs) | Environmental feedback (unit tests, etc.); reflector model | None (code executor verifies); seed triplet only | Human expert $H$ (or oracle) for decomposition & atomic answers |
+| **Self-generated signal** | Rationales filtered by answer correctness | Samples filtered by reward threshold | Refined trajectories via reflector + env. feedback | Tasks proposed for learnability; solutions verified by executor | Subtask answers from current model; decomposition from $H'$ |
+| **Optimization** | Offline SL on filtered rationales (re-train from init each outer loop) | Offline RL (BC loss) on filtered samples; growing batch | Offline SL on reflector-enriched dataset | Online RL (TRR++) on proposer+solver joint objective | SL on amplified targets; iterative distillation |
+| **Reasoning mode** | Chain-of-thought (forward) | General LM generation (translation) | Reasoning-action trajectories (agentic) | Deduction, abduction, induction (code-based) | Algorithmic decomposition (recursive) |
+| **Scalability bottleneck** | Needs initial CoT ability; ground-truth answers required | Reward model generalization & overfitting | Quality of reflector & environmental feedback | Code executor scope (deterministic only); safety | Human decomposition capacity; distribution coverage |
+| **Key theoretical framing** | Policy gradient with indicator reward | Growing-batch offline RL | Reflection + self-training loop | Self-play with learnability reward | HCH (Human Consulting HCH) approximation |
 
 **Disagreements / tensions**: 
 - STaR and ReST both use filtering but STaR's filter is *ground-truth correctness* (exact, sparse) while ReST's is a *learned reward model* (dense, proxy) [source:arxiv:2203.14465] [source:arxiv:2308.08998]. ReST explicitly argues offline RL losses (GOLD, BVMPO) underperform simple BC within its framework [source:arxiv:2308.08998]; STaR's gradient derivation suggests REINFORCE with baseline could be used but they implement SL on filtered data [source:arxiv:2203.14465].
 - Absolute Zero claims "zero data" but relies on a *code executor* as an external verifier — a form of environment supervision distinct from human labels [source:arxiv:2505.03335]. IDA requires human decomposition, which Christiano et al. acknowledge is untested on real-world "messy" tasks [source:arxiv:1810.08575].
-- STaR re-trains from the original model each outer loop to avoid overfitting [source:arxiv:2203.14465]; ReST continues training the same policy across Grow/Improve cycles with decreasing LR [source:arxiv:2308.08998]; Absolute Zero uses TRR++ with per-task baselines to stabilize online RL [source:arxiv:2505.03335].
-- On generalization: STaR shows cross-task transfer within domain (arithmetic iterations help larger digits) [source:arxiv:2203.14465]; Absolute Zero demonstrates *cross-domain* transfer (code $\to$ math +10–15 pp) [source:arxiv:2505.03335]; ReST evaluates only within translation; IDA only on algorithmic toys.
+- STaR re-trains from the original model each outer loop to avoid overfitting [source:arxiv:2203.14465]; ReST continues training the same policy across Grow/Improve cycles with decreasing LR [source:arxiv:2308.08998]; Absolute Zero uses TRR++ with per-task baselines to stabilize online RL [source:arxiv:2505.03335]; Re-ReST finetunes on a reflector-enriched dataset in a single-stage offline loop [source:aclanthology:re-rest-reflection-reinforced-self-train].
+- On generalization: STaR shows cross-task transfer within domain (arithmetic iterations help larger digits) [source:arxiv:2203.14465]; Absolute Zero demonstrates *cross-domain* transfer (code $\to$ math +10–15 pp) [source:arxiv:2505.03335]; ReST evaluates only within translation; IDA only on algorithmic toys; Re-ReST shows gains on diverse agent tasks (HotpotQA, AlfWorld, VQA, code) but cross-domain transfer not explicitly measured [source:aclanthology:re-rest-reflection-reinforced-self-train].
+- **New tension**: Re-ReST introduces a *reflector* as a separate component that uses environmental feedback to refine samples, whereas Absolute Zero's proposer/solver and ReST's reward model operate without an explicit reflection step. Re-ReST's inference-time reflection without ground-truth feedback [source:aclanthology:re-rest-reflection-reinforced-self-train] contrasts with prior reflection methods that required such feedback — a potential disagreement with earlier reflection literature not captured in the existing sources.
 
 ## Current status and trajectory
 
@@ -110,19 +141,22 @@ Limitations: Experiments used algorithmic oracle instead of real humans; domains
 
 **ReST**: Fading as a named algorithm; the Grow/Improve paradigm persists in spirit (e.g., iterative DPO, online DPO, RL with periodic data refresh) but the specific ReST formulation (BC loss on reward-thresholded samples, increasing thresholds) is less common than PPO/GRPO/DPO variants. The finding that simple BC outperforms complex offline RL losses on filtered data remains influential [source:arxiv:2308.08998].
 
-**Absolute Zero**: Rising rapidly; represents the frontier of "zero human data" reasoning. The self-play proposer/solver with code verification and learnability reward is a active research direction (e.g., follow-ups on task diversity, safety, stochastic programs). Scaling trends (+13 pp at 14B) suggest continued investment. Safety "uh-oh moments" and deterministic-only verifier are open constraints [source:arxiv:2505.03335].
+**Re-ReST**: Emerging as a promising direction for language agent self-training; the reflector + environmental feedback loop addresses a key bottleneck (low-quality self-generated samples) and demonstrates strong gains on agent benchmarks (AlfWorld +14.1%, HotpotQA +2.0% over standard self-training). The inference-time reflection without ground-truth feedback is a notable advance. Not yet widely adopted in frontier model post-training but conceptually aligned with "self-correction" and "critique-revision" trends [source:aclanthology:re-rest-reflection-reinforced-self-train].
 
-**IDA**: Fading as a practical training recipe for LLMs; the recursive decomposition ideal remains conceptually central to alignment theory (HCH, scalable oversight) but the algorithmic implementation (Transformer pointer nets, algorithmic oracles, SL distillation) has not translated to LLM post-training at scale. Current "scalable oversight" work (e.g., debate, recursive reward modeling) inherits the motivation but not the method. Not widely reported in recent LLM RL literature.
+**Absolute Zero**: Rising rapidly; represents the frontier of "zero human data" reasoning. The self-play proposer/solver with code verification and learnability reward is an active research direction (e.g., follow-ups on task diversity, safety, stochastic programs). Scaling trends (+13 pp at 14B) suggest continued investment. Safety "uh-oh moments" and deterministic-only verifier are open constraints [source:arxiv:2505.03335].
 
-**Overall trajectory**: The field is converging on *verifiable-reward self-play* (Absolute Zero style) and *iterative self-training with learned rewards* (ReST spirit via DPO/GRPO) for reasoning, while IDA's decomposition paradigm lives on in theoretical alignment research rather than engineering practice. STaR's rationale bootstrapping is a standard building block.
+**IDA**: Fading as a practical training recipe for LLMs; the recursive decomposition ideal remains conceptually central to alignment theory (HCH, scalable oversight) but the algorithmic implementation (Transformer pointer nets, algorithmic oracles, SL distillation) has not translated to LLM post-training at scale. Current "scalable oversight" work (e.g., debate, recursive reward modeling) inherits the motivation but not the method. The Evans et al. (2019) proposal to apply IDA to mathematics [source:semanticscholar:machine-learning-projects-for-iterated-d] did not yield widely reported follow-up results in the LLM era. Not widely reported in recent LLM RL literature.
+
+**Overall trajectory**: The field is converging on *verifiable-reward self-play* (Absolute Zero style) and *iterative self-training with learned rewards* (ReST spirit via DPO/GRPO) for reasoning, while *reflection-reinforced self-training* (Re-ReST) emerges for agentic settings with environmental feedback. IDA's decomposition paradigm lives on in theoretical alignment research rather than engineering practice. STaR's rationale bootstrapping is a standard building block.
 
 ## Key takeaways
 
 - **STaR** proves that filtering model-generated CoT by ground-truth correctness, augmented with rationalization, can bootstrap strong reasoning from minimal seeds — but requires answer labels and initial CoT competence [source:arxiv:2203.14465].
 - **ReST** demonstrates that a growing-batch offline RL loop (sample → filter by reward model → BC) beats online PPO and static offline RL on translation, with simple BC loss sufficing on filtered data [source:arxiv:2308.08998].
+- **Re-ReST** shows that a reflector using environmental feedback (e.g., unit tests) can significantly boost self-training for language agents (+14.1% on AlfWorld, +2.0% on HotpotQA over standard self-training), and enables inference-time reflection without ground-truth feedback [source:aclanthology:re-rest-reflection-reinforced-self-train].
 - **Absolute Zero** achieves SOTA "zero-data" reasoning by self-play proposer/solver with code execution verification and a learnability reward ($1 - \text{solve rate}$), showing strong cross-domain transfer (code $\to$ math) and scaling with model size [source:arxiv:2505.03335].
-- **IDA** establishes the theoretical framework for amplifying weak supervision via recursive decomposition and distillation, but practical LLM adoption is blocked by reliance on human decomposers and algorithmic toy domains [source:arxiv:1810.08575] [source:openai:iterated-distillation-and-amplification-].
-- **Unifying thread**: All four methods replace human annotation with model-generated signals (rationales, samples, tasks, subtask answers) filtered or verified by an external oracle (ground truth, reward model, code executor, human decomposer). The trend is toward *weaker oracles* (code executor > reward model > human decomposer > ground truth) and *stronger self-generation* (proposer/solver > sampler > rationale generator > subproblem solver).
+- **IDA** establishes the theoretical framework for amplifying weak supervision via recursive decomposition and distillation, but practical LLM adoption is blocked by reliance on human decomposers and algorithmic toy domains [source:arxiv:1810.08575] [source:openai:iterated-distillation-and-amplification-] [source:openai:iterated-amplification-supervising-stron]. Follow-up proposals to extend to mathematics [source:semanticscholar:machine-learning-projects-for-iterated-d] remain unverified at scale.
+- **Unifying thread**: All five methods replace human annotation with model-generated signals (rationales, samples, tasks, subtask answers, reflected trajectories) filtered or verified by an external oracle (ground truth, reward model, code executor, human decomposer, environment + reflector). The trend is toward *weaker oracles* (code executor > reward model > human decomposer > ground truth) and *stronger self-generation* (proposer/solver > sampler > rationale generator > subproblem solver > reflector-refined agent).
 
 ## Related topics
 
@@ -160,11 +194,14 @@ Limitations: Experiments used algorithmic oracle instead of real humans; domains
 - [Test-time compute and RL interplay](test-time-and-rl-interplay.md)
 
 ## References
-- [source:arxiv:2203.14465] [STaR: Self-Taught Reasoner: Bootstrapping Reasoning With Reasoning](https://arxiv.org/abs/2203.14465)
-- [source:arxiv:2308.08998] [ReST: Reinforced Self-Training for Language Modeling](https://arxiv.org/abs/2308.08998)
-- [source:arxiv:2505.03335] [Absolute Zero: Reinforced Self-play Reasoning with Zero Data](https://arxiv.org/abs/2505.03335)
 - [source:openai:iterated-distillation-and-amplification-] [Iterated Distillation and Amplification (IDA) - OpenAI Blog](https://openai.com/index/learning-complex-goals-with-iterated-amplification/)
+- [source:arxiv:2212.08073] [Constitutional AI: Harmlessness from AI Feedback](https://arxiv.org/abs/2212.08073)
 - [source:arxiv:1810.08575] [Supervising strong learners by amplifying weak experts (Christiano et al.)](https://arxiv.org/abs/1810.08575)
-- [source:arxiv:2212.10560] [Self-Instruct: Aligning Language Model with Self Generated Instructions](https://arxiv.org/abs/2212.10560)
+- [source:arxiv:2505.03335] [Absolute Zero: Reinforced Self-play Reasoning with Zero Data](https://arxiv.org/abs/2505.03335)
+- [source:arxiv:2308.08998] [ReST: Reinforced Self-Training for Language Modeling](https://arxiv.org/abs/2308.08998)
+- [source:arxiv:2203.14465] [STaR: Self-Taught Reasoner: Bootstrapping Reasoning With Reasoning](https://arxiv.org/abs/2203.14465)
 - [source:arxiv:2402.04683] [Q*: Improving Generalization and Reasoning in LLMs via Q-learning and Self-play (Reference Context)](https://arxiv.org/abs/2402.04683)
-- [source:arxiv:2212.08073] [Constitutional AI: Harmlessness from AI Feedback (Related Self-Improvement)](https://arxiv.org/abs/2212.08073)
+- [source:arxiv:2212.10560] [Self-Instruct: Aligning Language Model with Self Generated Instructions](https://arxiv.org/abs/2212.10560)
+- [source:openai:iterated-amplification-supervising-stron] [Iterated Amplification: Supervising strong learners by amplifying weak experts (OpenAI blog/paper context)](https://openai.com/index/learning-complex-goals-with-iterated-amplification/)
+- [source:semanticscholar:machine-learning-projects-for-iterated-d] [Machine Learning Projects for Iterated Distillation and Amplification](https://www.semanticscholar.org/paper/Machine-Learning-Projects-for-Iterated-Distillation-Evans-Saunders/bdf2e444eb59702f1a119396498c8c80a88f6e6a)
+- [source:aclanthology:re-rest-reflection-reinforced-self-train] [Re-ReST: Reflection-Reinforced Self-Training for Language Agents](https://aclanthology.org/2024.emnlp-main.861/)
