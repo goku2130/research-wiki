@@ -3,225 +3,120 @@ title: Rollout generation infrastructure
 maturity: developing
 updated: '2026-07-11'
 sources:
+- arxiv:2312.07104
 - arxiv:2309.06180
-- arxiv:2305.06950
-- arxiv:2211.06628
-- arxiv:2306.07125
-- arxiv:2205.14135
-- arxiv:2405.07823
-- arxiv:2308.16369
+- lmsys:fast-and-expressive-llm-inference-with-r
+- docs:vllm-documentation-pagedattention-design
+- blog:sglang-vs-vllm-the-new-throughput-king-g
+- runpod:when-to-choose-sglang-over-vllm-multi-tu
+- inclusion-ai:the-community-stories-of-vllm-and-sglang
 open_questions:
-- 'Dynamic Block Sizing**: Can adaptive block sizes (e.g., smaller for short sequences,
-  larger for long) outperform static $B=16$ across diverse workloads?'
-- 'Hybrid Eviction Policies**: Would a combination of H2O’s heavy-hitter eviction
-  (for long sequences) and vLLM’s all-or-nothing eviction (for short sequences) improve
-  throughput without excessive overhead?'
-- 'Generalizable Hybrid Scheduling**: Can dynamic chunk sizing (e.g., based on real-time
-  GPU utilization) make hybrid scheduling viable for production workloads with unpredictable
-  $P:D$ ratios?'
-- 'Multi-GPU PagedAttention**: How can PagedAttention’s block table synchronization
-  be optimized for distributed settings to minimize inter-GPU communication overhead?'
+- How does RadixAttention's partial-prefix matching perform on **PPO/GRPO rollouts**
+  where system prompts and few-shots are identical but completions diverge — does
+  it outperform vLLM's APC which requires exact matches?
+- What is the **KV cache memory pressure** when running **thousands of concurrent
+  rollout trajectories** with long contexts (32k–128k) on multi-GPU tensor-parallel
+  setups — does RadixAttention's LRU eviction cause thrashing vs vLLM's block-level
+  paging?
+- Can **vLLM's V1 scheduler + chunked prefill** close the multi-turn gap with SGLang,
+  or is radix-tree prefix matching fundamentally superior for dynamic conversation
+  histories?
+- How do **speculative decoding draft models** interact with **RadixAttention/Compressed
+  FSM** — does speculative verification benefit from prefix cache hits on the draft
+  model's KV cache?
 ---
 
-# Rollout Generation Infrastructure: vLLM/SGLang, KV Reuse, and Throughput Optimization
+Rollout generation infrastructure has become the critical bottleneck for scaling RLHF and inference-time compute, with vLLM and SGLang representing the two dominant open-source serving engines that implement fundamentally different KV cache reuse strategies. Their architectural choices — PagedAttention's block-level paging versus RadixAttention's radix-tree prefix matching — create divergent performance profiles across single-round batch inference, multi-turn conversations, and structured generation workloads.
 
-Autoregressive rollout generation in large language models (LLMs) is a memory-bound process dominated by the dynamic growth of the key-value (KV) cache and the sequential nature of token-by-token decoding. Modern serving systems like vLLM and SGLang have redefined this infrastructure by introducing virtual memory abstractions, block-level sharing, and hybrid scheduling to maximize throughput while minimizing fragmentation and recomputation overhead. This deep dive dissects the architectural innovations, trade-offs, and unresolved tensions in rollout generation infrastructure, with a focus on KV cache management, attention computation, and system-level optimizations.
+## Architectural Foundations: PagedAttention vs RadixAttention
 
----
+### vLLM: PagedAttention and Block-Level Memory Management
 
-## Core Challenges in Rollout Generation
+vLLM addresses the memory-bound nature of LLM serving by applying OS-style virtual memory concepts to the KV cache [source:arxiv:2309.06180]. The core innovation is **PagedAttention**, which partitions the KV cache of each sequence into fixed-size blocks (default $B=16$ tokens per block) and maintains a logical-to-physical block table managed by a centralized KV cache manager [source:arxiv:2309.06180]. This eliminates the three major sources of memory waste in contiguous allocation: internal fragmentation (pre-allocating for max sequence length), reserved slots for future tokens, and external fragmentation from the allocator [source:arxiv:2309.06180]. Profiling showed only **20.4%–38.2%** of KV cache memory stored actual token states in pre-vLLM systems [source:arxiv:2309.06180].
 
-### Memory Fragmentation and KV Cache Growth
-Autoregressive generation factorizes sequence probability as:
-
-$$
-P(x) = \prod_{i=1}^n P(x_i \mid x_{<i}),
-$$
-
-where each token $x_i$ requires access to all preceding key-value pairs $\{k_j, v_j\}_{j=1}^{i-1}$ for attention computation [source:arxiv:2309.06180]. In multi-request batching, this leads to two critical inefficiencies:
-
-1. **External Fragmentation**: Pre-allocating contiguous memory for each request based on a maximum sequence length (e.g., 2048 tokens) wastes 61.8%–79.6% of allocated memory, as most requests terminate early [source:arxiv:2309.06180].
-2. **Internal Fragmentation**: Contiguous allocation prevents memory sharing across sequences generated by advanced decoding algorithms (e.g., beam search, parallel sampling), exacerbating memory pressure.
-
-### Prefill-Decode Compute Mismatch
-LLM inference comprises two phases with divergent compute characteristics:
-- **Prefill**: Processes the input prompt in parallel, saturating GPU compute.
-- **Decode**: Generates tokens autoregressively, operating as a memory-bound workload. At small batch sizes, decode latency can exceed prefill latency by ~200× [source:arxiv:2308.16369].
-
-This mismatch creates pipeline bubbles in distributed settings, where GPUs idle while waiting for micro-batches with varying compute requirements to synchronize.
-
-### KV Cache Reuse and Sharing
-Advanced decoding strategies (e.g., beam search, speculative decoding) require generating multiple candidate sequences from a shared prompt. Contiguous memory allocation forces duplication of the prompt’s KV cache for each candidate, inflating memory usage. For example, beam search with a shared prompt can waste 37.6%–55.2% of memory on Alpaca, with even higher gains (up to 66.3%) on ShareGPT [source:arxiv:2309.06180].
-
----
-
-## Architectural Innovations
-
-### PagedAttention: Virtual Memory for KV Caches
-vLLM introduces *PagedAttention*, a block-based virtual memory system for KV caches, inspired by operating system paging [source:arxiv:2309.06180]. The design partitions the KV cache into fixed-size *logical blocks* (default: 16 tokens) mapped to non-contiguous *physical blocks* via a centralized *block table*. Key components include:
-
-1. **Logical-Physical Separation**:
-   - Each request’s KV cache is divided into logical blocks, with the block table tracking physical allocations.
-   - Physical blocks are allocated dynamically as tokens are generated, eliminating external fragmentation.
-   - Reference counting enables block-level sharing across sequences (e.g., shared prompts in beam search).
-
-2. **Block-Wise Attention**:
-   Standard attention computes:
+The attention computation is reformulated as a block-wise operation:
 
 $$
-o_i = \sum_{j=1}^i \frac{\exp(q_i^T k_j / \sqrt{d})}{\sum_{t=1}^i \exp(q_i^T k_t / \sqrt{d})} v_j.
+A_{ij} = \frac{\exp(q_i^T K_j / \sqrt{d})}{\sum_{t=1}^{\lceil i/B \rceil} \exp(q_i^T K_t \mathbf{1} / \sqrt{d})}, \quad o_i = \sum_{j=1}^{\lceil i/B \rceil} V_j A_{ij}^T
 $$
 
-   PagedAttention reformulates this into block-wise operations:
+where $K_j, V_j$ are the $j$-th key/value blocks and $A_{ij}$ is the row vector of attention scores for that block [source:arxiv:2309.06180].
 
-$$
-A_{ij} = \frac{\exp(q_i^T K_j / \sqrt{d})}{\sum_{t=1}^{\lceil i/B \rceil} \exp(q_i^T K_t 1 / \sqrt{d})}, \quad o_i = \sum_{j=1}^{\lceil i/B \rceil} V_j A_{ij}^T,
-$$
+**Memory sharing via copy-on-write (CoW)** enables efficient parallel sampling and beam search: multiple sequences share physical blocks for common prefixes with reference counting; modification triggers allocation of a new block, data copy, and reference decrement [source:arxiv:2309.06180]. This yielded **37.6%–66.3% memory reduction for beam search** and **1.67×–3.58× higher throughput for shared prefixes** vs Orca [source:arxiv:2309.06180].
 
-   where $B$ is the block size, and $K_j, V_j$ are the key/value vectors in block $j$. This avoids materializing the full $L \times L$ attention matrix.
+The kernel implementation processes one head for one sequence per thread block, fetching queries into shared memory, keys into registers (single access), performing QK dot products with cross-thread-group reduction, then softmax via warp-level max/sum reductions, and finally value fetching with per-thread $V\_VEC\_SIZE$ elements accumulated in registers [source:docs:vllm-documentation-pagedattention-design]. The kernel uses 16-byte memory transactions (`VEC_SIZE`/`V_VEC_SIZE` configured for FP16) and maps warps to key blocks, thread blocks to full context per query/head, grid to `(num_heads, num_seqs, max_num_partitions)` [source:docs:vllm-documentation-pagedattention-design]. **Caveat**: this documentation is historical and does not reflect the current vLLM codebase [source:docs:vllm-documentation-pagedattention-design].
 
-3. **Copy-on-Write (CoW) Sharing**:
-   - Shared blocks (e.g., prompt tokens) are read-only until a sequence modifies them.
-   - CoW creates private copies of blocks when sequences diverge, minimizing duplication.
+### SGLang: RadixAttention and Prefix-Tree KV Reuse
 
-4. **Eviction Policies**:
-   Under memory pressure, vLLM employs an all-or-nothing eviction policy:
-   - **Swapping**: Evicted blocks are moved to CPU RAM via PCIe, with a centralized scheduler broadcasting block table updates to distributed workers.
-   - **Recomputation**: Blocks are discarded and recomputed during backpropagation, trading compute for memory. Recomputation latency never exceeds 20% of swapping latency [source:arxiv:2309.06180].
+SGLang's **RadixAttention** manages the KV cache as a radix tree (compressed prefix tree) where edges are labeled with token sequences and nodes map to KV cache tensors [source:arxiv:2312.07104][source:lmsys:fast-and-expressive-llm-inference-with-r]. The tree structure resides on CPU to minimize GPU overhead; KV tensors are stored on GPU in a paged layout (one page per token) [source:lmsys:fast-and-expressive-llm-inference-with-r]. On each request, the runtime performs automatic prefix matching against the tree: matching prefixes reuse cached KV tensors; non-matching suffixes are computed and inserted [source:arxiv:2312.07104][source:lmsys:fast-and-expressive-llm-inference-with-r]. An **LRU eviction policy** recursively removes leaf nodes when GPU memory is exhausted [source:arxiv:2312.07104][source:lmsys:fast-and-expressive-llm-inference-with-r].
 
-**Trade-offs**:
-- **Overhead**: PagedAttention incurs 20%–26% higher attention latency than contiguous implementations due to block table lookups and branching [source:arxiv:2309.06180].
-- **Block Size Sensitivity**: Small blocks (e.g., 4 tokens) increase fragmentation; large blocks (e.g., 64 tokens) reduce sharing granularity. The default $B=16$ balances these trade-offs.
+**Cache-aware scheduling** maximizes hit rates by prioritizing requests with the longest matched prefix — proven equivalent to depth-first search (DFS) order on the radix tree [source:arxiv:2312.07104]. The frontend `fork` primitive sends prompt prefixes as "hints" to ensure correct radix tree insertion [source:blog:sglang-vs-vllm-the-new-throughput-king-g]. RadixAttention extends to multi-modal tokens (images/video) [source:lmsys:fast-and-expressive-llm-inference-with-r].
 
-### Hybrid Scheduling: Chunked Prefills and Decode-Maximal Batching
-SARATHI (xLLM) addresses the prefill-decode mismatch via two complementary techniques [source:arxiv:2308.16369]:
+**Compressed Finite State Machines** accelerate constrained decoding (regex/JSON): adjacent "singular-transition edges" (only one valid next character) are merged into single compressed edges, enabling **jump-forward decoding of multiple tokens per forward pass** instead of token-by-token masking [source:arxiv:2312.07104][source:blog:sglang-vs-vllm-the-new-throughput-king-g]. This yielded **1.6× throughput increase on JSON decoding** [source:blog:sglang-vs-vllm-the-new-throughput-king-g].
 
-1. **Chunked Prefills**:
-   - A single prefill request is partitioned into equal-sized *compute chunks* (e.g., 128 tokens).
-   - Attention masks are dynamically adjusted across iterations to ensure each query token attends only to preceding keys/values, preserving mathematical equivalence.
+**API Speculative Execution** for black-box models ignores stop conditions on the first call, generates extra tokens speculatively, then matches/reuses them for subsequent `gen` primitives — reducing input token costs **~3×** for field extraction [source:arxiv:2312.07104][source:blog:sglang-vs-vllm-the-new-throughput-king-g].
 
-2. **Decode-Maximal Batching**:
-   - Hybrid batches allocate one slot to a prefill chunk and fill the remaining slots with decode requests.
-   - Linear operations (preproj, postproj, FFN) are fused into a single matrix-matrix multiplication, converting memory-bound decodes into compute-bound operations.
+## Quantitative Comparison: Throughput, Latency, and Workload Sensitivity
 
-**Key Formulas**:
-- Maximum batch size $B$ is constrained by GPU memory $M_G$, model parameters $M_S$, sequence length $L$, and per-token KV cache size $m_{kv}$:
+| Metric | vLLM (PagedAttention) | SGLang (RadixAttention) | Source |
+|--------|----------------------|------------------------|--------|
+| **Throughput vs baselines** | 2–4× vs FasterTransformer/Orca | Up to 5–6.4× vs vLLM/Guidance/TGI | [source:arxiv:2309.06180][source:arxiv:2312.07104][source:lmsys:fast-and-expressive-llm-inference-with-r][source:blog:sglang-vs-vllm-the-new-throughput-king-g] |
+| **Multi-turn cached throughput (7k ctx, DeepSeek-R1-Distill-Llama-70B, 2×H100)** | 32.8 tok/s (+14% vs fresh) | 35.0 tok/s (+20% vs fresh) | [source:runpod:when-to-choose-sglang-over-vllm-multi-tu] |
+| **One-shot throughput (same setup)** | 60.0 tok/s | 52.7 tok/s | [source:runpod:when-to-choose-sglang-over-vllm-multi-tu] |
+| **Structured decoding (JSON)** | Baseline | 1.6× via Compressed FSM | [source:blog:sglang-vs-vllm-the-new-throughput-king-g] |
+| **Memory reduction (parallel sampling)** | 6.1%–30.5% | Not directly reported | [source:arxiv:2309.06180] |
+| **Memory reduction (beam search)** | 37.6%–66.3% | Not directly reported | [source:arxiv:2309.06180] |
+| **Cache hit rate (RadixAttention)** | N/A | 50%–99%, avg 96% of theoretical optimal | [source:arxiv:2312.07104] |
+| **RadixAttention overhead** | N/A | <0.3% management overhead | [source:arxiv:2312.07104] |
+| **vLLM kernel overhead** | 20–26% higher attention latency vs contiguous | N/A | [source:arxiv:2309.06180] |
 
-$$
-B = \left\lfloor \frac{M_G - M_S}{L \cdot m_{kv}} \right\rfloor.
-$$
+**Critical disagreement on workload suitability**: The RunPod benchmark shows **vLLM 1.1× faster on one-shot** (60.0 vs 52.7 tok/s) while **SGLang leads on multi-turn cached** (35.0 vs 32.8 tok/s) [source:runpod:when-to-choose-sglang-over-vllm-multi-tu]. The GoPenAI blog reports **SGLang 10–20% faster on multi-turn** vs vLLM [source:blog:sglang-vs-vllm-the-new-throughput-king-g]. SGLang's RadixAttention automatically handles **partial prefix overlaps** in dynamic conversations; vLLM's Automatic Prefix Caching (APC) requires **exact token-sequence matches** and often needs manual configuration [source:runpod:when-to-choose-sglang-over-vllm-multi-tu][source:blog:sglang-vs-vllm-the-new-throughput-king-g]. Alibaba Cloud benchmarks on Qwen models "generally favored SGLang in single-GPU and dual-GPU setups" but outcomes vary by hardware/model/config [source:inclusion-ai:the-community-stories-of-vllm-and-sglang].
 
-- Optimal prefill-to-decode ratio $P:D$ aligns with chunk size $C$ and batch size $B$:
+## Converged Advanced Features (2024–2025)
 
-$$
-P:D = \frac{C}{B - 1}.
-$$
+Both engines have converged on a shared optimization stack [source:inclusion-ai:the-community-stories-of-vllm-and-sglang]:
+- **Chunked Prefill**: Splits long prefill into chunks to interleave with decode, reducing tail latency.
+- **Speculative Decoding**: Draft model proposes tokens, target model verifies in parallel.
+- **Disaggregated Serving**: Separates prefill and decode onto different GPU pools.
+- **CUDA Graphs**: Captures decode kernels to eliminate CPU launch overhead.
+- **Operator Libraries**: Integration with FlashInfer, FlashAttention-3, DeepGEMM for fused kernels.
 
-**Throughput Gains**:
-- On LLaMA-13B (A6000), decode throughput improves by 10× and end-to-end throughput by 1.33× [source:arxiv:2308.16369].
-- In 64-GPU GPT-3 deployments, pipeline bubbles are reduced by 6.29×, yielding a 1.91× end-to-end speedup.
-
-### KV Cache Reuse in Advanced Decoding
-PagedAttention enables efficient KV cache sharing for:
-- **Beam Search**: Shared prompt blocks are referenced by all beams until sequences diverge, reducing memory usage by 37.6%–55.2% on Alpaca and up to 66.3% on ShareGPT [source:arxiv:2309.06180].
-- **Speculative Decoding**: Draft tokens’ KV blocks are shared with the target model, avoiding recomputation.
-- **Prefix Caching**: Shared prefixes (e.g., system prompts, retrieval-augmented contexts) are cached once and reused across requests, improving throughput by 1.67×–3.58× [source:arxiv:2309.06180].
-
----
-
-## System-Level Optimizations
-
-### FlashAttention: IO-Aware Attention Computation
-FlashAttention eliminates the $O(N^2)$ memory bottleneck of standard attention by:
-1. **Tiling**: Partitioning inputs into SRAM-sized blocks.
-2. **Incremental Softmax**: Computing softmax statistics ($m$, $\ell$) incrementally across blocks to avoid materializing the attention matrix.
-3. **Kernel Fusion**: Fusing attention operations into a single CUDA kernel to minimize HBM transfers [source:arxiv:2205.14135].
-
-**Complexity**:
-- Standard attention: $\Theta(Nd + N^2)$ HBM accesses.
-- FlashAttention: $\Theta(N^2 d^2 M^{-1})$, where $M$ is SRAM size.
-
-**Performance**:
-- 3× speedup on GPT-2 (1K sequence length).
-- 20× reduction in HBM usage.
-
-### TensorRT-LLM: Kernel-Level Optimizations
-TensorRT-LLM integrates:
-- **Layer Fusion**: Combining attention, FFN, and normalization into single kernels.
-- **Quantization**: FP8/FP16 mixed-precision inference.
-- **Multi-GPU Orchestration**: Overlapping compute and communication in pipeline parallelism [source:arxiv:2405.07823].
-
-**Throughput**:
-- 2–4× speedup over PyTorch baselines for LLaMA-70B.
-
----
+vLLM's **V1 refactor (early 2025)** addressed CPU scheduling overhead that exceeded **50% of total inference time** in some scenarios [source:inclusion-ai:the-community-stories-of-vllm-and-sglang]. vLLM v0.6.0 reduced latency **~5×** and improved performance **~2.7×** via CPU-scheduling optimizations [source:inclusion-ai:the-community-stories-of-vllm-and-sglang]. vLLM claims **5× traffic capacity and 30× throughput vs HF Transformers backend** [source:inclusion-ai:the-community-stories-of-vllm-and-sglang].
 
 ## Current Status and Trajectory
 
-### Adoption and Maturity
-- **PagedAttention (vLLM)**: Default in production deployments (e.g., Hugging Face TGI, Anyscale, Together AI) due to its 2–4× throughput gains over Orca and FasterTransformer [source:arxiv:2309.06180]. The block-based abstraction is now being extended to CPU offloading and multi-GPU serving.
-- **Hybrid Scheduling (SARATHI/xLLM)**: Gaining traction in research clusters (e.g., Microsoft’s Azure ML) but not yet widely reported in public cloud deployments. The technique’s reliance on workload-specific chunk sizing limits generalizability.
-- **FlashAttention**: Standard in training (e.g., PyTorch 2.0, Megatron-LM) and increasingly adopted in inference (e.g., TensorRT-LLM). Block-sparse variants are rising for long-context models.
+**vLLM** is the **de facto default for high-throughput batch inference** and production deployments requiring stability, broad hardware support (NVIDIA, AMD, Intel, TPU), and a large ecosystem (10k+ contributors, ~2k PR submitters, 12h–3d issue response) [source:inclusion-ai:the-community-stories-of-vllm-and-sglang]. Its PagedAttention + CoW design is proven at scale; the V1 refactor resolves the major CPU bottleneck. **Rising** — active development, expanding hardware backends, adoption in major LLM serving platforms.
 
-### Trajectory
-1. **Rising**:
-   - **KV Cache Optimizations**: PagedAttention and prefix caching are becoming table stakes for high-throughput serving. Emerging work explores dynamic block sizing and predictive eviction.
-   - **Hybrid Scheduling**: Techniques like SARATHI are likely to merge with PagedAttention (e.g., vLLM’s roadmap includes chunked prefills).
-   - **Speculative Decoding**: KV reuse in speculative decoding is reducing the overhead of draft model rollouts.
+**SGLang** is **rising rapidly for structured generation, agentic workflows, and multi-turn chat** where dynamic prefix reuse and constrained decoding matter. Its RadixAttention + Compressed FSM + DSL co-design targets workloads vLLM's APC handles less naturally. Community is smaller (~half vLLM's contributors, 3–5d issue response) but with **30% contributor overlap** (194 dual contributors) [source:inclusion-ai:the-community-stories-of-vllm-and-sglang]. **Not widely reported** as a general-purpose batch inference replacement; the one-shot deficit (RunPod) and DSL learning curve limit default adoption. Trajectory: **specialized dominance** in reasoning/agent rollouts, potential convergence if vLLM adopts radix-tree prefix caching natively.
 
-2. **Stable**:
-   - **FlashAttention**: The IO-aware paradigm is now a baseline, with incremental improvements (e.g., FlashAttention-2) focusing on kernel efficiency.
-   - **TensorRT-LLM**: Dominates NVIDIA GPU deployments but faces competition from AMD’s ROCm and Intel’s SYCL-based optimizations.
-
-3. **Fading**:
-   - **Contiguous KV Allocation**: Systems like Orca and FasterTransformer are being phased out in favor of block-based approaches. Contiguous allocation persists only in latency-critical, single-request settings.
-   - **Static Batching**: Pure prefill or decode batches are increasingly rare; hybrid batching is the default in throughput-optimized systems.
-
-### Disagreements and Open Questions
-1. **Block Size Selection**:
-   - vLLM defaults to $B=16$ tokens, citing empirical balance between fragmentation and sharing [source:arxiv:2309.06180].
-   - Emerging work argues for dynamic block sizing based on sequence length and memory pressure, reporting 10–15% throughput gains on ShareGPT.
-   - **Settling This**: Large-scale ablation studies across diverse workloads (e.g., code generation, chat, long-context) are needed to determine whether static or dynamic block sizing is optimal.
-
-2. **Eviction Policies**:
-   - vLLM’s all-or-nothing eviction (swap or recompute) is simple but may waste bandwidth on short-lived sequences.
-   - H2O proposes a "heavy-hitter" eviction policy, retaining only the most frequently accessed KV pairs. This reduces memory usage by 5× for long sequences but requires profiling each request’s attention patterns [source:arxiv:2306.07125].
-   - **Contradiction**: H2O reports 2–3× throughput gains on long-context benchmarks, while vLLM’s authors argue that H2O’s profiling overhead outweighs benefits for short sequences.
-   - **Settling This**: A hybrid policy (e.g., H2O for long sequences, all-or-nothing for short) could resolve the tension, but no system has implemented this yet.
-
-3. **Hybrid Scheduling Generalizability**:
-   - SARATHI’s chunked prefills assume a known prefill-to-decode ratio ($P:D$), which is workload-dependent [source:arxiv:2308.16369].
-   - Proposals for dynamic chunk sizing based on real-time GPU utilization add scheduler complexity.
-   - **Contradiction**: SARATHI’s authors claim static chunk sizing suffices for most workloads, while dynamic approaches are "over-engineering."
-   - **Settling This**: Production deployment data from cloud providers (e.g., AWS, GCP) would clarify whether $P:D$ variability justifies dynamic chunking.
-
----
+**Key unresolved tension**: Whether RadixAttention's automatic partial-prefix matching generalizes better than APC's exact-match simplicity for *RL rollout workloads* — where prompts share system prompts, few-shot examples, and evolving conversation histories but rarely have identical prefixes across trajectories. No public benchmark directly compares them on **PPO/GRPO rollout generation** with repeated system prompts and varying completions.
 
 ## Key Takeaways
 
-- **PagedAttention is the default for KV cache management**, eliminating fragmentation and enabling block-level sharing. Its 20%–26% attention latency overhead is outweighed by 2–4× throughput gains.
-- **Hybrid scheduling (chunked prefills + decode-maximal batching) is rising** but requires workload-specific tuning. It reduces pipeline bubbles by 6× in distributed settings.
-- **KV cache reuse is critical for advanced decoding** (beam search, speculative decoding), reducing memory usage by 37%–66%.
-- **FlashAttention’s IO-aware paradigm is now baseline**, with linear memory scaling enabling long-context inference.
-- **Disagreements persist** around block sizing, eviction policies, and hybrid scheduling generalizability. No single system dominates all workloads.
-
----
+- **PagedAttention (vLLM)** solves memory fragmentation via fixed-size blocks + CoW, excelling at batch inference with exact prefix sharing (templated prompts, beam search). Kernel overhead 20–26% vs contiguous attention [source:arxiv:2309.06180].
+- **RadixAttention (SGLang)** enables automatic partial-prefix reuse via radix tree + LRU + DFS scheduling, excelling at dynamic multi-turn and structured generation. Management overhead <0.3% [source:arxiv:2312.07104].
+- **Compressed FSM** (SGLang-only) enables multi-token jump-forward decoding for regex/JSON constraints — **1.6× JSON throughput** [source:blog:sglang-vs-vllm-the-new-throughput-king-g].
+- **Workload determines winner**: vLLM for one-shot/batch (60 vs 52.7 tok/s on 70B); SGLang for multi-turn cached (35 vs 32.8 tok/s) and structured output [source:runpod:when-to-choose-sglang-over-vllm-multi-tu][source:blog:sglang-vs-vllm-the-new-throughput-king-g].
+- **Both converged** on chunked prefill, speculative decoding, disaggregated serving, CUDA graphs, FlashInfer/FlashAttention/DeepGEMM [source:inclusion-ai:the-community-stories-of-vllm-and-sglang].
+- **vLLM V1 refactor** resolved >50% CPU scheduling overhead; v0.6.0: 5× latency reduction, 2.7× perf [source:inclusion-ai:the-community-stories-of-vllm-and-sglang].
+- **No direct benchmark** on RL rollout generation (repeated system prompts + varying trajectories) — the critical workload for PPO/GRPO/RLVR.
 
 ## Related Topics
-- [Distributed RL training for LLMs](distributed-rl-training.md): Rollout generation infrastructure is foundational for distributed RLHF pipelines, where throughput and KV cache reuse directly impact training efficiency.
-- [Rejection sampling and Best-of-N](rejection-sampling-and-bon.md): KV cache sharing is essential for efficient Best-of-N rollouts, where multiple candidate sequences are generated from a shared prompt.
-- [The RLHF/PPO pipeline](rlhf-ppo-pipeline.md): Rollout generation throughput dictates the scalability of PPO-based fine-tuning, where on-policy rollouts are memory-bound.
-- [Test-time compute and RL interplay](test-time-and-rl-interplay.md): Speculative decoding and KV cache reuse are key to enabling test-time compute scaling for reasoning models.
 
----
-
-##
+- [Distributed RL training for LLMs](distributed-rl-training.md) — rollout generation is the data-collection frontend for distributed policy optimization.
+- [Async and off-policy RL](async-and-off-policy-rl.md) — rollout infrastructure must support asynchronous generation and off-policy correction.
+- [Test-time compute and RL interplay](test-time-and-rl-interplay.md) — rollout engines implement the inference-time compute scaling (best-of-N, beam search, MCTS) that interacts with RL training.
+- [RL for reasoning models](rl-for-reasoning.md) — reasoning rollouts require long-context, multi-turn, and structured generation where SGLang's RadixAttention/FSM shine.
+- [RL for math and code](rl-for-math-and-code.md) — verifiable-reward rollouts need high-throughput, constrained decoding (JSON/program syntax).
+- [Agentic and tool-use RL](agentic-and-tool-use-rl.md) — agent rollouts are multi-turn, tool-call heavy, and benefit from prefix caching across trajectories.
+- [Rejection sampling and Best-of-N](rejection-sampling-and-bon.md) — rollout engines must efficiently generate many candidates per prompt (parallel sampling, prefix reuse).
+- [Verifiable rewards (RLVR)](verifiable-rewards.md) — rollout infrastructure for code/math execution environments with deterministic rewards.
 
 ## References
-- [source:arxiv:2309.06180] [Efficient Memory Management for Large Language Model Serving with PagedAttention](https://arxiv.org/abs/2309.06180)
-- [source:arxiv:2305.06950] [Orca: A Distributed Serving System for Transformer-Based Generative Models](https://arxiv.org/abs/2305.06950)
-- [source:arxiv:2211.06628] [DeepSpeed-Inference: Enabling Efficient Inference of Transformer Models at Unprecedented Scale](https://arxiv.org/abs/2211.06628)
-- [source:arxiv:2306.07125] [H2O: Heavy-Hit Oracle for Generative Inference of Large Language Models](https://arxiv.org/abs/2306.07125)
-- [source:arxiv:2205.14135] [FlashAttention: Fast and Memory-Efficient Exact Attention](https://arxiv.org/abs/2205.14135)
-- [source:arxiv:2405.07823] [TensorRT-LLM: Fast and Easy Way to Build and Deploy LLMs](https://arxiv.org/abs/2405.07823)
-- [source:arxiv:2308.16369] [xLLM: A Unified Serving System for Large Language Models](https://arxiv.org/abs/2308.16369)
+- [source:arxiv:2312.07104] [SGLang: Efficient Execution of Structured Language Model Programs](https://arxiv.org/abs/2312.07104)
+- [source:arxiv:2309.06180] [Efficient Memory Management for Large Language Model Serving with PagedAttention (vLLM)](https://arxiv.org/abs/2309.06180)
+- [source:lmsys:fast-and-expressive-llm-inference-with-r] [Fast and Expressive LLM Inference with RadixAttention and SGLang (LMSYS Blog)](https://www.lmsys.org/blog/2024-01-17-sglang/)
+- [source:docs:vllm-documentation-pagedattention-design] [vLLM Documentation: PagedAttention Design](https://docs.vllm.ai/en/latest/design/paged_attention/)
+- [source:blog:sglang-vs-vllm-the-new-throughput-king-g] [SGLang vs. vLLM: The New Throughput King? (GoPenAI)](https://blog.gopenai.com/sglang-vs-vllm-the-new-throughput-king-7daec596f7fa)
+- [source:runpod:when-to-choose-sglang-over-vllm-multi-tu] [When to Choose SGLang Over vLLM: Multi-Turn Conversations (RunPod)](https://www.runpod.io/blog/sglang-vs-vllm-kv-cache)
+- [source:inclusion-ai:the-community-stories-of-vllm-and-sglang] [The Community Stories of vLLM and SGLang (Inclusion AI)](https://www.inclusion-ai.org/blog/llm-landscape-vllm-sgl/)

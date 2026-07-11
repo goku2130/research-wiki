@@ -31,7 +31,7 @@ _Auto-generated 2026-07-11._
 - ✅ [Judging bias and contamination](topics/judging-bias-and-contamination.md)
 - ✅ [Distributed RL training for LLMs](topics/distributed-rl-training.md)
 - ✅ [Async and off-policy RL](topics/async-and-off-policy-rl.md)
-- ⬜ Rollout generation infrastructure
+- ✅ [Rollout generation infrastructure](topics/rollout-generation-infra.md)
 - ⬜ RL for math and code
 - ⬜ Agentic and tool-use RL
 - ⬜ Test-time compute and RL interplay
