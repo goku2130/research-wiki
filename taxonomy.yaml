@@ -107,7 +107,7 @@ topics:
 - slug: judging-bias-and-contamination
   title: Judging bias and contamination
   notes: Self-preference, data contamination, eval leakage
-  status: empty
+  status: done
 - slug: distributed-rl-training
   title: Distributed RL training for LLMs
   notes: Rollout/learner split, sharding, PPO at scale

@@ -28,7 +28,7 @@ _Auto-generated 2026-07-11._
 - ✅ [Sycophancy and misgeneralization](topics/sycophancy-and-misgeneralization.md)
 - ✅ [LLM-as-judge](topics/llm-as-judge.md)
 - ✅ [Alignment and win-rate evals](topics/alignment-and-winrate-evals.md)
-- ⬜ Judging bias and contamination
+- ✅ [Judging bias and contamination](topics/judging-bias-and-contamination.md)
 - ⬜ Distributed RL training for LLMs
 - ⬜ Async and off-policy RL
 - ⬜ Rollout generation infrastructure
