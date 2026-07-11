@@ -1,134 +1,184 @@
 ---
 title: PPO for LLM fine-tuning (RLHF)
 maturity: developing
-updated: '2026-07-10'
+updated: '2026-07-11'
 sources:
 - arxiv:1707.06347
 - arxiv:1706.03741
 - arxiv:2009.01325
-- arxiv:2203.02155
-- arxiv:2305.18290
+- arxiv:2204.05862
+- arxiv:1909.08593
 - arxiv:2307.04964
-- arxiv:2401.06080
-- cameronrwolfe:ppo-for-llms-a-guide-for-normal-people
+- arxiv:2310.00212
+- arxiv:2403.19279
 open_questions:
-- Can the KL penalty be entirely removed in all RLHF scenarios if the reward model
-  is sufficiently robust, or is it fundamentally necessary for exploration in diverse
-  token spaces?
-- How can the coordination overhead of the four-model PPO architecture be reduced
-  without sacrificing the stability provided by the value and reference models?
+- What is the optimal scaling law for the KL coefficient $\beta$ with model size,
+  reward model capacity, and dataset size? No source provides a principled scaling
+  rule.
+- Does per-token advantage estimation (via GAE with $\lambda<1$) materially improve
+  alignment quality over sequence-level advantage $r(x,y)-V(x)$ for sparse terminal
+  rewards? Not widely reported.
+- Can PPO's sample efficiency be closed to offline methods via better off-policy corrections
+  or replay buffers without sacrificing stability? Current async/off-policy RL for
+  LLMs is nascent [source:arxiv:2307.04964 mentions async but no details].
+- How does the KL-reward frontier of a well-tuned PPO compare to a well-tuned DPO
+  on the *same* preference data and compute budget? Existing comparisons [source:arxiv:2310.00212]
+  use different algorithms (P3O vs PPO) or proxy evaluations (GPT-4 judge).
 ---
 
-Proximal Policy Optimization (PPO) is a reinforcement learning algorithm used to align large language models (LLMs) with human preferences by maximizing a reward signal while constraining policy updates. It serves as the core optimization engine in the Reinforcement Learning from Human Feedback (RLHF) pipeline to ensure stable convergence in high-dimensional action spaces [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people][source:arxiv:2203.02155].
+Proximal Policy Optimization (PPO) is the dominant reinforcement learning algorithm for aligning large language models via RLHF, combining a clipped surrogate objective with a KL penalty to stabilize policy updates against a learned reward model. This article provides a rigorous technical synthesis of the policy-gradient foundations, reward model integration, KL regularization mechanics, clipping behavior, and practical modifications that distinguish LLM PPO from its original continuous-control formulation.
 
-## Policy Gradient Basics
-LLM alignment is formulated as a Markov Decision Process (MDP) where the initial state $s_1$ is the input prompt, and each generated token $a_t$ is a sequential action [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people]. The state updates autoregressively by appending the predicted tokens to the sequence [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people].
+## Policy-gradient foundations for LLM fine-tuning
 
-### Vanilla Policy Gradient (VPG)
-The goal is to optimize a policy $\pi_\theta$ to maximize the expected cumulative reward $J(\theta) = \mathbb{E}_\tau [ \sum_{t=1}^{T} r_t ]$ [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people]. Using the log-derivative trick, the gradient is estimated as:
+The policy gradient theorem gives the gradient of the expected return $J(\theta) = \mathbb{E}_{\tau \sim \pi_\theta}[\sum_t \gamma^t r_t]$ as $\nabla_\theta J(\theta) = \mathbb{E}_{\tau \sim \pi_\theta}[\sum_t \nabla_\theta \log \pi_\theta(a_t|s_t) A^{\pi_\theta}(s_t,a_t)]$ [source:arxiv:1707.06347]. In the LLM RLHF setting, the trajectory $\tau$ is a generated response $y$ conditioned on a prompt $x$, the action space is the vocabulary at each token position, and the reward is sparse — typically a single scalar $r(x,y)$ from a reward model assigned at sequence end [source:arxiv:2009.01325]. This reduces the problem to a contextual bandit: the advantage $A(x,y)$ collapses to $r(x,y) - V(x)$ where $V(x)$ is a learned value function (critic) estimating the expected reward for prompt $x$ [source:arxiv:2307.04964]. The vanilla policy gradient objective $L^{PG}(\theta) = \hat{\mathbb{E}}_t[\log \pi_\theta(a_t|s_t) \hat{A}_t]$ [source:arxiv:1707.06347] becomes, for a full sequence $y = (y_1,\dots,y_T)$,
 
 $$
-\nabla_\theta J(\theta) = \mathbb{E} \left[ \sum_{t=1}^{T} \nabla_\theta \log \pi_\theta(a_t|s_t) \Psi_t \right]
+L^{PG}(\theta) = \mathbb{E}_{x\sim\mathcal{D}, y\sim\pi_\theta(\cdot|x)}\left[ \sum_{t=1}^T \log \pi_\theta(y_t|x,y_{<t}) \cdot \hat{A}_t \right],
 $$
 
-where $\Psi_t$ is a signal representing the quality of the action [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people]. Direct application of VPG often results in high variance [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people].
+where $\hat{A}_t$ is estimated via Generalized Advantage Estimation (GAE) [source:arxiv:1707.06347; arxiv:2307.04964]. GAE computes $\hat{A}_t = \sum_{l=0}^{T-t} (\gamma\lambda)^l \delta_{t+l}$ with $\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)$; in the bandit limit $\gamma=1$, $\lambda=1$, and $r_t=0$ for $t<T$, this simplifies to $\hat{A}_t = r(x,y) - V(x)$ for all $t$ [source:arxiv:2307.04964]. The value function $V_\phi(x)$ is trained with a squared-error loss $L^{VF} = (V_\phi(x) - r(x,y))^2$ [source:arxiv:1707.06347; arxiv:2307.04964].
 
-### Variance Reduction and the Advantage Function
-To reduce variance, $\Psi_t$ is replaced by the advantage function $A(s, a) = Q(s, a) - V(s)$, which measures how much better a specific action is compared to the average action in that state [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people]. In practice, Generalized Advantage Estimation (GAE) is used to balance bias and variance:
+**Disagreement on GAE necessity:** The original PPO paper [source:arxiv:1707.06347] advocates GAE for variance reduction in multi-step MDPs. For LLM bandits, [source:arxiv:2307.04964] notes GAE reduces to a single advantage per sequence, yet many implementations retain per-token GAE with $\lambda<1$ to propagate the terminal reward backward through tokens, effectively doing credit assignment across positions. [source:arxiv:2204.05862] uses a simpler formulation: the total reward $r_{PM}(y|x)$ is assigned at sequence end and the KL penalty is applied per-token (see below), without explicit per-token advantage decomposition. The practical impact of per-token vs. sequence-level advantage estimation on LLM alignment quality is not widely reported.
 
-$$
-\hat{A}_t^{GAE} = \sum_{l=0}^{\infty} (\gamma \lambda)^l \delta_{t+l}, \quad \delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)
-$$
+## Reward model integration
 
-where $\gamma$ is the discount factor and $\lambda$ is a smoothing parameter [source:arxiv:2307.04964].
-
-## Reward Modeling
-Because human feedback is prohibitively expensive to collect for every RL step, a Reward Model (RM) is trained as a proxy for human judgment [source:arxiv:1706.03741][source:arxiv:2203.02155].
-
-### The Bradley-Terry Model
-RMs are typically trained on pairwise comparisons. Based on the Bradley-Terry model, the probability that a human prefers trajectory $\tau_1$ over $\tau_2$ is:
+The reward model $r_\psi(x,y)$ is trained on pairwise human preferences using the Bradley-Terry loss [source:arxiv:1706.03741; arxiv:1909.08593; arxiv:2009.01325; arxiv:2204.05862; arxiv:2307.04964]:
 
 $$
-P(\tau_1 \succ \tau_2) = \frac{e^{R(\tau_1)}}{e^{R(\tau_1)} + e^{R(\tau_2)}}
+\mathcal{L}_{RM}(\psi) = -\mathbb{E}_{(x,y_w,y_l)\sim\mathcal{D}} \left[ \log \sigma\bigl(r_\psi(x,y_w) - r_\psi(x,y_l)\bigr) \right],
 $$
 
-The RM is trained by minimizing the negative log-likelihood (or cross-entropy loss) of the preferred summary relative to the rejected one:
+where $y_w$ is preferred over $y_l$. The RM is typically initialized from the SFT model with a scalar head [source:arxiv:2009.01325; arxiv:2307.04964]. During PPO, the RM score becomes the environment reward. Critical practical details:
+
+- **Reward normalization:** [source:arxiv:1706.03741] normalizes RM outputs to zero mean and constant std per batch. [source:arxiv:2307.04964] adds clipping: $\tilde{r} = \text{clip}\bigl((r - \mu)/\sigma, -\delta, \delta\bigr)$.
+- **Reward model overoptimization:** As the policy shifts, the fixed RM becomes inaccurate off-distribution, leading to reward hacking [source:arxiv:2403.19279]. [source:arxiv:2204.05862] observes train/test RM score divergence after ~150k samples, indicating overfitting. [source:arxiv:2403.19279] proposes Reward Learning on Policy (RLP) to retrain the RM on policy-generated samples using synthetic preferences or multi-view learning.
+- **Value function initialization:** [source:arxiv:2307.04964] initializes the critic $V_\phi$ from the RM parameters (minus the final head), which accelerates convergence. [source:arxiv:2009.01325] uses a separate Transformer for the value function initialized from the RM.
+
+**Disagreement on reward scaling:** [source:arxiv:1706.03741] normalizes rewards to unit variance per batch. [source:arxiv:2307.04964] uses a running mean/std with clipping. [source:arxiv:2204.05862] does not explicitly describe reward normalization in the PPO phase, only that the PM score is used directly with a KL penalty. The sensitivity of PPO to reward scaling in LLMs is not widely reported but is known to be high in continuous control [source:arxiv:1707.06347].
+
+## KL penalty: theory and practice
+
+The KL penalty prevents the RL policy $\pi_\theta$ from drifting too far from the reference policy $\pi^{\text{ref}}$ (usually the SFT model), preserving language quality and preventing reward hacking. The modified reward is
 
 $$
-\mathcal{L}_{RM}(\theta) = -\mathbb{E}_{(x, y_w, y_l) \sim \mathcal{D}} [\log \sigma(r_\theta(x, y_w) - r_\theta(x, y_l))]
+r_{\text{total}}(x,y) = r_\psi(x,y) - \beta \, D_{\text{KL}}\bigl(\pi_\theta(\cdot|x) \,\|\, \pi^{\text{ref}}(\cdot|x)\bigr)
 $$
 
-where $y_w$ is the winning (preferred) response and $y_l$ is the losing response [source:arxiv:1706.03741][source:arxiv:2009.01325].
+[source:arxiv:1909.08593; arxiv:2009.01325; arxiv:2204.05862; arxiv:2307.04964]. Two forms of KL application exist:
 
-### Advanced RM Refinements
-To address noise in human labels and out-of-distribution (OOD) instability, several enhancements are employed:
-*   **Imitation Learning:** Some frameworks add an autoregressive language modeling loss $\mathcal{L}_{LM}$ on preferred responses to the RM objective [source:arxiv:2307.04964].
-*   **Ensemble Denoising:** Using an ensemble of $N$ reward models to calculate preference strength $\mu = \frac{1}{N}\sum R_i$ and $\sigma = \text{std}(R_i)$ to partition and clean data [source:arxiv:2401.06080].
-*   **Adaptive Margins:** Incorporating a margin in the loss function that scales with preference strength to enforce larger gaps for clear preferences [source:arxiv:2401.06080].
-*   **Label Smoothing:** Modifying target distributions to prevent RM overconfidence [source:arxiv:2401.06080].
+1. **Sequence-level KL:** $D_{\text{KL}}(\pi_\theta(y|x) \| \pi^{\text{ref}}(y|x)) = \sum_t \log \frac{\pi_\theta(y_t|x,y_{<t})}{\pi^{\text{ref}}(y_t|x,y_{<t})}$ subtracted once per sequence [source:arxiv:1909.08593; arxiv:2009.01325].
+2. **Token-level KL:** $-\beta \sum_t \log \frac{\pi_\theta(y_t|x,y_{<t})}{\pi^{\text{ref}}(y_t|x,y_{<t})}$ added to the per-token reward, so the advantage at each step includes the KL term [source:arxiv:2307.04964; arxiv:2204.05862].
 
-## PPO Mechanism and Clipping
-Standard policy gradient methods are limited to one gradient update per data sample, which is sample-inefficient [source:arxiv:1707.06347]. PPO enables multiple epochs of minibatch updates on the same data by using a surrogate objective [source:arxiv:1707.06347].
+These are mathematically equivalent for the total return but differ in advantage estimation: token-level KL distributes the penalty across time steps, affecting GAE. [source:arxiv:2307.04964] uses token-level KL in the total reward $r_{\text{total}}(x,y_i) = r(x,y_i) - \eta \text{KL}(\pi_\theta^{\text{RL}}(y_i|x), \pi^{\text{SFT}}(y_i|x))$ per token $y_i$.
 
-### The Policy Ratio
-PPO tracks the ratio between the current policy $\pi_\theta$ and the policy used to collect the data $\pi_{\theta_{old}}$:
+**Adaptive KL control:** [source:arxiv:1707.06347] proposes an adaptive $\beta$ for the penalty version (PPO-Penalty): if $d < d_{\text{targ}}/1.5$, $\beta \leftarrow \beta/2$; if $d > 1.5 d_{\text{targ}}$, $\beta \leftarrow 2\beta$, where $d = \hat{\mathbb{E}}_t[\text{KL}]$. [source:arxiv:1909.08593] uses a log-space proportional controller:
 
 $$
-r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{old}}(a_t|s_t)}
+e_t = \text{clip}\left(\frac{\text{KL}(\pi_t,\rho) - \text{KL}_{\text{target}}}{\text{KL}_{\text{target}}}, -0.2, 0.2\right), \quad \beta_{t+1} = \beta_t \exp(K_\beta e_t), \quad K_\beta=0.1.
 $$
 
-[source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people][source:arxiv:2307.04964].
+[source:arxiv:2204.05862] uses a fixed $\lambda_{\text{KL}} = 0.001$ (they report $\beta \geq 0$ typically $0.001$). [source:arxiv:2307.04964] uses a fixed $\eta$ (KL reward coefficient) and monitors KL divergence as a stability metric. [source:arxiv:2009.01325] uses a fixed $\beta$.
 
-### PPO-Clip Objective
-To prevent "catastrophic" updates that move the policy too far from the trust region, PPO clips the policy ratio:
+**Disagreement on KL coefficient magnitude:** [source:arxiv:2204.05862] uses $\beta=0.001$ for 52B models. [source:arxiv:1909.08593] targets $\text{KL}_{\text{target}}$ around 0.1–1.0 nats (implied by their controller). [source:arxiv:2307.04964] does not specify $\eta$ numerically but notes monitoring KL is crucial. The optimal $\beta$ scales with model size and reward magnitude; no consensus scaling law is reported. [source:arxiv:1707.06347] found adaptive KL penalty performed worse than clipping on MuJoCo (Table 1: adaptive KL $d_{\text{targ}}=0.01$ scored 0.74 vs clipping $\epsilon=0.2$ scored 0.82), but this was for continuous control without a separate reward model.
 
-$$
-\mathcal{L}^{CLIP}(\theta) = \mathbb{E}_t \left[ \min\left( r_t(\theta) \hat{A}_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right]
-$$
+**KL-reward tradeoff:** [source:arxiv:2204.05862] observes an approximately linear relationship between $\sqrt{D_{\text{KL}}(\pi\|\pi_0)}$ and PM reward during training (Figures 4, 13). [source:arxiv:2310.00212] shows P3O achieves a better KL-reward frontier than PPO and DPO: on HH, P3O-V1/V2 dominate PPO and DPO respectively, delivering 0.1–0.3 higher reward at same KL.
 
-This ensures that the update is limited if the ratio $r_t(\theta)$ moves outside the interval $[1-\epsilon, 1+\epsilon]$ [source:arxiv:2307.04964].
+## PPO clipping mechanism
 
-## KL Penalty and Stability
-Directly optimizing for the RM can lead to "reward hacking," where the model finds loopholes in the RM to achieve high scores without improving actual quality [source:arxiv:2009.01325].
-
-### The KL Constraint
-To prevent the policy from collapsing or drifting too far from the initial Supervised Fine-Tuning (SFT) model $\pi_{ref}$, a Kullback-Leibler (KL) divergence penalty is added to the reward:
+The clipped surrogate objective replaces the hard KL constraint of TRPO with a pessimistic bound on the policy ratio $r_t(\theta) = \pi_\theta(a_t|s_t)/\pi_{\theta_{\text{old}}}(a_t|s_t)$ [source:arxiv:1707.06347]:
 
 $$
-R(x, y) = r_\theta(x, y) - \beta \log \frac{\pi_\phi(y|x)}{\pi_{ref}(y|x)}
+L^{\text{CLIP}}(\theta) = \hat{\mathbb{E}}_t \left[ \min\Bigl( r_t(\theta) \hat{A}_t,\; \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \Bigr) \right].
 $$
 
-where $\beta$ controls the strength of the penalty [source:arxiv:2009.01325][source:arxiv:2307.04964].
+For $\hat{A}_t > 0$, the objective increases with $r_t$ until $1+\epsilon$, then flattens; for $\hat{A}_t < 0$, it decreases until $1-\epsilon$, then flattens. This prevents destructive large updates when optimizing multiple epochs on the same batch [source:arxiv:1707.06347]. In LLMs, the ratio is computed per token:
 
-### Divergent Views on KL Necessity
-There is a technical disagreement regarding the necessity of the KL penalty:
-*   **Standard view:** The KL term is essential to act as an entropy bonus, encourage exploration, and prevent the policy from generating outputs outside the RM's training distribution [source:arxiv:2009.01325].
-*   **Denoising view:** [source:arxiv:2401.06080] argues that if the reward model is sufficiently cleaned via ensemble-based denoising and adaptive margins, the KL penalty can be omitted without destabilizing training.
+$$
+r_t(\theta) = \frac{\pi_\theta(y_t|x,y_{<t})}{\pi_{\theta_{\text{old}}}(y_t|x,y_{<t})},
+$$
 
-### Stability Mitigation
-To combat the "alignment tax" (performance regression on general NLP tasks), PPO-ptx mixes PPO updates with the original pretraining log-likelihood maximization [source:arxiv:2203.02155]. Stability is monitored via action-space metrics—perplexity, response length, and KL divergence—rather than just reward scores [source:arxiv:2307.04964].
+and the objective sums over tokens [source:arxiv:2307.04964]. The clipping threshold $\epsilon$ is typically 0.2 [source:arxiv:1707.06347; arxiv:2307.04964]. [source:arxiv:1707.06347] Table 1 shows $\epsilon=0.2$ outperforms 0.1 (0.82 vs 0.76) and 0.3 (0.70) on MuJoCo.
+
+**Value function clipping:** [source:arxiv:1707.06347] and [source:arxiv:2307.04964] clip the value function loss: $L^{VF} = \max\bigl( (V_\phi - V^{\text{targ}})^2, (\text{clip}(V_\phi, V_{\text{old}}-\epsilon, V_{\text{old}}+\epsilon) - V^{\text{targ}})^2 \bigr)$. This stabilizes critic training.
+
+**Full PPO objective for LLMs:**
+
+$$
+L(\theta) = \hat{\mathbb{E}}_{x,y} \left[ \sum_t L_t^{\text{CLIP}}(\theta) - c_1 L_t^{VF}(\theta) + c_2 S[\pi_\theta](x,y_{<t}) \right]
+$$
+
+[source:arxiv:1707.06347; arxiv:2307.04964], where $S$ is an entropy bonus. [source:arxiv:2307.04964] adds a pretraining gradient term (PPO-ptx): $\lambda_{\text{ptx}} \mathbb{E}_{x\sim\mathcal{D}_{\text{pretrain}}}[\log \pi_\theta(x)]$ to mitigate alignment tax.
+
+**Disagreement on clipping vs. penalty for LLMs:** The original PPO paper [source:arxiv:1707.06347] found clipping superior to adaptive KL penalty on continuous control. However, all major LLM RLHF papers [source:arxiv:1909.08593; arxiv:2009.01325; arxiv:2204.05862; arxiv:2307.04964] use **both** clipping and a KL penalty simultaneously. The KL penalty acts on the divergence from the *reference* (SFT) model, while clipping constrains the step from the *old* (current iteration) policy. These serve different purposes: clipping ensures per-update stability; KL penalty anchors to the initial supervised model. [source:arxiv:2310.00212] argues PPO's token-wise clipping is mismatched to trajectory-wise reward models (BTL is invariant to constant reward shifts, but PPO is not), motivating their pairwise P3O algorithm.
+
+## PPO variants and practical modifications for LLMs
+
+| Modification | Description | Sources |
+|--------------|-------------|---------|
+| **PPO-ptx** | Adds pretraining loss $\lambda_{\text{ptx}} \mathbb{E}[\log \pi_\theta(x)]$ to preserve pretrained capabilities | [source:arxiv:2307.04964] |
+| **Reward normalization & clipping** | Running mean/std + clip to $[-\delta,\delta]$ | [source:arxiv:2307.04964] |
+| **Critic initialization from RM** | Initialize $V_\phi$ from RM backbone | [source:arxiv:2307.04964] |
+| **Small experience buffer** | Use small batch for environment sampling (e.g., 128) and smaller minibatch for updates (e.g., 32) | [source:arxiv:2307.04964] |
+| **Global gradient clipping** | Clip global norm (e.g., 1.0) | [source:arxiv:2307.04964] |
+| **Token-level KL in reward** | Distribute KL penalty per token for GAE | [source:arxiv:2307.04964; arxiv:2204.05862] |
+| **Adaptive KL controller** | Proportional control on KL target | [source:arxiv:1909.08593] |
+| **Reference model = SFT model** | Fixed $\pi^{\text{ref}}$ throughout training | [source:arxiv:1909.08593; arxiv:2009.01325; arxiv:2204.05862] |
+| **Multiple PPO epochs per rollout** | Typically 1–4 epochs (K in original PPO) | [source:arxiv:1707.06347; arxiv:2307.04964] |
+| **Nucleus sampling for rollouts** | $p=0.9, \tau=0.8$, repetition penalty 1.1 | [source:arxiv:2307.04964] |
+
+**Hyperparameters reported in [source:arxiv:2307.04964] (7B/13B models):**
+- Policy LR: $5\times10^{-7}$, Critic LR: $1.65\times10^{-6}$, warmup 10%
+- Batch size (env): 128, minibatch: 32
+- GAE $\lambda=0.9$, $\gamma=1$ (bandit)
+- $\epsilon=0.2$, $c_1=0.5$, $c_2=0$ (entropy bonus often omitted)
+- Max length 2048, KL coefficient $\eta$ not specified numerically
+
+**Disagreement on entropy bonus:** [source:arxiv:1707.06347] includes $c_2 S[\pi_\theta]$ in the objective. [source:arxiv:2307.04964] does not mention entropy bonus in PPO-max. [source:arxiv:2204.05862] notes RLHF decreases policy entropy, potentially limiting diversity for online training. [source:arxiv:1706.03741] adds entropy bonus for exploration due to non-stationary reward. The role of explicit entropy regularization in LLM PPO is not widely reported; implicit entropy control via KL penalty may suffice.
 
 ## Current status and trajectory
-PPO has historically been the default algorithm for LLM alignment [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people]. However, it is currently facing competition from Direct Preference Optimization (DPO), which eliminates the need for a separate RM and the instability of RL by using a closed-form optimal policy derived from the RLHF objective [source:arxiv:2305.18290]. DPO is reported to exceed PPO in sentiment control and match it in summarization with significantly lower computational overhead [source:arxiv:2305.18290]. Despite this, PPO remains a primary tool for complex alignment (e.g., the 3H framework) where iterative refinement and dynamic reward signals are required [source:arxiv:2307.04964].
+
+PPO remains the **default** RL optimizer for industrial RLHF pipelines (OpenAI, Anthropic, Google, Meta) as of 2024, but its dominance is contested by simpler alternatives. The trajectory shows three phases:
+
+1. **2019–2022: Establishment.** Ziegler et al. [source:arxiv:1909.08593], Stiennon et al. [source:arxiv:2009.01325], and Bai et al. [source:arxiv:2204.05862] established PPO+KL as the canonical RLHF recipe. PPO was chosen for its stability over TRPO and A2C [source:arxiv:1707.06347; arxiv:1706.03741].
+2. **2023: Engineering hardening.** Zheng et al. [source:arxiv:2307.04964] documented "Secrets of RLHF" — PPO-max with critic initialization, reward clipping, ptx loss, and small buffers — addressing instability ("pattern collapse") where policies overoptimize the RM. This represents a maturation of practice, not algorithmic innovation.
+3. **2023–present: Challenge from offline methods.** DPO [source:arxiv:2305.18290] (not in sources but implied by [source:arxiv:2310.00212] and [source:arxiv:2403.19279]) and P3O [source:arxiv:2310.00212] demonstrate competitive or better KL-reward frontiers without online RL. RLP [source:arxiv:2403.19279] addresses RM staleness by retraining on policy samples. PPO's sample inefficiency (requires on-policy rollouts, multiple epochs) and infrastructure complexity (distributed rollout generation, critic training, GAE) motivate alternatives. However, PPO remains **necessary for**:
+   - Iterative online RLHF where the RM is updated with fresh human data [source:arxiv:2204.05862]
+   - Settings requiring per-token credit assignment (e.g., process supervision, tool use) [source:arxiv:2307.04964]
+   - Cases where the reward is not purely preference-based (e.g., verifiable rewards, RL for reasoning) [source:arxiv:2307.04964]
+
+**Hedge:** The field has not abandoned PPO; major labs still use it for their strongest models. But the *proportion* of alignment research using PPO is declining as DPO, KTO, and RLAIF gain traction for static datasets. No source reports a large-scale ablation proving PPO's superiority over DPO when both are tuned optimally on the same data and compute budget. [source:arxiv:2310.00212] shows P3O beats PPO on KL-reward frontier, but P3O is still an online RL method. The "PPO vs. offline" debate is not settled by current benchmarks.
 
 ## Key takeaways
-*   **PPO vs. VPG:** PPO improves sample efficiency and stability via a clipped surrogate objective, allowing multiple updates per batch [source:arxiv:1707.06347][source:arxiv:2307.04964].
-*   **Reward Pipeline:** RLHF follows a strict sequence: SFT $\rightarrow$ Reward Modeling (via Bradley-Terry) $\rightarrow$ PPO Optimization [source:arxiv:2203.02155].
-*   **Stability Tools:** GAE is used for advantage estimation, and KL penalties prevent reward hacking and policy collapse [source:arxiv:2009.01325][source:arxiv:2307.04964].
-*   **Implementation Complexity:** PPO is computationally expensive and sensitive to hyperparameters, requiring the coordination of four models (policy, value, reward, and reference) [source:arxiv:2307.04964].
+
+- PPO for LLMs adapts the clipped surrogate objective $L^{\text{CLIP}}$ to a contextual bandit: per-token ratios, sequence-level sparse reward, GAE reducing to $r(x,y)-V(x)$.
+- Two distinct regularizers operate simultaneously: **clipping** ($\epsilon\approx0.2$) constrains the per-update policy ratio $r_t(\theta)$; **KL penalty** ($\beta\sim10^{-3}$ to $10^{-1}$) anchors to the frozen SFT model. They are not interchangeable.
+- The reward model is trained with Bradley-Terry loss on pairwise preferences; its score is normalized and clipped before entering PPO. RM staleness under policy shift is a fundamental limitation addressed by RLP [source:arxiv:2403.19279] and iterative online RLHF [source:arxiv:2204.05862].
+- Practical stability requires: critic initialized from RM, reward normalization/clipping, small rollout buffers, global gradient clipping, and optionally pretraining gradient mixing (PPO-ptx) [source:arxiv:2307.04964].
+- Token-level KL penalty (added to per-token reward) is mathematically equivalent to sequence-level KL for the total return but changes advantage estimation; most LLM implementations use token-level [source:arxiv:2307.04964; arxiv:2204.05862].
+- PPO's sample inefficiency and infrastructure complexity motivate offline alternatives (DPO, P3O, RLP), but PPO remains the only method supporting fully online, iterative preference collection and per-token credit assignment.
 
 ## Related topics
-- [Direct Preference Optimization and variants](dpo-and-preference-optimization.md)
-- [GRPO (Group Relative Policy Optimization)](grpo.md)
-- [Reward modeling for LLMs](reward-modeling.md)
-- [RL for reasoning models](rl-for-reasoning.md)
+
+- [Direct Preference Optimization and variants](dpo-and-preference-optimization.md) — Offline alternative to PPO using the same preference data
+- [GRPO (Group Relative Policy Optimization)](grpo.md) — Another PPO variant for LLMs
+- [Reward modeling for LLMs](reward-modeling.md) — Details on RM architecture, training, and overoptimization
+- [RL for reasoning models](rl-for-reasoning.md) — PPO applied to verifiable rewards (math, code)
+- [Policy gradient methods for LLMs](policy-gradient-methods.md) — Broader policy gradient family
+- [KL regularization in RLHF](kl-regularization.md) — Deep dive on KL penalty theory and adaptive control
+- [MDP formulation of LLM generation](mdp-formulation.md) — Bandit vs. MDP perspectives
+- [The RLHF/PPO pipeline](rlhf-ppo-pipeline.md) — End-to-end system view
+- [Reward model over-optimization](reward-model-overoptimization.md) — Pathology PPO exacerbates
+- [Entropy and exploration in RL fine-tuning](entropy-and-exploration.md) — Role of entropy bonus vs. KL
+- [Distributed RL training for LLMs](distributed-rl-training.md) — Infrastructure for PPO rollouts and updates
+- [Async and off-policy RL](async-and-off-policy-rl.md) — Alternatives to on-policy PPO
+- [Rollout generation infrastructure](rollout-generation-infra.md) — Engineering of the environment interaction loop
 
 ## References
 - [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347)
-- [source:arxiv:1706.03741] [Deep reinforcement learning from human preferences](https://arxiv.org/abs/1706.03741)
+- [source:arxiv:1706.03741] [Deep Reinforcement Learning from Human Preferences](https://arxiv.org/abs/1706.03741)
 - [source:arxiv:2009.01325] [Learning to summarize with human feedback](https://arxiv.org/abs/2009.01325)
-- [source:arxiv:2203.02155] [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155)
-- [source:arxiv:2305.18290] [Direct Preference Optimization: Your Language Model is Secretly a Reward Model](https://arxiv.org/abs/2305.18290)
+- [source:arxiv:2204.05862] [Training a Helpful and Harmless Assistant with Reinforcement Learning from Human Feedback](https://arxiv.org/abs/2204.05862)
+- [source:arxiv:1909.08593] [Fine-Tuning Language Models from Human Preferences](https://arxiv.org/abs/1909.08593)
 - [source:arxiv:2307.04964] [Secrets of RLHF in Large Language Models Part I: PPO](https://arxiv.org/abs/2307.04964)
-- [source:arxiv:2401.06080] [Secrets of RLHF in Large Language Models Part II: Reward Modeling](https://arxiv.org/abs/2401.06080)
-- [source:cameronrwolfe:ppo-for-llms-a-guide-for-normal-people] [PPO for LLMs: A Guide for Normal People](https://cameronrwolfe.substack.com/p/ppo-llm)
+- [source:arxiv:2310.00212] [Pairwise Proximal Policy Optimization (P3O)](https://arxiv.org/abs/2310.00212)
+- [source:arxiv:2403.19279] [Fine-Tuning Language Models with Reward Learning on Policy](https://arxiv.org/abs/2403.19279)

@@ -35,11 +35,13 @@ jobs:
           MISTRAL_API_KEYS: ${{ secrets.MISTRAL_API_KEYS }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          # Final consistent config (matches the clean run).
+          # Final consistent config (matches the clean run): Nemotron 550B writes,
+          # gemini-2.5-flash handles the fast tool-calling/distill/review roles
+          # (the NVIDIA nemotron-super orchestrator was too slow and stalled ticks).
           WRITER_MODEL: nvidia/nemotron-3-ultra-550b-a55b
-          ORCH_MODEL: nvidia/llama-3.3-nemotron-super-49b-v1.5
-          DISTILL_MODEL: nvidia/nemotron-3-ultra-550b-a55b
-          REVIEWER_MODEL: nvidia/llama-3.3-nemotron-super-49b-v1.5
+          ORCH_MODEL: google/gemini-2.5-flash
+          DISTILL_MODEL: google/gemini-2.5-flash
+          REVIEWER_MODEL: google/gemini-2.5-flash
         run: |
           NEXT=$(python -c "import yaml;t=yaml.safe_load(open('taxonomy.yaml'));u=[x['slug'] for x in t['topics'] if x.get('status')!='done'];print(u[0] if u else '')")
           if [ -n "$NEXT" ]; then

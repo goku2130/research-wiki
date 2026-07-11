@@ -3,7 +3,7 @@ topics:
 - slug: ppo-for-llms
   title: PPO for LLM fine-tuning (RLHF)
   notes: Policy-gradient basics, reward model, KL penalty, PPO clipping
-  status: empty
+  status: done
 - slug: dpo-and-preference-optimization
   title: Direct Preference Optimization and variants
   notes: DPO, IPO, KTO, ORPO — why they skip the reward model
