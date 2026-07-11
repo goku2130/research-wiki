@@ -23,7 +23,7 @@ _Auto-generated 2026-07-11._
 - ✅ [Verifiable rewards (RLVR)](topics/verifiable-rewards.md)
 - ✅ [Entropy and exploration in RL fine-tuning](topics/entropy-and-exploration.md)
 - ✅ [Length and format bias](topics/length-and-format-bias.md)
-- ⬜ The alignment tax
+- ✅ [The alignment tax](topics/alignment-tax.md)
 - ⬜ Over-optimization and mode collapse
 - ⬜ Sycophancy and misgeneralization
 - ⬜ LLM-as-judge
