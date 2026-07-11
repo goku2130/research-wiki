@@ -3,298 +3,242 @@ title: Agentic and tool-use RL
 maturity: developing
 updated: '2026-07-11'
 sources:
-- arxiv:1905.09836
-- arxiv:2210.03629
-- arxiv:2302.04761
-- arxiv:2303.11366
-- arxiv:2305.10601
-- arxiv:2406.11903
-- arxiv:2401.10020
-- arxiv:2406.13479
+- arxiv:2510.01132
+- arxiv:2509.02547
+- arxiv:2604.09459
+- alphaxiv:triage-role-typed-credit-assignment-for-
+- github:awesome-rl-based-agentic-search-papers
+- research:advancing-search-augmented-language-mode
+- bespokelabs:improving-multi-turn-tool-use-with-reinf
 open_questions:
-- How can tool chaining be explicitly integrated into self-supervised tool-learning
-  frameworks like Toolformer?
-- What are the scaling laws for self-improving systems (e.g., self-rewarding models)
-  beyond 3 iterations?
-- Can hybrid approaches (e.g., search-augmented memory) reconcile the trade-offs between
-  ToT and Reflexion?
-- How can verbal reinforcement learning (Reflexion) be extended to tasks requiring
-  highly diverse exploration (e.g., WebShop)?
+- No large-scale, controlled comparison exists between PPO, GRPO, and newer credit-assignment
+  methods (GiGPO, CARL, IGPO) on identical agentic benchmarks with matched compute
+  budgets.
+- The conditions under which sparse binary rewards suffice vs. dense verified rewards
+  are required remain empirically unmapped across task families.
+- Whether turn-level credit assignment (AgentPRM, CARL) can be combined with hierarchical
+  critics (ArCHer) without prohibitive compute overhead is untested.
+- The "echo trap" in GRPO is documented but its mitigation via token-level IS (Perplexity)
+  has not been ablated against turn-level CA methods.
 ---
 
-# Agentic and Tool-Use Reinforcement Learning: A Deep Dive
+Agentic RL reframes LLM fine-tuning as sequential decision-making in partially observable environments, replacing the single-turn preference optimization of RLHF with multi-turn tool use, search, and reasoning loops. The field has converged on a POMDP formalism where credit assignment across 100K–1M token trajectories—not token-level advantage estimation—is the central algorithmic bottleneck.
 
-Reinforcement learning (RL) has evolved to enable language models (LMs) to interact with complex, multi-step environments through *agentic* behavior—autonomous decision-making that integrates reasoning, memory, and tool use. This paradigm shift addresses a fundamental limitation of static LMs: their inability to dynamically gather information, correct errors, or adapt strategies mid-task. Agentic RL bridges this gap by formalizing tool use as a sequential decision process, where models learn to interleave reasoning traces with environmental actions to maximize task success. The core challenges—multi-turn interaction, exploration in high-dimensional discrete spaces, and scalable reward modeling—define the frontier of this field.
+## Formalization: From Degenerate MDP to Agentic POMDP
 
----
-
-## Core Concepts and Definitions
-
-### Agentic Behavior
-An *agentic* LM operates as a closed-loop system: it observes an environment, selects actions (including tool invocations), receives feedback, and updates its internal state to achieve a goal. This contrasts with *reactive* models (e.g., standard autoregressive LMs) that generate outputs in a single pass without environmental interaction. Agentic behavior requires three components:
-1. **Policy**: A parameterized function mapping states to actions.
-2. **State representation**: A context accumulating observations and actions.
-3. **Environment interface**: A mechanism to execute actions (e.g., API calls) and return observations.
-
-### Tool Use as a Sequential Decision Process
-Tool use is modeled as a process where an LM:
-1. Generates a reasoning trace (e.g., "I need to search for X to answer this question").
-2. Invokes a tool (e.g., `search[X]`).
-3. Processes the tool’s response to update its state.
-4. Repeats until the task is completed or a termination condition is met.
-
-This process is inherently multi-turn, requiring the LM to maintain coherence across steps and adapt to environmental feedback.
-
-### Credit Assignment
-Credit assignment in multi-turn tool use refers to the problem of attributing task success or failure to specific actions in a trajectory. For example, if an agent invokes `search[Einstein]` but later fails to answer a question about relativity, it must determine whether the failure stems from:
-- The search action (e.g., poor query formulation),
-- The reasoning step (e.g., misinterpreting the retrieved text), or
-- The final answer generation.
-
-This is exacerbated by:
-1. **Sparse rewards**: Task success is often only observable at the end of a trajectory.
-2. **Long horizons**: Tool-use tasks may require 10+ steps, diluting the signal from individual actions.
-3. **Stochastic environments**: API responses or external tools may fail unpredictably.
-
----
-
-## Multi-Turn Tool Use: Architectures and Algorithms
-
-### 1. ReAct: Interleaving Reasoning and Acting
-**Architecture**: ReAct (Reasoning + Acting) augments the action space of an LM to include both tool invocations and "thoughts" (verbal reasoning traces). The policy alternates between:
-- **Thought generation**: Updating the internal context without environmental feedback.
-- **Tool invocation**: Querying an external environment (e.g., Wikipedia API) and receiving an observation.
-
-**Key Features**:
-- **Few-shot prompting**: The LM is conditioned on human-annotated trajectories demonstrating the interleaved Thought-Action-Observation format.
-- **Heuristic switching**: ReAct falls back to Chain-of-Thought (CoT) with self-consistency (CoT-SC) if tool use fails, and CoT-SC delegates to ReAct when internal confidence is low [source:arxiv:2210.03629].
-
-**Performance**:
-- On HotpotQA (multi-hop QA), ReAct achieves an exact match (EM) score of 27.4%, while the combined CoT-SC → ReAct method reaches 35.1% EM (vs. 67.5% for supervised state-of-the-art) [source:arxiv:2210.03629].
-- On ALFWorld (interactive decision-making), ReAct outperforms Act-only baselines by an absolute 26% success rate (71% vs. 45%) [source:arxiv:2210.03629].
-
-**Limitations**:
-- **Prompt sensitivity**: Performance degrades with suboptimal demonstrations or large action spaces.
-- **Repetition loops**: Greedy decoding can cause the model to repeat unproductive thoughts or actions.
-- **API dependence**: Poor retrieval directly derails reasoning trajectories.
-
-### 2. Toolformer: Self-Supervised Tool Learning
-**Architecture**: Toolformer enables LMs to *autonomously* learn tool usage via a four-stage pipeline:
-1. **Sampling**: The LM annotates a plain-text corpus with potential API calls (e.g., `<API> QA["What is the capital of France?"] </API>`) at positions where the probability of the `<API>` token exceeds a threshold.
-2. **Execution**: Sampled API calls are executed to obtain responses.
-3. **Filtering**: Calls are retained only if they reduce the model’s prediction loss for subsequent tokens. The loss reduction is evaluated using a weighted cross-entropy loss:
+The landscape survey formalizes the paradigm shift by contrasting the underlying decision processes [source:arxiv:2509.02547]. **Preference-Based RL Fine-Tuning (PBRFT)** collapses to a single-step MDP with horizon $T=1$ and $\gamma=1$:
 
 $$
-L_i(\mathbf{z}) = - \sum_{j=i}^n w_{j-i} \cdot \log p_M(x_j \mid \mathbf{z}, x_{1:j-1}),
+\langle \mathcal{S}_{\text{trad}}, \mathcal{A}_{\text{trad}}, P_{\text{trad}}, R_{\text{trad}}, T=1, \gamma=1 \rangle, \quad J_{\text{trad}}(\theta) = \mathbb{E}_{a \sim \pi_\theta}[r(a)]
 $$
 
-   where $\mathbf{z}$ is the augmented context (with or without the API call), and weights $w_{j-i}$ decay linearly with distance from the API call [source:arxiv:2302.04761].
-4. **Finetuning**: The filtered API calls are interleaved with the original text to form an augmented dataset, on which the base LM is finetuned.
+**Agentic RL** lifts this to a Partially Observable MDP where the agent receives observations $o_t = O(s_t)$, the action space splits into natural language and structured tool invocations $\mathcal{A}_{\text{agent}} = \mathcal{A}_{\text{text}} \cup \mathcal{A}_{\text{action}}$, and the objective maximizes discounted cumulative reward over horizon $T$:
 
-**Key Features**:
-- **Self-supervision**: Eliminates the need for human-annotated tool-use demonstrations.
-- **Scalability**: Emerges at ~775M parameters (GPT-J) and improves with model size.
+$$
+\langle \mathcal{S}_{\text{agent}}, \mathcal{A}_{\text{agent}}, P_{\text{agent}}, R_{\text{agent}}, \gamma, O \rangle, \quad J_{\text{agent}}(\theta) = \mathbb{E}_{\tau \sim \pi_\theta} \left[ \sum_{t=0}^{T-1} \gamma^t R_{\text{agent}}(s_t, a_t) \right], \quad 0 < \gamma < 1
+$$
 
-**Performance**:
-- On factual lookup (LAMA subsets), Toolformer achieves 33.8% (SQuAD), 11.5% (Google-RE), and 53.5% (T-REx), outperforming GPT-3 (175B) while invoking a QA API 98.1% of the time [source:arxiv:2302.04761].
-- On mathematical reasoning (ASDiv), it scores 40.4%, surpassing GPT-3 (14.0%) by leveraging a calculator tool 97.9% of the time [source:arxiv:2302.04761].
+This formalism makes explicit five compounding difficulties absent in PBRFT [source:arxiv:2604.09459]:
+1. **Stochastic environment transitions** (non-deterministic API/tool responses)
+2. **Partial observability** (agent sees only $o_t$, not $s_t$)
+3. **Long horizons** (10–100+ turns, 100K–1M tokens)
+4. **Action heterogeneity** (mixing planning, tool calls, formatting)
+5. **Non-verifiable intermediate states** (no ground truth for intermediate turns)
 
-**Limitations**:
-- **Sample inefficiency**: Millions of documents yield only thousands of useful API calls.
-- **Input sensitivity**: Performance varies with phrasing (e.g., "What is 2+2?" vs. "Calculate 2+2").
-- **Tool chaining**: Not supported; API calls are sampled independently.
+The survey identifies six optimizable capability modules enabled by this formalism: Planning, Tool Use, Memory, Self-Improvement, Reasoning (System 1 vs System 2), and Perception [source:arxiv:2509.02547].
 
-### 3. Reflexion: Verbal Reinforcement Learning
-**Architecture**: Reflexion implements *verbal reinforcement learning*, where agents improve via linguistic feedback rather than gradient updates. The framework comprises:
-1. **Actor**: Generates actions and thoughts.
-2. **Evaluator**: Scores trajectories (e.g., +1 for success, 0 otherwise).
-3. **Self-Reflection**: Generates verbal feedback (e.g., "The search for Einstein was relevant, but the answer misinterpreted the result").
-4. **Episodic memory**: Stores past reflections to guide future trials.
+## Multi-Turn Tool Use: Environments, Rewards, and Algorithm Selection
 
-The policy is parameterized by the Actor and memory. At each trial:
-1. Generate a trajectory.
-2. Compute a reward using the Evaluator.
-3. Generate a reflection using the Self-Reflection model.
-4. Append the reflection to memory and repeat [source:arxiv:2303.11366].
+### Environment Design and Curriculum
 
-**Key Features**:
-- **Parameter efficiency**: No gradient updates; learning occurs via memory augmentation.
-- **Iterative improvement**: Agents refine strategies over multiple trials.
+The Practitioner's Guide establishes that **curriculum learning across environment complexity** is necessary for skill acquisition [source:arxiv:2510.01132]. Agents trained on simpler TextWorld configurations (lower spatial/object complexity) develop reusable state-tracking and exploration skills that generalize to harder settings. On TextWorld (w2-o3-q4), Qwen-1.5B improved from 17% base to 88% with PPO, but performance dropped to 51% on the most complex setting (w8-o12-q4). Larger models handle complexity better: Qwen-7B achieved 72% on w4-o6-q8. **Cross-domain SFT initialization (e.g., ALFWorld → TextWorld) causes rapid policy collapse** due to conflicting behavioral biases [source:arxiv:2510.01132].
 
-**Performance**:
-- On ALFWorld, Reflexion achieves a 97% success rate after 12 trials (vs. 71% for ReAct) [source:arxiv:2303.11366].
-- On HumanEval (Python), it reaches 91.0% pass@1, surpassing GPT-4 (80.1%) [source:arxiv:2303.11366].
+### Reward Granularity: Dense Verified vs. Sparse vs. Model-Based
 
-**Limitations**:
-- **Memory constraints**: Episodic memory is bounded (typically 1–3 experiences) to respect context windows.
-- **Local minima**: May converge to suboptimal strategies if reflections are uninformative.
-- **Task specificity**: Fails to improve on WebShop (e-commerce navigation) after 4 trials.
+Reward design is the highest-leverage design choice. On SWE-Gym software engineering tasks [source:arxiv:2510.01132]:
+- **Sparse binary reward**: 4.2% success
+- **Dense, execution-verified ratio rewards** (e.g., unit test pass ratio): 22% success
+- **Model-based judges**: CodeRM-8B 7.2%, GPT-4.1 9.3%
 
-### 4. Tree of Thoughts (ToT): Search-Augmented Reasoning
-**Architecture**: ToT frames problem-solving as a heuristic search over a tree of "thoughts" (coherent language sequences). The framework consists of:
-1. **Thought decomposition**: Intermediate steps are defined based on task structure (e.g., "generate 3 candidate answers" for QA).
-2. **Thought generation**: From a state, the LM generates $k$ candidate next thoughts using independent sampling or sequential proposal.
-3. **State evaluation**: A heuristic evaluator scores states (e.g., 1–10 scale) or votes for the most promising state.
-4. **Search algorithm**: BFS (maintains top-$b$ states per step) or DFS (explores most promising path until a threshold is met) [source:arxiv:2305.10601].
+The guide concludes model-based judges are **not yet a viable substitute for execution-based verifiers** in complex reasoning. However, the Perplexity search-agent pipeline uses a **gated aggregation** reward that combines binary correctness with a learned preference score [source:research:advancing-search-augmented-language-mode]:
 
-**Key Features**:
-- **Deliberate exploration**: Enables backtracking and lookahead, unlike autoregressive decoding.
-- **Modular evaluation**: Heuristics can be LM-based or rule-based.
+$$
+R(\tau_i) = r_{\text{base}}(\tau_i) \cdot s(\tau_i) - \text{pen}_{\text{eff}}(\tau_i)
+$$
 
-**Performance**:
-- On Game of 24 (mathematical reasoning), ToT achieves a 74% success rate (vs. 4.0% for CoT) [source:arxiv:2305.10601].
-- On 5×5 mini crosswords, it solves 20% of games (vs. 0% for CoT) [source:arxiv:2305.10601].
+where $r_{\text{base}} \in \{0,1\}$ is verifiable correctness, $s(\tau_i) \in [0,1]$ is a Bradley-Terry preference score, and $\text{pen}_{\text{eff}}$ penalizes excess tool calls and length via group-relative anchored penalties. This design prevents reward hacking by making correctness a prerequisite for preference credit.
 
-**Limitations**:
-- **Computational cost**: Requires 5–100× more tokens than CoT.
-- **Heuristic imperfection**: LM-based evaluators may prune valid solutions.
-- **Overhead**: Unjustified for tasks where LMs already perform well.
+**DISAGREEMENT**: The Practitioner's Guide reports dense verified rewards dramatically outperform sparse binary (22% vs 4.2%) and model-based judges (7–9%) [source:arxiv:2510.01132]. Yet Bespoke Labs achieved 55%→78% on BFCL multi-turn tool use using **only a sparse binary reward** (pass/fail BFCL eval) with GRPO [source:bespokelabs:improving-multi-turn-tool-use-with-reinf]. Perplexity's gated design explicitly avoids sparse-reward variance by requiring $r_{\text{base}}=1$ before applying $s(\tau)$ [source:research:advancing-search-augmented-language-mode]. The discrepancy likely stems from task structure: BFCL evaluates discrete API-call correctness (verifiable per-turn), while SWE-Gym requires extended code-editing trajectories where intermediate progress signals are essential.
 
----
+### Algorithm Selection: PPO vs. GRPO vs. RLOO
 
-## Search-Augmented RL: Combining Exploration and Learning
+The Practitioner's Guide reports a striking algorithm hierarchy on TextWorld w2-o3-q4 (Qwen-1.5B) [source:arxiv:2510.01132]:
+- **PPO**: 88% success
+- **RLOO**: 51%
+- **Reinforce++ / GRPO**: ~18% (negligible gains)
 
-Search-augmented RL integrates classical search algorithms (e.g., BFS, DFS, MCTS) with learned policies to improve exploration and credit assignment. The key idea is to use search to *simulate* potential trajectories, then distill the results into the policy.
+The clipped PPO objective used in the study follows the standard formulation with distinct sample and time indices:
 
-### 1. ToT as Search-Augmented RL
-ToT can be viewed as a search-augmented RL method where:
-- The rollout policy is the LM’s CoT generator.
-- The value function is the LM-based evaluator.
-- Distillation occurs implicitly via in-context learning (few-shot prompting).
+$$
+L^{\text{CLIP}}(\theta) = \frac{1}{N} \sum_{j=1}^{N} \sum_{t=0}^{T_j} \min\Bigl( r_{j,t}(\theta) \hat{A}_{j,t},\; \text{clip}\bigl(r_{j,t}(\theta), 1-\epsilon, 1+\epsilon\bigr) \hat{A}_{j,t} \Bigr)
+$$
 
-### 2. Self-Rewarding Language Models
-**Core Idea**: Unify the policy and reward model into a single LM that generates and evaluates its own responses. The framework iterates:
-1. **Self-instruction**: Generate novel prompts and candidate responses.
-2. **Self-evaluation**: Score responses using LLM-as-a-Judge prompting (e.g., 5-point scale).
-3. **Preference optimization**: Train on preference pairs $(y^w, y^l)$ using DPO.
+or equivalently $\mathbb{E}_{j \sim [N],\, t \sim [T_j]}\bigl[ \min( r_{j,t}(\theta) \hat{A}_{j,t},\; \text{clip}(r_{j,t}(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_{j,t} ) \bigr]$, where $r_{j,t}(\theta) = \frac{\pi_\theta(a_{j,t} \mid h_{j,t})}{\pi_{\theta_{\text{old}}}(a_{j,t} \mid h_{j,t})}$ is the probability ratio for token $t$ in trajectory $j$.
 
-**Key Features**:
-- **Closed-loop improvement**: The reward model improves alongside the policy.
-- **Scalability**: Eliminates the need for human-labeled preference data.
+**DISAGREEMENT**: This result contradicts the broader adoption of GRPO in agentic search (Perplexity [source:research:advancing-search-augmented-language-mode], Bespoke Labs [source:bespokelabs:improving-multi-turn-tool-use-with-reinf]) and its listing as a primary algorithmic family in the landscape survey [source:arxiv:2509.02547]. The credit assignment survey notes GRPO assigns **identical credit to all actions in a trajectory**, leading to an "echo trap" where models converge to repetitive safe behaviors [source:arxiv:2604.09459]. The Practitioner's Guide's negative GRPO result may reflect its specific hyperparameters or the TextWorld environment's need for fine-grained credit; Perplexity mitigates GRPO's variance with token-level importance sampling and a two-stage SFT→RL pipeline [source:research:advancing-search-augmented-language-mode].
 
-**Performance**:
-- On AlpacaEval 2.0, self-rewarding models achieve a 20.44% win rate vs. GPT-4 Turbo after 3 iterations (vs. 9.94% for SFT) [source:arxiv:2401.10020].
+### SFT–RL Budget Allocation
 
-**Limitations**:
-- **Reward hacking**: Models may exploit scoring criteria (e.g., generating longer responses).
-- **Alignment tax**: Performance on standard benchmarks (e.g., GSM8K) may regress.
-- **Safety risks**: Self-improvement may amplify biases or harmful behaviors.
+For a fixed compute budget, a **hybrid SFT→RL schedule dominates pure SFT or pure RL** [source:arxiv:2510.01132]. With 60 SFT demonstrations + 400 RL episodes: 85% in-domain success, 59% generalization to complex tasks. Pure SFT (same budget): 55% generalization. Pure RL: 11% generalization. The guide recommends **strong SFT priors from minimal demonstrations** to accelerate convergence and stabilize policy initialization.
 
----
+## Search-Augmented RL: Agentic Search Systems
 
-## Credit Assignment: Methods and Challenges
+### Problem Formulation
 
-### 1. Sparse Rewards and Shaping
-**Problem**: In tool-use tasks, rewards are often sparse (e.g., +1 for task success, 0 otherwise), making it difficult to attribute credit to intermediate actions.
+Agentic search reframes information-seeking as a dynamic decision loop where the agent must learn [source:github:awesome-rl-based-agentic-search-papers]:
+1. **When** to initiate search
+2. **How intensively** to search (depth, query volume)
+3. **How to integrate** retrieved evidence
+4. **How to revise** queries based on intermediate results
 
-**Solutions**:
-- **Shaping rewards**: Augment the reward with intermediate signals (e.g., +0.1 for a successful search). Toolformer uses a weighted cross-entropy loss reduction threshold to filter useful API calls, which can be interpreted as a form of shaping [source:arxiv:2302.04761].
-- **Verbal feedback**: Use language models to generate step-by-step feedback (e.g., "The search for Einstein was relevant, but the answer misinterpreted the result") [source:arxiv:2303.11366].
+Standard RAG and prompt engineering are insufficient for autonomous research-grade seeking.
 
-**Limitations**:
-- Shaping rewards may introduce unintended biases (e.g., favoring search over reasoning).
-- Verbal feedback may be noisy or uninformative.
+### Optimization Strategies
 
-### 2. Counterfactual Credit Assignment
-**Problem**: How to estimate the impact of an action on the final outcome?
+The awesome-rl-based-agentic-search-papers taxonomy categorizes the design space [source:github:awesome-rl-based-agentic-search-papers]:
+- **Reward modeling**: Outcome Reward Models (ORM, final answer) vs Process Reward Models (PRM, intermediate steps)
+- **Reward function**: Rule-based (EM, F1) vs LLM-based (judge)
+- **Algorithms**: GRPO (dominant), PPO, DPO, SFT (cold-start), Meta-RL
+- **Targeted capabilities**: Search Efficiency, Retrieval-Search Interaction, Context Memory, Structural Navigation
+- **Environments**: Simulated repos, live web, synthetic scientific corpora
 
-**Solutions**:
-- **Monte Carlo rollouts**: Simulate alternative trajectories where an action is replaced with a counterfactual action and compare outcomes. ToT’s search algorithm implicitly performs this by exploring multiple candidate thoughts [source:arxiv:2305.10601].
+Key benchmarks: Multi-hop QA (HotpotQA, 2WikiMultiHopQA, MuSiQue, Bamboogle), General Web (NQ, TriviaQA, PopQA, GAIA), Specialized (SWE-bench Lite, LongBench v2, HLE-Bio/Chem-Gold).
 
-**Limitations**:
-- Monte Carlo rollouts require a fast rollout policy, which may not exist for complex tasks.
+### Perplexity's Two-Stage Pipeline
 
----
+Perplexity's production system disentangles deployment guardrails from search optimization via [source:research:advancing-search-augmented-language-mode]:
+
+**Stage 1 (SFT)**: Qwen3-family model trained on:
+- Preference-oriented data (tone, clarity, formatting, language consistency)
+- Production-format tool-use trajectories (single/multi-turn, annotated with tool harness)
+
+**Stage 2 (On-policy GRPO with token-level IS)**: Heterogeneous mixture:
+- 90% **Verifiable Search-Agent QA**: Synthetic multi-hop via seed selection → chain construction (2–4 hops) → name-free synthesis → independent verification
+- 10% **Rubric-based Chat**: Atomic objective rubrics calibrated via pass@4 filter
+
+**Results**: Qwen3.5-Large-SFT-RL matches/exceeds `gpt-5.4` on FRAMES and Facts Open. Internal preference metric `pplx-sbs-search` improved 0.602 → 0.742. Training stable: gradient norms controlled, train-inference KL ~$10^{-3}$. Tool-call frequency and length penalties decreased monotonically.
+
+**Limitations noted**: Joint optimization in single RL stage fails; RL-only underperforms guardrails; SFT alone compromises search; small reward models fail fine-grained preferences and reinforce bad behaviors [source:research:advancing-search-augmented-language-mode].
+
+## Credit Assignment in Agentic RL: Taxonomy and Methods
+
+The credit assignment survey organizes 47 methods across **Granularity** (token, segment, step/turn, multi-agent) × **Methodology** (Monte Carlo, Temporal Difference, Model-based/LLM-as-Critic, Game-theoretic, Information-theoretic) [source:arxiv:2604.09459].
+
+### Reasoning RL Recipes (Single-Turn, 500–30K tokens)
+
+| Granularity | Method | Mechanism | Key Formula |
+|-------------|--------|-----------|-------------|
+| **Token** | VinePPO | MC: fork $K$ continuations ("vines") per token to estimate value without critic | $V(s_t) \approx \frac{1}{K}\sum_{k=1}^K R(\tau^{(k)})$ |
+| **Token** | RED | Linear regression probes on reward model hidden states | — |
+| **Segment/Step** | SPO | Partition chain into semantic segments | — |
+| **Segment/Step** | PRM | Step-level supervision via process reward model | — |
+| **Segment/Step** | PURE | "Min-form" credit to prevent hacking | $V(s_t) = \mathbb{E}[\min_{t' \ge t} r_{t'}]$ |
+| **Self-Supervised** | SPRO | Leave-one-out "Masked Step Advantage" | $c_i = P(\text{correct}\|\text{full}) - P(\text{correct}\|\text{without step } i)$ |
+
+**Quantitative**: SPRO achieves $3.4\times$ training efficiency over GRPO [source:arxiv:2604.09459].
+
+### Agentic RL Recipes (Multi-Turn, 100K–1M tokens)
+
+| Granularity | Method | Mechanism | Key Formula |
+|-------------|--------|-----------|-------------|
+| **Turn** | AgentPRM | TD+GAE replaces expensive MC labeling | $V(s_t) \leftarrow V(s_t) + \alpha[r_t + \gamma V(s_{t+1}) - V(s_t)]$ |
+| **Turn** | HCAPO | LLM critic "generative verification" in imagination | — |
+| **Turn** | C3 / CCPO | Leave-one-out or structural causal model for ATE of a turn | — |
+| **Hierarchical** | ArCHer | High-level turn critic + low-level token actor | — |
+| **Sparse** | CARL | Identify bifurcation points via action entropy $H(\pi(\cdot\|s_t))$; update only critical actions | — |
+| **Info-Theoretic** | IGPO | Credit = information gain about success | $c_t = \log P(\text{success}\|h_{1:t}) - \log P(\text{success}\|h_{1:t-1})$ |
+
+**Quantitative**: AgentPRM $8\times$ sample efficiency vs MC-PRM; CARL reduces gradient updates 72% no degradation; GiGPO +12% ALFWorld, +9% WebShop over GRPO [source:arxiv:2604.09459].
+
+### Multi-Agent Credit Assignment
+
+| Method | Mechanism |
+|--------|-----------|
+| M-GRPO | Decompose inter-agent (team) + intra-agent (individual) credit |
+| SHARP | Shapley value decomposition across agents |
+| MAPPA | AI feedback for per-action process rewards |
+
+**Quantitative**: SHARP +23.7% over single-agent, +14.1% over multi-agent baselines; MAPPA +5.0–17.5pp AIME, +7.8–17.2pp AMC [source:arxiv:2604.09459].
+
+### Limitations of Current CA Methods
+
+- **MC computational overhead**: VinePPO scales $O(K \cdot L)$, prohibitive for long sequences [source:arxiv:2604.09459]
+- **LLM-as-Critic bias**: HCAPO, CAPO susceptible to self-evaluation bias [source:arxiv:2604.09459]
+- **Evaluation fragmentation**: No shared benchmarks for systematic CA comparison [source:arxiv:2604.09459]
+- **Environment constraints**: Reasoning RL methods assume deterministic transitions and verifiable intermediates—violated in agentic settings [source:arxiv:2604.09459]
+
+## Training Recipes and Practical Stabilization
+
+### Bespoke Labs: Minimal-Data Multi-Turn GRPO
+
+Using only 100 training samples from BFCL v3 multi-turn-base, Qwen2.5-7B-Instruct improved 55% → 78% (23% absolute) [source:bespokelabs:improving-multi-turn-tool-use-with-reinf]. Key hyperparameters:
+- 4× H200 (3 train, 1 vLLM inference)
+- Batch 1, grad accum 4, LR $10^{-6}$ constant, 20 warmup
+- $\text{max\_grad\_norm}=0.2$, KL $\beta=0.001$, ref model updated every 100 steps
+- $\mu=2$ (1 on-policy + 1 off-policy step/batch)
+- **Overlong filtering**: mask loss for rollouts exceeding max completion length
+
+### Critical Failure Modes and Fixes
+
+**Completion length blowup**: Agent produces increasingly long gibberish → accuracy collapse [source:bespokelabs:improving-multi-turn-tool-use-with-reinf].
+- **Failed**: Dr.GRPO, gibberish penalties (GPT-4o-mini), removing KL entirely
+- **Worked**: Overlong filtering + small KL ($\beta=0.001$)
+
+**Reward hacking**: Complex rewards (tool counts, format checks) worsened stability. **"Less is more"**: binary correctness-only reward yielded best performance [source:bespokelabs:improving-multi-turn-tool-use-with-reinf].
+
+**Reference model dynamics**: Updating reference every 100 steps boosted performance. Hypothesis: stronger policy needs stronger reference to prevent KL from pulling toward initial low-performing state [source:bespokelabs:improving-multi-turn-tool-use-with-reinf].
+
+### Exploration Horizon Effects
+
+- TextWorld: Performance saturates beyond **8 exploration steps** (for 4-step optimal solutions) [source:arxiv:2510.01132]
+- SWE-Gym: Increasing tool calls from 10 → 40 increased success 3% → 22% [source:arxiv:2510.01132]
 
 ## Current Status and Trajectory
 
-### Rising Techniques
-1. **Verbal Reinforcement Learning (Reflexion)**:
-   - **Status**: Rapidly gaining traction for iterative improvement in reasoning and decision-making tasks.
-   - **Evidence**: Reflexion achieves a 97% success rate on ALFWorld after 12 trials and 91% pass@1 on HumanEval (Python), surpassing GPT-4 [source:arxiv:2303.11366]. Self-rewarding models show monotonic improvements on AlpacaEval 2.0 (9.94% → 20.44% win rate over 3 iterations) [source:arxiv:2401.10020].
-   - **Trajectory**: Likely to become a default for tasks requiring multi-turn interaction (e.g., coding, embodied agents). Key challenges include memory management and safety.
-
-2. **Search-Augmented Reasoning (ToT)**:
-   - **Status**: Emerging as a powerful paradigm for deliberate problem-solving, particularly in mathematical reasoning and planning.
-   - **Evidence**: ToT achieves a 74% success rate on Game of 24 (vs. 4% for CoT) and 20% game-level success on 5×5 mini crosswords (vs. 0% for CoT) [source:arxiv:2305.10601].
-   - **Trajectory**: Expected to grow in domains where LMs struggle with systematic exploration (e.g., theorem proving, multi-step QA). Computational cost remains a barrier.
-
-3. **Self-Supervised Tool Learning (Toolformer)**:
-   - **Status**: Early-stage but promising for scaling tool use without human annotations.
-   - **Evidence**: Toolformer outperforms GPT-3 on factual lookup (33.8% vs. GPT-3’s reported scores on SQuAD) and mathematical reasoning (40.4% vs. 14.0% on ASDiv) [source:arxiv:2302.04761].
-   - **Trajectory**: Likely to expand as LMs grow larger and tool ecosystems (e.g., APIs, calculators) become more standardized. Key challenges include sample efficiency and tool chaining.
-
-### Default Techniques
-1. **ReAct (Reasoning + Acting)**:
-   - **Status**: Currently the most widely adopted paradigm for multi-turn tool use, due to its simplicity and few-shot applicability.
-   - **Evidence**: ReAct achieves a 71% success rate on ALFWorld (vs. 45% for Act-only) and 40% on WebShop (vs. 29.1% for IL) [source:arxiv:2210.03629].
-   - **Trajectory**: Likely to remain a default for interactive tasks, but may be supplanted by more scalable methods (e.g., Toolformer) or iterative methods (e.g., Reflexion).
-
-2. **LLM-as-a-Judge**:
-   - **Status**: Increasingly used for reward modeling and evaluation, particularly in self-improving systems.
-   - **Evidence**: Self-rewarding models improve pairwise accuracy against human rankings from 65.1% to 81.7% over 3 iterations [source:arxiv:2401.10020].
-   - **Trajectory**: Expected to become a standard component of RLHF pipelines, though concerns about bias and reliability persist.
-
-### Fading Techniques
-1. **Static Reward Models**:
-   - **Status**: Declining as a standalone approach due to scalability limitations.
-   - **Evidence**: Self-rewarding models outperform static reward models on AlpacaEval 2.0 (20.44% vs. 9.94% win rate) [source:arxiv:2401.10020].
-   - **Trajectory**: Likely to be replaced by dynamic, self-improving reward models (e.g., generative verifiers, LLM-as-a-Judge).
-
-### Disagreements and Open Questions
-1. **Search vs. Memory**:
-   - **A (ToT)**: Argues that search-augmented reasoning (e.g., BFS/DFS) is necessary for deliberate problem-solving [source:arxiv:2305.10601].
-   - **B (Reflexion)**: Counters that episodic memory (e.g., self-reflection) is sufficient for iterative improvement, without explicit search [source:arxiv:2303.11366].
-   - **Z (Settling)**: A hybrid approach (e.g., search-augmented memory) could resolve this, but no source currently reports such a method.
-
-2. **Self-Improvement Limits**:
-   - **A (Self-Rewarding Models)**: Claims that iterative self-improvement can surpass human performance ceilings [source:arxiv:2401.10020].
-   - **B (Alignment Tax)**: Notes that self-improvement may plateau due to reward hacking or alignment tax, though this is not explicitly stated in the provided sources.
-   - **Z (Settling)**: Longitudinal studies with >3 iterations are needed to determine scaling laws.
-
-3. **Tool Chaining**:
-   - **A (Toolformer)**: States that tool chaining (using one tool’s output as another’s input) is not supported due to independent sampling [source:arxiv:2302.04761].
-   - **B (ReAct)**: Implicitly supports tool chaining via interleaved reasoning and acting [source:arxiv:2210.03629].
-   - **Z (Settling)**: A unified framework for explicit tool chaining remains an open challenge.
-
----
+Agentic RL is **rising rapidly but remains pre-standardization**. The POMDP formalism and credit assignment taxonomy are widely cited [source:arxiv:2509.02547][source:arxiv:2604.09459], and production systems (Perplexity [source:research:advancing-search-augmented-language-mode], OpenAI Deep Research [source:arxiv:2509.02547]) demonstrate competitive performance on benchmarks like BrowseComp (51.5% pass@1 for Deep Research) and FRAMES/Facts Open. However, **no single algorithmic recipe has emerged as default**: PPO dominates the Practitioner's Guide's controlled study [source:arxiv:2510.01132], while GRPO powers most search-agent deployments [source:research:advancing-search-augmented-language-mode][source:bespokelabs:improving-multi-turn-tool-use-with-reinf]. The field is fragmented by **evaluation fragmentation**—no shared agentic benchmarks enable systematic comparison [source:arxiv:2604.09459]—and **environment constraints** (API costs, stochasticity, partial observability) that prevent clean ablation. Credit assignment research is shifting from token-level (reasoning RL) to turn-level and hierarchical methods (agentic RL), but **computational overhead of MC methods and bias of LLM critics remain unresolved**. Not widely reported: any large-scale comparison of PPO vs GRPO vs newer methods (GiGPO, CARL, IGPO) on identical agentic benchmarks with identical compute budgets.
 
 ## Key Takeaways
-- **Agentic RL** enables LMs to dynamically interact with environments by formalizing tool use as a sequential decision process. Core challenges include multi-turn interaction, exploration in high-dimensional discrete spaces, and scalable reward modeling.
-- **Multi-turn tool use** is dominated by architectures like ReAct (interleaving reasoning and acting), Toolformer (self-supervised tool learning), Reflexion (verbal reinforcement learning), and ToT (search-augmented reasoning). Each has trade-offs in scalability, sample efficiency, and task generality.
-- **Credit assignment** remains an open problem for long-horizon tasks, with solutions including shaping rewards, verbal feedback, and counterfactual methods.
-- **Search-augmented RL** (e.g., ToT) improves exploration but incurs high computational costs. Verbal reinforcement (e.g., Reflexion) offers a lightweight alternative for iterative improvement.
-- **Self-improving systems** (e.g., self-rewarding models) show promise for surpassing human performance ceilings, but risks include reward hacking and alignment tax.
-- **Current trajectory**: Verbal reinforcement and search-augmented reasoning are rising, while static reward models are fading. Disagreements persist around the necessity of search vs. memory and the limits of self-improvement.
 
----
+- **Formalism shift**: Agentic RL = POMDP with split action space ($\mathcal{A}_{\text{text}} \cup \mathcal{A}_{\text{action}}$), discounted cumulative reward, partial observability—fundamentally distinct from PBRFT's $T=1$ MDP [source:arxiv:2509.02547].
+- **Credit assignment is the core bottleneck**: Trajectories of 100K–1M tokens with stochastic transitions, non-verifiable intermediates, and action heterogeneity make episode-level methods (GRPO) prone to "echo trap" [source:arxiv:2604.09459].
+- **Reward density matters critically**: Execution-verified dense rewards (22%) dramatically outperform sparse binary (4.2%) and model-based judges (7–9%) on complex coding tasks [source:arxiv:2510.01132], but binary rewards suffice for discrete API-calling benchmarks [source:bespokelabs:improving-multi-turn-tool-use-with-reinf].
+- **Curriculum + SFT initialization + stabilized PPO** is the Practitioner's Guide's winning recipe for TextWorld/ALFWorld/SWE-Gym; **SFT→GRPO with gated rewards + token-level IS** is Perplexity's production recipe for web search [source:arxiv:2510.01132][source:research:advancing-search-augmented-language-mode].
+- **Turn-level CA methods (AgentPRM, CARL, IGPO) show large efficiency gains** (8× sample efficiency, 72% fewer updates) over token-level reasoning RL methods when transferred to agentic settings [source:arxiv:2604.09459].
+- **Practical stability requires**: overlong filtering, small KL with periodic reference updates, minimal reward complexity, and synthetic verifiable data pipelines [source:bespokelabs:improving-multi-turn-tool-use-with-reinf][source:research:advancing-search-augmented-language-mode].
 
 ## Related Topics
-- [[RL for reasoning models]]
-- [[Policy gradient methods for LLMs]]
-- [[Reward modeling for LLMs]]
-- [[KL regularization in RLHF]]
-- [[MDP formulation of LLM generation]]
-- [[RL for LLMs — overview]]
-- [[Process vs outcome reward models]]
-- [[Reward hacking in RLHF]]
-- [[Reward model over-optimization]]
-- [[Entropy and exploration in RL fine-tuning]]
-- [[Over-optimization and mode collapse]]
-- [[LLM-as-judge]]
-- [[Alignment and win-rate evals]]
-- [[Test-time compute and RL interplay]]
 
----
-
-##
+- [PPO for LLM fine-tuning (RLHF)](ppo-for-llms.md)
+- [GRPO (Group Relative Policy Optimization)](grpo.md)
+- [RL for reasoning models](rl-for-reasoning.md)
+- [Policy gradient methods for LLMs](policy-gradient-methods.md)
+- [MDP formulation of LLM generation](mdp-formulation.md)
+- [Verifiable rewards (RLVR)](verifiable-rewards.md)
+- [RL for math and code](rl-for-math-and-code.md)
+- [Test-time compute and RL interplay](test-time-and-rl-interplay.md)
+- [Reward modeling for LLMs](reward-modeling.md)
+- [Process vs outcome reward models](process-vs-outcome-rewards.md)
+- [Reward hacking in RLHF](reward-hacking.md)
+- [Entropy and exploration in RL fine-tuning](entropy-and-exploration.md)
+- [Distributed RL training for LLMs](distributed-rl-training.md)
+- [Async and off-policy RL](async-and-off-policy-rl.md)
+- [Rollout generation infrastructure](rollout-generation-infra.md)
 
 ## References
-- [source:arxiv:1905.09836] [Learning to Use Tools via Reinforcement Learning](https://arxiv.org/abs/1905.09836)
-- [source:arxiv:2210.03629] [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629)
-- [source:arxiv:2302.04761] [Toolformer: Language Models Can Teach Themselves to Use Tools](https://arxiv.org/abs/2302.04761)
-- [source:arxiv:2303.11366] [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)
-- [source:arxiv:2305.10601] [Tree of Thoughts: Deliberate Problem Solving with Large Language Models](https://arxiv.org/abs/2305.10601)
-- [source:arxiv:2406.11903] [Generative Verifiers for Reinforcement Learning](https://arxiv.org/abs/2406.11903)
-- [source:arxiv:2401.10020] [Self-Rewarding Language Models](https://arxiv.org/abs/2401.10020)
-- [source:arxiv:2406.13479] [Reasoning with Reinforcement Learning](https://arxiv.org/abs/2406.13479)
+- [source:arxiv:2510.01132] [A Practitioner's Guide to Multi-turn Agentic Reinforcement Learning](https://arxiv.org/html/2510.01132v1)
+- [source:arxiv:2509.02547] [The Landscape of Agentic Reinforcement Learning for LLMs: A Survey](https://arxiv.org/abs/2509.02547)
+- [source:arxiv:2604.09459] [From Reasoning to Agentic: Credit Assignment in Reinforcement Learning for Large Language Models](https://arxiv.org/html/2604.09459v1)
+- [source:alphaxiv:triage-role-typed-credit-assignment-for-] [TRIAGE: Role-Typed Credit Assignment for Agentic Reinforcement Learning](https://www.alphaxiv.org/abs/2606.32017)
+- [source:github:awesome-rl-based-agentic-search-papers] [Awesome-RL-based-Agentic-Search-Papers](https://github.com/ventr1c/Awesome-RL-based-Agentic-Search-Papers)
+- [source:research:advancing-search-augmented-language-mode] [Advancing Search-Augmented Language Models](https://research.perplexity.ai/articles/advancing-search-augmented-language-models)
+- [source:bespokelabs:improving-multi-turn-tool-use-with-reinf] [Improving Multi-Turn Tool Use with Reinforcement Learning](https://bespokelabs.ai/blog/improving-multi-turn-tool-use-with-reinforcement-learning)

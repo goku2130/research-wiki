@@ -127,7 +127,7 @@ topics:
 - slug: agentic-and-tool-use-rl
   title: Agentic and tool-use RL
   notes: Multi-turn tool use, search-augmented RL, credit assignment
-  status: empty
+  status: done
 - slug: test-time-and-rl-interplay
   title: Test-time compute and RL interplay
   notes: Search + RL, inference scaling, MCTS-guided decoding
