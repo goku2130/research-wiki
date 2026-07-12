@@ -1,7 +1,7 @@
 ---
 title: Entropy and exploration in RL fine-tuning
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - arxiv:2604.13902
 - machinelearning:entropy-preserving-reinforcement-learnin
@@ -18,17 +18,14 @@ sources:
 - arxiv:1906.02138
 - arxiv:2010.04816
 open_questions:
-- How do global vs. episodic exploration bonuses map to LLM fine-tuning where "contexts"
-  are prompts, reasoning paths, or tasks? Can multiplicative combination of token-level
-  (episodic) and trajectory-level (global) bonuses improve RLVR?
-- Can VBE-style first-visit optimism via ensemble value errors be adapted to LLM policy
-  optimization, where "value" is estimated by a reward model or verifier?
-- Does the mellowmax operator (MEMEC) offer advantages over adaptive temperature sampling
-  (SCOPE-RL) for LLM exploration, particularly its non-expansion guarantee?
-- The batch RL regularization unification (discount factor ↔ Bayesian prior ↔ ε-greedy)
-  suggests KL regularization, entropy bonuses, and sampling strategies in LLMs may
-  be mathematically equivalent transition-matrix smoothing. Can this be formalized
-  for LLM policy spaces?
+- Can adaptive entropy control methods (SCOPE-RL, DiPO, REPO/ADAPO) be combined without
+  interference, or do their mechanisms conflict?
+- What is the optimal target entropy $\mathcal{H}_0$ for different model scales and
+  task types, and can it be learned online?
+- Do diversity-preserving $f$-divergences (forward-KL, JS) scale to LLM policy spaces
+  without prohibitive compute?
+- How do global vs. episodic exploration bonuses map to prompt-level vs. token-level
+  exploration in RLVR?
 ---
 
 Entropy collapse and diversity loss are central failure modes in RL fine-tuning of LLMs, where policy optimization drives distributions toward deterministic, low-support solutions that degrade multi-sample performance and generalization. Modern methods address this through adaptive entropy control, perplexity-disentanglement, and diversity-preserving objectives that explicitly target the exploration–exploitation trade-off at both token and trajectory levels.
@@ -52,15 +49,15 @@ In personalized meta-reinforcement learning settings where entities share state/
 
 Classical exploration methods in RL are taxonomized by whether they operate in the **collect phase** (interacting with the environment) or the **train phase** (updating the policy) [source:github:awesome-exploration-methods-in-reinforce]. For LLM fine-tuning, the most relevant categories are:
 
-| Phase | Category | Mechanism | LLM Adaptation |
-|-------|----------|-----------|----------------|
-| Collect | Action Selection Perturbation | Noise/randomness in action choices | Temperature sampling, nucleus sampling |
-| Collect | Action Selection Guidance | Heuristics/signals to guide choices | Process reward models, verifier-guided decoding |
-| Collect | State Selection Guidance | Directing agent to novel/high-value states | Prompt selection, curriculum learning |
-| Train | Count Based | Visit counts for rarely visited states | N-gram diversity penalties, trajectory deduplication |
-| Train | Prediction Based | Prediction errors as intrinsic rewards (RND, ICM) | Model disagreement, uncertainty quantification |
-| Train | Entropy Augmented | Entropy terms in objective (e.g., SAC) | Entropy bonuses, KL regularization |
-| Train | Information Theory Based | Empowerment, mutual information | Diversity rewards, determinantal point processes |
+| Phase | Category | Mechanism |
+|-------|----------|-----------|
+| Collect | Action Selection Perturbation | Noise/randomness in action choices |
+| Collect | Action Selection Guidance | Heuristics/signals to guide choices |
+| Collect | State Selection Guidance | Directing agent to novel/high-value states |
+| Train | Count Based | Visit counts for rarely visited states |
+| Train | Prediction Based | Prediction errors as intrinsic rewards (RND, ICM) |
+| Train | Entropy Augmented | Entropy terms in objective (e.g., SAC) |
+| Train | Information Theory Based | Empowerment, mutual information |
 
 Recent trends (2025–2026) emphasize **LLM-based exploration**: "exploration hacking" in LLMs, rubric-scaffolded RL for reasoning, and latent exploration decoding for large reasoning models [source:github:awesome-exploration-methods-in-reinforce]. Advanced intrinsic motivation now includes diffusion models for unsupervised RL, spectral Bellman methods, and graph-theoretic intrinsic rewards based on effective resistance [source:github:awesome-exploration-methods-in-reinforce].
 
@@ -170,7 +167,7 @@ Other algorithmic remedies for exploration collapse include:
 
 ## Current Status and Trajectory
 
-Entropy and diversity control in RL fine-tuning is a **rising, actively researched area** with multiple competing frameworks rather than a settled default. SCOPE-RL [source:arxiv:2510.08141] and DiPO [source:arxiv:2604.13902] represent 2025–2026 advances targeting GRPO/DAPO pipelines specifically, while REPO/ADAPO [source:machinelearning:entropy-preserving-reinforcement-learnin] and the diversity-preservation suite (DS, MARA, DPH-RL, DvD, PFO) [source:emergentmind:diversity-collapse-in-rl-emergent-mind] offer broader algorithmic templates. The field has not converged on a single standard: entropy bonuses remain common but are known to cause instability (oscillation between collapse and explosion) [source:arxiv:2510.08141]; asymmetric clipping helps but lacks adaptive control [source:arxiv:2510.08141]; perplexity-based disentanglement (DiPO) shows promise but lacks strict theoretical guarantees [source:arxiv:2604.13902]. The taxonomy of exploration methods continues to expand, with LLM-specific adaptations (latent exploration decoding, rubric-scaffolded RL) appearing in 2025–2026 literature [source:github:awesome-exploration-methods-in-reinforce]. **Not widely reported** is large-scale ablation comparing these methods under identical compute/data budgets; most papers compare against GRPO/DAPO baselines rather than each other. Theoretical convergence guarantees for support-preserving regularization in high-dimensional LLM policy spaces remain **not established** [source:emergentmind:exploration-collapse-in-reinforcement-le; emergentmind:diversity-collapse-in-rl-emergent-mind].
+Entropy and diversity control in RL fine-tuning is a **rising, actively researched area** with multiple competing frameworks rather than a settled default. SCOPE-RL [source:arxiv:2510.08141] and DiPO [source:arxiv:2604.13902] represent 2025–2026 advances targeting GRPO/DAPO pipelines specifically, while REPO/ADAPO [source:machinelearning:entropy-preserving-reinforcement-learnin] and the diversity-preservation suite (DS, MARA, DPH-RL, DvD, PFO) [source:emergentmind:diversity-collapse-in-rl-emergent-mind] offer broader algorithmic templates. The field has not converged on a single standard: entropy bonuses remain common but are known to cause instability (oscillation between collapse and explosion) [source:arxiv:2510.08141]; asymmetric clipping is an existing remedy that can cause unstable training dynamics, while SCOPE-RL introduces adaptive control [source:arxiv:2510.08141]; perplexity-based disentanglement (DiPO) shows promise but lacks strict theoretical guarantees [source:arxiv:2604.13902]. The taxonomy of exploration methods continues to expand, with LLM-specific adaptations (latent exploration decoding, rubric-scaffolded RL) appearing in 2025–2026 literature [source:github:awesome-exploration-methods-in-reinforce]. **Not widely reported** is large-scale ablation comparing these methods under identical compute/data budgets; most papers compare against GRPO/DAPO baselines rather than each other. Theoretical convergence guarantees for support-preserving regularization in high-dimensional LLM policy spaces remain **not established** [source:emergentmind:exploration-collapse-in-reinforcement-le; emergentmind:diversity-collapse-in-rl-emergent-mind].
 
 **New findings from 2019–2026 RL literature** contextualize LLM fine-tuning challenges: 
 - Global vs. episodic bonus trade-offs in CMDPs [source:arxiv:2306.03236] mirror the token-level vs. trajectory-level exploration tension in LLMs, where "contexts" correspond to prompts or reasoning paths.

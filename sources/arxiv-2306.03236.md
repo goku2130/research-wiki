@@ -3,7 +3,7 @@ id: arxiv:2306.03236
 type: paper
 title: A Study of Global and Episodic Bonuses for Exploration in Contextual MDPs
 url: https://arxiv.org/abs/2306.03236
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: entropy-and-exploration
 ---

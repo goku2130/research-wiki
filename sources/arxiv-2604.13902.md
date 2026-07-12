@@ -3,7 +3,7 @@ id: arxiv:2604.13902
 type: paper
 title: 'DiPO: Disentangled Perplexity Policy Optimization for Fine-grained Fine-tuning'
 url: https://arxiv.org/html/2604.13902v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: entropy-and-exploration
 ---

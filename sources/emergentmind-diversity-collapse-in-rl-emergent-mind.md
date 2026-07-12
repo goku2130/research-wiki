@@ -3,7 +3,7 @@ id: emergentmind:diversity-collapse-in-rl-emergent-mind
 type: web
 title: Diversity Collapse in RL (Emergent Mind)
 url: https://www.emergentmind.com/topics/diversity-collapse-in-rl
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: entropy-and-exploration
 ---

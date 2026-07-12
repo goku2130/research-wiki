@@ -3,7 +3,7 @@ id: machinelearning:entropy-preserving-reinforcement-learnin
 type: web
 title: Entropy-Preserving Reinforcement Learning
 url: https://machinelearning.apple.com/research/entropy-preserving-reinforcement-learning
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: entropy-and-exploration
 ---

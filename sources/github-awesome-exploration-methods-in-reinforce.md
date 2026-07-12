@@ -3,7 +3,7 @@ id: github:awesome-exploration-methods-in-reinforce
 type: web
 title: Awesome Exploration Methods in Reinforcement Learning (GitHub)
 url: https://github.com/opendilab/awesome-exploration-rl
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: entropy-and-exploration
 ---

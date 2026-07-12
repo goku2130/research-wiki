@@ -4,7 +4,7 @@ type: paper
 title: 'Legged Robots that Keep on Learning: Fine-Tuning Locomotion Policies in the
   Real World'
 url: https://arxiv.org/abs/2110.05457
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: entropy-and-exploration
 ---

@@ -3,7 +3,7 @@ id: arxiv:2510.08141
 type: paper
 title: Entropy Is Controllable in Reinforcement Fine-tuning
 url: https://arxiv.org/html/2510.08141v3
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: entropy-and-exploration
 ---

@@ -4,7 +4,7 @@ type: paper
 title: Comparison and Unification of Three Regularization Methods in Batch Reinforcement
   Learning
 url: https://arxiv.org/abs/2109.08134
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: entropy-and-exploration
 ---

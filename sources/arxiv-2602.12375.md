@@ -3,7 +3,7 @@ id: arxiv:2602.12375
 type: paper
 title: Value Bonuses using Ensemble Errors for Exploration in Reinforcement Learning
 url: https://arxiv.org/abs/2602.12375
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: entropy-and-exploration
 ---

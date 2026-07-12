@@ -3,7 +3,7 @@ id: arxiv:1906.02138
 type: paper
 title: Exploration with Unreliable Intrinsic Reward in Multi-Agent Reinforcement Learning
 url: https://arxiv.org/abs/1906.02138
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: entropy-and-exploration
 ---

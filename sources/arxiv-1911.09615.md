@@ -4,7 +4,7 @@ type: paper
 title: Sample-Efficient Reinforcement Learning with Maximum Entropy Mellowmax Episodic
   Control
 url: https://arxiv.org/abs/1911.09615
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: entropy-and-exploration
 ---

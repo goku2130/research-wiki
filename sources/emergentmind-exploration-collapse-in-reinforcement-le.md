@@ -3,7 +3,7 @@ id: emergentmind:exploration-collapse-in-reinforcement-le
 type: web
 title: Exploration Collapse in Reinforcement Learning (Emergent Mind)
 url: https://www.emergentmind.com/topics/exploration-collapse
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: entropy-and-exploration
 ---
