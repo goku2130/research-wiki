@@ -3,7 +3,7 @@ id: arxiv:1906.08850
 type: paper
 title: Implicitly Adaptive Importance Sampling
 url: https://arxiv.org/abs/1906.08850
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: async-and-off-policy-rl
 ---

@@ -4,7 +4,7 @@ type: paper
 title: Asynchronous Stochastic Approximation with Applications to Average-Reward Reinforcement
   Learning
 url: https://arxiv.org/abs/2409.03915
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: async-and-off-policy-rl
 ---

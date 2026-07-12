@@ -3,7 +3,7 @@ id: arxiv:2512.06547
 type: paper
 title: 'A-3PO: Accelerating Asynchronous LLM Training with Asynchronous Policy Optimization'
 url: https://arxiv.org/html/2512.06547v2
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: async-and-off-policy-rl
 ---

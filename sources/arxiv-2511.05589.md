@@ -4,7 +4,7 @@ type: paper
 title: 'CoPRIS: Efficient and Stable Reinforcement Learning via Concurrency-Controlled
   Partial Rollout with Importance Sampling'
 url: https://arxiv.org/abs/2511.05589
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: async-and-off-policy-rl
 ---

@@ -4,7 +4,7 @@ type: paper
 title: Unleashing Efficient Asynchronous RL Post-Training via Staleness-Constrained
   Rollout Coordination
 url: https://arxiv.org/abs/2601.12784
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: async-and-off-policy-rl
 ---

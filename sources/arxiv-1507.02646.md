@@ -3,7 +3,7 @@ id: arxiv:1507.02646
 type: paper
 title: Pareto Smoothed Importance Sampling
 url: https://arxiv.org/abs/1507.02646
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: async-and-off-policy-rl
 ---

@@ -3,7 +3,7 @@ id: arxiv:1602.01783
 type: paper
 title: Asynchronous Methods for Deep Reinforcement Learning (A3C)
 url: https://arxiv.org/abs/1602.01783
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: async-and-off-policy-rl
 ---

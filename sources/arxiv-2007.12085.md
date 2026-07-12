@@ -3,7 +3,7 @@ id: arxiv:2007.12085
 type: paper
 title: 'Importance Sampling in Off-Policy Reinforcement Learning: A Survey'
 url: https://arxiv.org/abs/2007.12085
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: async-and-off-policy-rl
 ---

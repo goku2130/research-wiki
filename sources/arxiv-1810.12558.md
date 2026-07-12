@@ -4,7 +4,7 @@ type: paper
 title: Relative Importance Sampling for off-Policy Actor-Critic in Deep Reinforcement
   Learning
 url: https://arxiv.org/abs/1810.12558
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: async-and-off-policy-rl
 ---

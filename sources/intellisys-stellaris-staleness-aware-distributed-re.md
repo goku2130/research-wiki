@@ -4,7 +4,7 @@ type: web
 title: 'Stellaris: Staleness-Aware Distributed Reinforcement Learning with Adaptive
   Rollout Control'
 url: https://intellisys.haow.us/assets/pdf/SC41406.2024.00045.pdf
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: async-and-off-policy-rl
 ---

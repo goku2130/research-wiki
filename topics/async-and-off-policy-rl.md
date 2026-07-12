@@ -1,7 +1,7 @@
 ---
 title: Async and off-policy RL
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - intellisys:stellaris-staleness-aware-distributed-re
 - arxiv:2007.12085
@@ -16,29 +16,21 @@ sources:
 - arxiv:2409.03915
 - arxiv:1906.08850
 open_questions:
-- 'Unified bias-variance theory for staleness distributions**: No existing work provides
-  a bias-variance decomposition that accounts for the *full distribution* of policy-lag
-  (variance, skew, correlation with advantage magnitude) rather than just mean staleness.
-  Can we derive a generalized "staleness-aware" policy gradient theorem?'
-- 'PSIS diagnostics in production async RL**: The PSIS $\hat{k}$ diagnostic [source:arxiv:1507.02646]
-  is standard in Bayesian workflows but unused in RL off-policy monitoring. Could
-  real-time $\hat{k}$ tracking trigger dynamic truncation, buffer flushing, or rollout
-  interruption?'
-- 'Multi-node async distillation scaling**: AsyncOPD [source:arxiv:2606.24143] is
-  validated on a single 8-GPU node. How do teacher-cache constraints, support mismatch,
-  and multi-sample MC variance scale in disaggregated multi-node clusters with network
-  latency?'
-- 'Optimal concurrency control under memory constraints**: CoPRIS [source:arxiv:2511.05589]
-  uses fixed $N''$; StaleFlow [source:arxiv:2601.12784] uses cost-model-driven routing.
-  Can we derive a principled dynamic concurrency policy that balances GPU utilization,
-  KV cache memory, and recomputation overhead?'
+- Can PSIS $\hat{k}$ diagnostics be integrated into async RL training loops for dynamic
+  truncation or buffer management?
+- What is the bias-variance decomposition for *staleness distributions* (not just
+  mean staleness) in LLM-scale async RL?
+- How do communication delays in distributed LLM training affect the convergence guarantees
+  of async SA theory?
+- Can multi-sample MC support caching in AsyncOPD scale to multi-node clusters with
+  efficient teacher-score transfer?
 ---
 
 Async and off-policy reinforcement learning addresses the fundamental tension between sample efficiency and hardware utilization: decoupling environment interaction (rollouts) from gradient computation enables massive throughput but introduces policy-lag, where the behavior policy generating data diverges from the target policy being optimized. This divergence necessitates off-policy corrections—primarily importance sampling (IS)—whose design dictates the bias-variance trade-off, stability, and ultimate scalability of distributed RL systems.
 
 ## The decoupled actor-learner paradigm and the policy-lag problem
 
-Classical on-policy algorithms (e.g., A3C [source:arxiv:1602.01783]) run multiple actor-learners on a shared CPU parameter server, synchronizing gradients after every $t_{\text{max}}$ steps. This avoids experience replay but limits throughput to CPU speeds and forces synchronization. IMPALA [source:arxiv:1802.01561] broke this coupling: actors pull the latest target policy $\pi$ from a centralized GPU learner, run $n$-step trajectories under their local behavior policy $\mu$, and push trajectories (states, actions, rewards, $\mu(a|x)$, initial LSTM states) into a queue. The learner consumes minibatches asynchronously, parallelizing time-independent forward passes (e.g., convolutions over all steps) via XLA/cuDNN. This achieves **250,000 frames/sec**—over **30× A3C**—but creates *policy-lag*: $\mu$ is stale relative to $\pi$, making data off-policy. If uncorrected, the policy gradient $\nabla_\omega J \approx \mathbb{E}_{\mu}[\nabla \log \pi (R - V)]$ converges to a biased fixed point or diverges [source:arxiv:1802.01561].
+Classical on-policy algorithms (e.g., A3C [source:arxiv:1602.01783]) run multiple actor-learners on a shared CPU parameter server, synchronizing gradients after every $t_{\text{max}}$ steps. This avoids experience replay but limits throughput to CPU speeds and forces synchronization. IMPALA [source:arxiv:1802.01561] broke this coupling: actors pull the latest target policy $\pi$ from a centralized GPU learner, run $n$-step trajectories under their local behavior policy $\mu$, and push trajectories (states, actions, rewards, $\mu(a|x)$, initial LSTM states) into a queue. The learner consumes minibatches asynchronously, parallelizing time-independent forward passes (e.g., convolutions over all steps) via XLA/cuDNN. This achieves **250,000 frames/sec**—over **30× A3C**—but creates *policy-lag*: $\mu$ is stale relative to $\pi$, making data off-policy. If uncorrected, this off-policy lag can lead to instability and reduced data efficiency [source:arxiv:1802.01561].
 
 ## V-trace: truncated importance sampling for actor-critic
 
@@ -57,7 +49,7 @@ v_s = V(x_s) + \sum_{t=s}^{s+n-1} \gamma^{t-s} \Bigl(\prod_{i=s}^{t-1} c_i\Bigr)
 \delta V_t = \rho_t\bigl(r_t + \gamma V(x_{t+1}) - V(x_t)\bigr).
 $$
 
-The policy gradient uses $\rho_\pi \nabla \log \pi (r_s + \gamma v_{s+1} - V(x_s))$. The truncation $\bar{c}$ reduces variance without changing the fixed point; $\bar{\rho}$ *does* change the fixed point: with finite $\bar{\rho}$, V-trace converges to $V^{\pi_\rho}$ where $\pi_\rho$ lies between $\mu$ and $\pi$, not $V^\pi$ [source:arxiv:1802.01561]. This bias-variance trade-off is explicit: $\bar{\rho}=1$ (no IS correction) yields low-variance but biased updates toward $\mu$; $\bar{\rho}=\infty$ is unbiased but high-variance. IMPALA used $\bar{\rho}=1, \bar{c}=1$ in practice, accepting bias for stability at scale.
+The policy gradient uses $\rho_\pi \nabla \log \pi (r_s + \gamma v_{s+1} - V(x_s))$. The truncation $\bar{c}$ reduces variance without changing the fixed point; $\bar{\rho}$ *does* change the fixed point: with finite $\bar{\rho}$, V-trace converges to $V^{\pi_\rho}$ where $\pi_\rho$ lies between $\mu$ and $\pi$, not $V^\pi$ [source:arxiv:1802.01561]. This bias-variance trade-off is explicit: $\bar{\rho}=1$ (no IS correction) yields low-variance but biased updates toward $\mu$; $\bar{\rho}=\infty$ is unbiased but high-variance. IMPALA used finite truncation values in practice, accepting bias for stability at scale.
 
 **Disagreement on truncation strategy**: A3C [source:arxiv:1602.01783] avoids IS entirely by synchronizing frequently (shared RMSProp, 16-thread CPU), accepting lower throughput. IMPALA [source:arxiv:1802.01561] embraces asynchrony and truncates aggressively. Stellaris [source:intellisys:stellaris-staleness-aware-distributed-re] argues that in *multi-learner* async settings, per-learner IS ratios are insufficient because each learner's $\pi_{\theta_i}$ drifts differently; they propose a **global IS truncation** across all learners:
 
@@ -146,18 +138,18 @@ The convergence of async RL algorithms is grounded in asynchronous stochastic ap
 | Method | Setting | Throughput gain | Key stability mechanism | Reported performance |
 |--------|---------|-----------------|-------------------------|----------------------|
 | A3C [source:arxiv:1602.01783] | 16-core CPU, Atari | Baseline (4 days) | Frequent sync, shared RMSProp, entropy reg. | 112.6% median human-norm |
-| IMPALA [source:arxiv:1802.01561] | GPU learner + CPU actors, DMLab-30/Atari-57 | **30× A3C** (250k fps) | V-trace ($\bar{\rho}=1,\bar{c}=1$) | 49.4% DMLab-30, 59.7% Atari-57 median |
+| IMPALA [source:arxiv:1802.01561] | GPU learner + CPU actors, DMLab-30/Atari-57 | **30× A3C** (250k fps) | V-trace (finite truncation) | 49.4% DMLab-30, 59.7% Atari-57 median |
 | A-3PO [source:arxiv:2512.06547] | LLM (Qwen3-8B), math reasoning | **1.8× sync GRPO** | Staleness-interpolated $\pi_{\text{prox}}$ | AIME24 66.67%, MATH500 66.60% |
 | Stellaris [source:intellisys:stellaris-staleness-aware-distributed-re] | Serverless multi-learner, MuJoCo/Atari | **41% cost reduction** | Global IS truncation + adaptive $\beta_k$ + $\alpha_c$ | 2.2× rewards vs. SOTA baselines |
 | StaleFlow [source:arxiv:2601.12784] | 128-GPU H20, Qwen3-30B-A3B/Qwen2.5-32B | **1.42–2.68×** vs VeRL (sync) | Virtual staleness buffer ($\eta$), waterfall routing | Convergence preserved for $\eta\in[1,3]$ |
 | CoPRIS [source:arxiv:2511.05589] | LLM math reasoning, Distill-Qwen/Qwen3 | **1.58–1.94×** vs veRL (sync) | Fixed concurrency $N'$, buffered partial rollouts + IS | 53.68% vs 52.66% pass@1 (Distill-Qwen-7B) |
 | AsyncOPD [source:arxiv:2606.24143] | Qwen3-Base (1.7B–8B), distillation | **1.6–3.8×** sync | Forward-KL robustness, IS-corrected reverse-KL, multi-sample MC | Comparable accuracy, variance ↓ to 1.49% ($m=64$) |
 
-**Critical disagreement**: IMPALA's fixed truncation ($\bar{\rho}=1$) accepts a biased fixed point $V^{\pi_\rho}$ [source:arxiv:1802.01561]. A-3PO's adaptive $\alpha$ *also* biases toward $\pi_{\text{behav}}$ when $d$ is large (since $\pi_{\text{prox}}\to\pi_{\text{behav}}$), but the bias is *state-dependent* and annealed by the CLIP constraint. Stellaris avoids bias in the IS ratio by using the global minimum across learners, but introduces bias via *delayed aggregation* (gradients applied later than computed). CoPRIS and AsyncOPD use IS corrections that are asymptotically unbiased but introduce finite-sample variance; CoPRIS buffers partial trajectories across stages while AsyncOPD caches multi-sample MC supports. RIS [source:arxiv:1810.12558] offers a smooth interpolation via $\beta$ rather than hard truncation. No source provides a unified theory comparing these bias sources; the field lacks a bias-variance decomposition for *staleness distributions* (not just mean staleness).
+**Critical disagreement**: IMPALA's fixed truncation (with $\bar{\rho}<\infty$) accepts a biased fixed point $V^{\pi_\rho}$ [source:arxiv:1802.01561]. This article's analysis suggests that A-3PO's adaptive $\alpha$ also biases toward $\pi_{\text{behav}}$ when $d$ is large (since $\pi_{\text{prox}}\to\pi_{\text{behav}}$), but the bias is *state-dependent* and annealed by the CLIP constraint. This article's analysis suggests that Stellaris avoids bias in the IS ratio by using the global minimum across learners, but introduces bias via *delayed aggregation* (gradients applied later than computed). CoPRIS and AsyncOPD use IS corrections that are asymptotically unbiased but introduce finite-sample variance; CoPRIS buffers partial trajectories across stages while AsyncOPD caches multi-sample MC supports. RIS [source:arxiv:1810.12558] offers a smooth interpolation via $\beta$ rather than hard truncation. No source provides a unified theory comparing these bias sources; the field lacks a bias-variance decomposition for *staleness distributions* (not just mean staleness).
 
 ## Current status and trajectory
 
-**Rising for LLM post-training, fading for classic deep RL**. In classic deep RL (Atari, DMLab, MuJoCo), synchronous PPO/IMPALA-style async has been largely superseded by synchronous vectorized environments on GPU (e.g., IsaacGym, Brax) where simulation is fast enough to avoid CPU-GPU transfer bottlenecks. The *asynchronous actor-learner* pattern is now dominant in **LLM RLHF/RLAIF** where rollout generation (vLLM, SGLang) is orders of magnitude slower than gradient steps, making synchronous training prohibitively idle [source:arxiv:2512.06547]. A-3PO's proximal-policy approximation is **not yet widely reported** in production pipelines (most open-source frameworks—OpenRLHF, veRL, TRL—use synchronous or decoupled PPO with explicit proximal recompute), but its >3,000× component speedup makes it a strong candidate for adoption. Stellaris's serverless aggregation remains **not widely reported** outside the paper; serverless GPU support is still immature (the paper used custom Docker/NVIDIA runtime on EC2) [source:intellisys:stellaris-staleness-aware-distributed-re]. StaleFlow [source:arxiv:2601.12784] and CoPRIS [source:arxiv:2511.05589] represent the new generation of disaggregated LLM RL systems with explicit staleness bounds and concurrency control, but are **not yet integrated** into major open-source RLHF frameworks. AsyncOPD [source:arxiv:2606.24143] demonstrates async distillation at single-node scale; multi-node scaling is future work. The *concept* of staleness-aware aggregation (delay, learning-rate modulation) is influencing designs like **APPO** (Asynchronous PPO) in Ray RLlib and **Megatron-LM** async pipelines, but no standard has emerged. On the IS stabilization front, PSIS $\hat{k}$ diagnostics [source:arxiv:1507.02646] are standard in Bayesian workflows but **not widely adopted** in RL off-policy correction monitoring; RIS [source:arxiv:1810.12558] and IWMM [source:arxiv:1906.08850] remain primarily in the literature.
+**Rising for LLM post-training, fading for classic deep RL**. In classic deep RL (Atari, DMLab, MuJoCo), synchronous PPO/IMPALA-style async has been largely superseded by synchronous vectorized environments on GPU (e.g., IsaacGym, Brax) where simulation is fast enough to avoid CPU-GPU transfer bottlenecks. The *asynchronous actor-learner* pattern is now dominant in **LLM RLHF/RLAIF** where rollout generation is orders of magnitude slower than gradient steps, making synchronous training prohibitively idle. Stellaris's serverless aggregation remains **not widely reported** outside the paper; serverless GPU support is still immature (the paper used custom Docker/NVIDIA runtime on EC2) [source:intellisys:stellaris-staleness-aware-distributed-re]. StaleFlow [source:arxiv:2601.12784] and CoPRIS [source:arxiv:2511.05589] represent the new generation of disaggregated LLM RL systems with explicit staleness bounds and concurrency control. AsyncOPD [source:arxiv:2606.24143] demonstrates async distillation at single-node scale; multi-node scaling is future work. On the IS stabilization front, PSIS $\hat{k}$ diagnostics [source:arxiv:1507.02646] are standard in Bayesian workflows; RIS [source:arxiv:1810.12558] and IWMM [source:arxiv:1906.08850] remain primarily in the literature.
 
 ## Key takeaways
 
@@ -182,8 +174,6 @@ The convergence of async RL algorithms is grounded in asynchronous stochastic ap
 - [Reward modeling for LLMs](reward-modeling.md) — teacher scoring in AsyncOPD distillation
 - [Verifiable rewards (RLVR)](verifiable-rewards.md) — CoPRIS evaluation on math benchmarks with verifiable rewards
 - [Self-improvement and self-play RL](self-improvement-and-self-play.md) — iterative distillation loops related to AsyncOPD
-
-##
 
 ## References
 - [source:intellisys:stellaris-staleness-aware-distributed-re] [Stellaris: Staleness-Aware Distributed Reinforcement Learning with Adaptive Rollout Control](https://intellisys.haow.us/assets/pdf/SC41406.2024.00045.pdf)

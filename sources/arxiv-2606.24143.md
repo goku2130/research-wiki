@@ -3,7 +3,7 @@ id: arxiv:2606.24143
 type: paper
 title: 'AsyncOPD: How Stale Can On-Policy Distillation Be?'
 url: https://arxiv.org/abs/2606.24143
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: async-and-off-policy-rl
 ---
