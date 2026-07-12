@@ -3,7 +3,7 @@ id: cameronrwolfe:ppo-for-llms-a-guide-for-normal-people-c
 type: web
 title: 'PPO for LLMs: A Guide for Normal People (Cameron R. Wolfe)'
 url: https://cameronrwolfe.substack.com/p/ppo-llm
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlhf-ppo-pipeline
 ---

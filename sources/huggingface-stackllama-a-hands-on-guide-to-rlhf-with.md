@@ -3,7 +3,7 @@ id: huggingface:stackllama-a-hands-on-guide-to-rlhf-with
 type: web
 title: 'StackLLaMA: A hands-on guide to RLHF with LLaMA (Hugging Face)'
 url: https://huggingface.co/blog/stackllama
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlhf-ppo-pipeline
 ---

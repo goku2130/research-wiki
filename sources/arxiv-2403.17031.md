@@ -3,7 +3,7 @@ id: arxiv:2403.17031
 type: paper
 title: 'The N+ Implementation Details of RLHF with PPO: A Case ...'
 url: https://arxiv.org/abs/2403.17031
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlhf-ppo-pipeline
 ---

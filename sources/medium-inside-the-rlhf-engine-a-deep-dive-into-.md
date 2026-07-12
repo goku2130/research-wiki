@@ -3,7 +3,7 @@ id: medium:inside-the-rlhf-engine-a-deep-dive-into-
 type: web
 title: 'Inside the RLHF Engine: A Deep Dive into SFT, Reward ...'
 url: https://medium.com/foundation-models-deep-dive/inside-the-rlhf-engine-a-deep-dive-into-sft-reward-models-and-rl-fine-tuning-60978b291d55
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlhf-ppo-pipeline
 ---

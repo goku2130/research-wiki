@@ -3,7 +3,7 @@ id: interconnects:rlhf-roundup-trying-to-get-good-at-ppo-i
 type: web
 title: 'RLHF roundup: Trying to get good at PPO (Interconnects)'
 url: https://www.interconnects.ai/p/rlhf-roundup-2024
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlhf-ppo-pipeline
 ---

@@ -5,7 +5,7 @@ title: Proximal Policy Optimization Algorithms (Schulman et al. 2017)
 url: https://arxiv.org/abs/1707.06347
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: mdp-formulation
+topic: rlhf-ppo-pipeline
 ---
 
 # Proximal Policy Optimization (PPO)

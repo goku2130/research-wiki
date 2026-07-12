@@ -3,7 +3,7 @@ id: arxiv:2404.10719
 type: paper
 title: Is DPO Superior to PPO for LLM Alignment? A Theoretical and Empirical Study
 url: https://arxiv.org/abs/2404.10719
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlhf-ppo-pipeline
 ---

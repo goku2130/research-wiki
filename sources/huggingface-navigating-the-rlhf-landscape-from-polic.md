@@ -4,7 +4,7 @@ type: web
 title: 'Navigating the RLHF Landscape: From Policy Gradients to PPO, GAE, and DPO
   for LLM Alignment'
 url: https://huggingface.co/blog/NormalUhr/rlhf-pipeline
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlhf-ppo-pipeline
 ---
