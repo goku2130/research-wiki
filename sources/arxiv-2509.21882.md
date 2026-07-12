@@ -4,7 +4,7 @@ type: paper
 title: The Hidden Costs and Measurement Gaps of Reinforcement Learning with Verifiable
   Rewards
 url: https://arxiv.org/abs/2509.21882
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: verifiable-rewards
 ---

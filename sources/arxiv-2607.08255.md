@@ -4,7 +4,7 @@ type: paper
 title: 'Compete Then Collaborate: Frontier AI Teachers Build a Verifiable Curriculum
   to Improve a Coding Student Beyond Imitation'
 url: https://arxiv.org/abs/2607.08255
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: verifiable-rewards
 ---

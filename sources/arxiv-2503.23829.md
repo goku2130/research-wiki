@@ -3,7 +3,7 @@ id: arxiv:2503.23829
 type: paper
 title: Expanding RL with Verifiable Rewards Across Diverse Domains
 url: https://arxiv.org/abs/2503.23829
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: verifiable-rewards
 ---

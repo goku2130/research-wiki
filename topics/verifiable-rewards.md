@@ -1,7 +1,7 @@
 ---
 title: Verifiable rewards (RLVR)
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - promptfoo:reinforcement-learning-with-verifiable-r
 - lucek:reinforcement-learning-with-verifiable-r
@@ -19,18 +19,16 @@ sources:
 - arxiv:2604.09748
 - arxiv:2607.07748
 open_questions:
-- How do verifier fuzzing and hardening practices integrate into standard RLVR pipelines,
-  and can automated verifier repair close the reward-correctness gap without human
-  intervention?
-- Does isomorphic perturbation testing generalize beyond inductive logic programming
-  to mathematical reasoning and code generation, and can isomorphic verifiers be constructed
-  efficiently for those domains?
-- 'What are the scaling laws for backdoor susceptibility in RLVR: does larger model
-  scale increase or decrease the poison rate needed for successful attacks, and how
-  does CoT length interact with trigger activation?'
-- Can RLVP's path-penalty design rules be automated via verifier synthesis from natural
-  language constraints, and how does the "inaction trap" variance at scale affect
-  deployment safety?
+- Does RLVR with binary verifiers fundamentally expand reasoning capability or primarily
+  compress search? The compression ratio metric suggests the latter for narrow math/code
+  tasks, but generative verifiers show OOD gains.
+- Can the RLVR tax (attempt inflation, miscalibration) be mitigated without sacrificing
+  pass@1 gains? No current method cleanly separates the two.
+- How should contamination be screened in rapidly evolving benchmarks? Partial-prompt
+  probes are high-precision but non-exhaustive.
+- Are verifier bugs (high FPR in math-verify, JSON, code) a systemic risk for deployed
+  RLVR systems? Fuzzing suggests yes, but end-to-end exploit rates under trained policies
+  are unmeasured.
 ---
 
 Reinforcement Learning with Verifiable Rewards (RLVR) replaces subjective preference models with deterministic, programmatic verifiers—unit tests, math normalizers, or executable checkers—to supply binary or near-binary reward signals for LLM policy optimization. While RLVR has driven striking gains on math and coding benchmarks, recent work shows that reported improvements are often inflated by evaluation budget mismatches, a constellation of side effects termed the "RLVR tax," and data contamination, and that the method may primarily compress existing search capability rather than expand the reasoning frontier.
@@ -45,7 +43,7 @@ Recent work demonstrates that verifiers themselves are software artifacts subjec
 
 ## Rule-based verifiers: code and math
 
-In code generation, verifiers execute candidate programs against hidden unit tests (e.g., BIRD Text2SQL benchmark) or check syntax/schema compliance [source:promptfoo:reinforcement-learning-with-verifiable-r][source:lucek:reinforcement-learning-with-verifiable-r]. In mathematics, verifiers normalize model output and reference answers (e.g., stripping LaTeX, evaluating symbolic equivalence) and return exact-match or numeric-equivalence signals [source:arxiv:2509.21882][source:promptfoo:reinforcement-learning-with-verifiable-r]. These binary rewards are attractive because they are **unhackable in principle**—the model cannot "persuade" the verifier—and they enable **auditable, reproducible** training [source:github:awesome-rlvr-reinforcement-learning-with][source:cameronrwolfe:rubric-based-rewards-for-rl-deep-learnin].
+In code generation, verifiers execute candidate programs against hidden unit tests (e.g., BIRD Text2SQL benchmark) or check syntax/schema compliance [source:promptfoo:reinforcement-learning-with-verifiable-r][source:lucek:reinforcement-learning-with-verifiable-r]. In mathematics, verifiers normalize model output and reference answers (e.g., stripping LaTeX, evaluating symbolic equivalence) and return exact-match or numeric-equivalence signals [source:promptfoo:reinforcement-learning-with-verifiable-r][source:lucek:reinforcement-learning-with-verifiable-r]. These binary rewards are attractive because they are **unhackable in principle**—the model cannot "persuade" the verifier—and they enable **auditable, reproducible** training [source:github:awesome-rlvr-reinforcement-learning-with][source:cameronrwolfe:rubric-based-rewards-for-rl-deep-learnin].
 
 However, rule-based verification is **domain-limited**. Only ~60.3% of math problems and ~45.4% of complex multi-domain queries admit single-term answers amenable to exact matching [source:arxiv:2503.23829]. For everything else—creative writing, long-form QA, scientific reasoning—binary verifiers do not exist, forcing a choice between heuristic proxies (format rewards, partial matching) and learned/LLM-based rewards that re-introduce subjectivity and hackability [source:lucek:reinforcement-learning-with-verifiable-r][source:cameronrwolfe:rubric-based-rewards-for-rl-deep-learnin].
 
@@ -80,9 +78,9 @@ The paper proposes a **tax-aware reporting standard**: matched sampling budgets 
 
 ## Search compression vs. capability expansion
 
-[source:promptfoo:reinforcement-learning-with-verifiable-r] argues that RLVR predominantly achieves **search compression**: the policy learns to concentrate probability mass on reasoning paths it could already sample at test time, rather than acquiring new reasoning capabilities. Evidence: in a representative run, pass@1 rose +25 pp while pass@8 rose only +2 pp, implying a compression ratio of $25/35 \approx 71\%$ [source:promptfoo:reinforcement-learning-with-verifiable-r]. [source:arxiv:2509.21882] corroborates that **budget mismatch**—comparing RLVR models evaluated at high $k$ (pass@k) against baselines at pass@1—conflates search with capability. Their standardized SoberScore (avg@32, matched prompts/verifiers) slashed reported gains: Open-RS3-1.5B 46.70% → 30.94% ($\Delta=+15.76$), STILL-3-1.5B 39.33% → 31.46% ($\Delta=+7.87$), while DAPO-Qwen-32B actually *lost* 1.56 pp [source:arxiv:2509.21882].
+[source:promptfoo:reinforcement-learning-with-verifiable-r] presents a central theoretical tension over whether RLVR gains stem from **search compression** (the model becoming more efficient at sampling paths it could already generate) or capability expansion (learning new reasoning paths). Evidence: in a representative run, pass@1 rose +25 pp while pass@8 rose only +2 pp, implying a compression ratio of $25/35 \approx 71\%$ [source:promptfoo:reinforcement-learning-with-verifiable-r]. [source:arxiv:2509.21882] corroborates that **budget mismatch**—comparing RLVR models evaluated at high $k$ (pass@k) against baselines at pass@1—conflates search with capability. Their standardized SoberScore (avg@32, matched prompts/verifiers) slashed reported gains: Open-RS3-1.5B 46.70% → 30.94% ($\Delta=+15.76$), STILL-3-1.5B 39.33% → 31.46% ($\Delta=+7.87$), while DAPO-Qwen-32B actually *lost* 1.56 pp [source:arxiv:2509.21882].
 
-**Disagreement:** [source:arxiv:2503.23829] reports **consistent OOD generalization gains** with a generative verifier (RM-7B): NaturalReasoning 39.8% vs 29.4%, WebInstruct 44.0% vs 33.9%, and stable scaling to 100k samples where rule-based rewards degraded. This suggests that *soft, model-based verifiers* may expand capability more than binary rule-based ones, or that the OOD benchmarks differ in nature from the in-distribution math/code tasks where compression dominates. [source:lucek:reinforcement-learning-with-verifiable-r] also cites "emergent reasoning" behaviors in AppWorld (tool-use persistence, API-doc reading) driven only by a binary task-completion reward, which [source:promptfoo:reinforcement-learning-with-verifiable-r] would classify as search compression. The discrepancy may hinge on **verifier richness**: binary verifiers on narrow tasks compress search; generative verifiers on diverse tasks may force broader generalization.
+**Disagreement:** [source:arxiv:2503.23829] reports **consistent OOD generalization gains** with a generative verifier (RM-7B): NaturalReasoning 39.8% vs 29.4%, WebInstruct 44.0% vs 33.9%, and stable scaling to 100k samples where rule-based rewards degraded. This suggests that *soft, model-based verifiers* may expand capability more than binary rule-based ones, or that the OOD benchmarks differ in nature from the in-distribution math/code tasks where compression dominates. [source:lucek:reinforcement-learning-with-verifiable-r] also cites "emergent reasoning" behaviors in AppWorld (tool-use persistence, API-doc reading) driven only by a binary task-completion reward, which the article author interprets as search compression. The discrepancy may hinge on **verifier richness**: binary verifiers on narrow tasks compress search; generative verifiers on diverse tasks may force broader generalization.
 
 ### Compete-then-collaborate verifiable curriculum
 
@@ -90,7 +88,7 @@ The paper proposes a **tax-aware reporting standard**: matched sampling budgets 
 
 ## Spurious rewards and reward hacking
 
-[source:promptfoo:reinforcement-learning-with-verifiable-r] documents a striking **spurious-reward effect**: Qwen2.5-Math-7B improved **21.4% on MATH-500 with purely random rewards**, versus 29.1% with ground-truth rewards. This implies that a large fraction of the observed gain stems from the RL update dynamics (entropy reduction, length regularization, etc.) rather than the verifier signal—especially in certain model families (noted for Qwen) and possibly linked to training-data contamination [source:promptfoo:reinforcement-learning-with-verifiable-r]. [source:arxiv:2509.21882] does not test random rewards but finds heavy contamination on legacy benchmarks (Qwen3-14B-Base: 58.2% ACC@80 on MATH-500 prefix probe, 0.0% on fresh AIME-2025), which could amplify spurious gains [source:arxiv:2509.21882].
+[source:promptfoo:reinforcement-learning-with-verifiable-r] documents a striking **spurious-reward effect**: Qwen2.5-Math-7B improved **21.4% on MATH-500 with purely random rewards**, versus 29.1% with ground-truth rewards. This implies that a large fraction of the observed gain stems from the RL update dynamics (entropy reduction, length regularization, etc.) rather than the verifier signal—especially in certain model families (noted for Qwen) and possibly linked to training-data contamination [source:arxiv:2509.21882]. [source:arxiv:2509.21882] does not test random rewards but finds heavy contamination on legacy benchmarks (Qwen3-14B-Base: 58.2% ACC@80 on MATH-500 prefix probe, 0.0% on fresh AIME-2025), which could amplify spurious gains [source:arxiv:2509.21882].
 
 **Failure modes** identified by [source:promptfoo:reinforcement-learning-with-verifiable-r]:
 1. **Partial verifiers** (e.g., syntax-only SQL check) → models exploit gaps to earn rewards for incorrect answers.

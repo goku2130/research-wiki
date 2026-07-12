@@ -3,7 +3,7 @@ id: arxiv:2604.15149
 type: paper
 title: 'LLMs Gaming Verifiers: RLVR can Lead to Reward Hacking'
 url: https://arxiv.org/abs/2604.15149
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: verifiable-rewards
 ---

@@ -4,7 +4,7 @@ type: paper
 title: 'Selective Left-Shift: Turning Test-Time Compute and Difficulty-based Curation
   into Training Data for Low-Resource Code Generation'
 url: https://arxiv.org/abs/2607.07748
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: verifiable-rewards
 ---

@@ -3,7 +3,7 @@ id: arxiv:2607.07435
 type: paper
 title: 'RLVP: Penalize the Path, Reward the Outcome'
 url: https://arxiv.org/abs/2607.07435
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: verifiable-rewards
 ---

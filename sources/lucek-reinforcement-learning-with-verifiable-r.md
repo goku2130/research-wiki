@@ -3,7 +3,7 @@ id: lucek:reinforcement-learning-with-verifiable-r
 type: web
 title: Reinforcement Learning with Verifiable Rewards for LLMs
 url: https://lucek.ai/blogs/rlvr-with-llms.html
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: verifiable-rewards
 ---

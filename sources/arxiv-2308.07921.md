@@ -4,7 +4,7 @@ type: paper
 title: Solving Challenging Math Word Problems Using GPT-4 Code Interpreter with Code-based
   Self-Verification
 url: https://arxiv.org/abs/2308.07921
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: verifiable-rewards
 ---

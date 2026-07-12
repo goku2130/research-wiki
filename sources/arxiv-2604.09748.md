@@ -3,7 +3,7 @@ id: arxiv:2604.09748
 type: paper
 title: 'Backdoors in RLVR: Jailbreak Backdoors in LLMs From Verifiable Reward'
 url: https://arxiv.org/abs/2604.09748
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: verifiable-rewards
 ---

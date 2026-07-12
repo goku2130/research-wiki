@@ -3,7 +3,7 @@ id: arxiv:2606.01066
 type: paper
 title: 'Before the Model Learns the Bug: Fuzzing RLVR Verifiers'
 url: https://arxiv.org/abs/2606.01066
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: verifiable-rewards
 ---

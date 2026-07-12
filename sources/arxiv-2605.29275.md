@@ -3,7 +3,7 @@ id: arxiv:2605.29275
 type: paper
 title: Prompt-Level Reward Specifications for Open-Ended Post-Training
 url: https://arxiv.org/abs/2605.29275
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: verifiable-rewards
 ---

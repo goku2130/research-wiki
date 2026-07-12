@@ -3,7 +3,7 @@ id: arxiv:2601.12186
 type: paper
 title: 'Aletheia: What Makes RLVR For Code Verifiers Tick?'
 url: https://arxiv.org/abs/2601.12186
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: verifiable-rewards
 ---

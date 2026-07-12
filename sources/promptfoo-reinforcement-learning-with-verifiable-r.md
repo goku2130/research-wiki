@@ -3,9 +3,9 @@ id: promptfoo:reinforcement-learning-with-verifiable-r
 type: web
 title: Reinforcement Learning with Verifiable Rewards Makes Models Smarter
 url: https://www.promptfoo.dev/blog/rlvr-explained/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: rl-for-math-and-code
+topic: verifiable-rewards
 ---
 
 # Reinforcement Learning with Verifiable Rewards (RLVR)
