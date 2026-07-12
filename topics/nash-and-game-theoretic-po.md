@@ -1,7 +1,7 @@
 ---
 title: Nash and game-theoretic preference optimization
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - arxiv:2312.00886
 - arxiv:2509.23102
@@ -15,17 +15,15 @@ sources:
 - arxiv:2407.18539
 - arxiv:2311.14869
 open_questions:
-- Can the variational reformulation for non-ordered preferences [source:arxiv:2302.08702]
-  be adapted to the LLM alignment setting where the preference oracle is a neural
-  network and the strategy space is the policy manifold?
-- Does the acyclicity condition [source:arxiv:0705.3316] hold for human preferences
-  in practice, or are cycles pervasive enough to require the non-ordered GNEP framework?
-- Can the active GNE learning loop [source:arxiv:2603.17015] be scaled to LLM policy
-  spaces using learned surrogate reward models as $\hat{J}_i$, and what exploration
-  strategies work in high-dimensional discrete action spaces?
-- What is the query complexity of finding an $\epsilon$-Nash equilibrium in the *preference
-  game* induced by a neural preference model $\mathbb{P}_\phi(y \succ y' \mid x)$,
-  as opposed to a matrix game?
+- Can heterogeneous multi-criteria alignment (HT-MNPO) be given formal convergence
+  guarantees, or is the general-sum structure fundamentally incompatible with equilibrium
+  convergence?
+- What is the minimal preference oracle architecture and training recipe needed for
+  game-theoretic methods to reliably outperform reward-model-based RLHF?
+- How does the alignment tax observed in SPPO generalize to other game-theoretic methods,
+  and can it be mitigated without sacrificing preference alignment?
+- Can the query complexity lower bounds be circumvented in practice by the structure
+  of real-world preference oracles, or do they imply hard limits on sample efficiency?
 ---
 
 Nash and game-theoretic preference optimization reframes language model alignment as finding equilibria in preference games rather than maximizing a scalar reward, directly addressing intransitivity and heterogeneity in human feedback. By replacing reward models with preference oracles and optimizing policies against populations of opponents, these methods aim to produce more robustly aligned models without the pathologies of reward over-optimization.
@@ -145,10 +143,10 @@ where $\lambda_j$ are importance weights and $\delta^\star$ is a target reward g
 | Method | Setting | Guarantee | Key Assumptions |
 |--------|---------|-----------|-----------------|
 | NLHF (Nash-MD) | Tabular, regularized | Last-iterate $O(1/T)$ in KL | Preference model $\mathcal{P}$ is fixed; step size $\eta_t = 2/(\tau(t+2))$ [source:arxiv:2312.00886] |
-| SPPO | Function approximation | Approximates MWU; convergence to $\epsilon$-equilibrium if regression error bounded | Model class expressive enough; generated data covers input space; $\frac12 \approx \log Z_{\pi_t}(x)$ [source:arxiv:2405.00675] |
-| TD-MNPO | Homogeneous $n$-player | Convergence to Nash via MWU in policy space | Symmetric zero-sum structure; shared oracle; sufficient exploration [source:arxiv:2509.23102] |
+| SPPO | Function approximation | Provably approximates the Nash equilibrium | Model class expressive enough; generated data covers input space; $\frac12 \approx \log Z_{\pi_t}(x)$ [source:arxiv:2405.00675] |
+| TD-MNPO | Homogeneous $n$-player | Convergence to Nash via MWU in policy space | Homogeneous setting; shared oracle; convergence via multiplicative weights [source:arxiv:2509.23102] |
 | HT-MNPO | Heterogeneous $n$-player | **None** (empirical only) | General-sum game breaks symmetry; no MWU convergence proof [source:arxiv:2509.23102] |
-| Active GNE Learning | Unknown objectives, pairwise queries | Empirical convergence on LQR/GNEP benchmarks | Known constraints; lower semi-continuous preferences; problem-dependent exploration scaling [source:arxiv:2603.17015] |
+| Active GNE Learning | Unknown objectives, pairwise queries | Empirical convergence on LQR/GNEP benchmarks | Known constraints; problem-dependent exploration scaling [source:arxiv:2603.17015] |
 
 **Disagreement on theoretical scope**: NLHF provides a clean tabular rate but does not analyze function approximation error. SPPO’s regression-based update introduces approximation error that is not quantified in the convergence statement. MNPO proves convergence only for the homogeneous case; the heterogeneous extension—arguably the more practically relevant setting for multi-criteria alignment—lacks any equilibrium guarantee, though it performs well empirically [source:arxiv:2509.23102]. This gap is acknowledged by the MNPO authors, who state that HT-MNPO “still yields effective empirical solutions” despite the missing theory [source:arxiv:2509.23102]. The active GNE learning framework [source:arxiv:2603.17015] provides no formal convergence rate, only empirical validation on specific problem classes.
 
@@ -180,13 +178,13 @@ $$
 
 On Orca, RDPO reaches 60% win-rate vs SFT with 3k samples (DPO needs 9k); rationale-only training achieves 61% win-rate, showing rationales encode preference signals. On AlpacaEval 2.0 LC WR: Mistral-7B RDPO 22.42% vs DPO 19.52%; Llama-3-8B RDPO 27.55% vs DPO 26.02% [source:arxiv:2407.14477]. Limitations: tested only up to 8B parameters; designed for pairwise preferences (not KTO); impact on explicit reward modeling unexplored [source:arxiv:2407.14477].
 
-**Critical disagreement on evaluation methodology**: NLHF explicitly states its comparison to RLHF is not fair due to different model classes (preference vs. reward) [source:arxiv:2312.00886]. SPPO compares against iterative DPO/IPO using the *same* preference oracle (PairRM), making its relative gains more attributable to the algorithmic framework [source:arxiv:2405.00675]. MNPO compares against INPO, SimPO, DPO using a *different* judge (GPT-5-mini) and base model (Gemma-2-9B-it), complicating cross-paper comparisons [source:arxiv:2509.23102]. No source evaluates all three methods on a common benchmark with a common oracle.
+**Critical disagreement on evaluation methodology**: NLHF explicitly states its comparison to RLHF is not fair due to different model classes (preference vs. reward) [source:arxiv:2312.00886]. SPPO compares against iterative DPO/IPO using PairRM as the preference oracle for SPPO; the source does not explicitly confirm the baselines used the same oracle [source:arxiv:2405.00675]. MNPO compares against INPO, SimPO, DPO using a *different* judge (GPT-5-mini) and base model (Gemma-2-9B-it), complicating cross-paper comparisons [source:arxiv:2509.23102]. No source evaluates all three methods on a common benchmark with a common oracle.
 
 ## Current status and trajectory
 
 Game-theoretic preference optimization is **rising but not yet default**. The sequence NLHF → SPPO → MNPO shows rapid methodological evolution: from tabular mirror descent with convergence proofs, to practical self-play regression, to multi-player heterogeneous games. However, several factors limit widespread adoption:
 
-- **Preference model dependency**: All three methods require a trained preference oracle $\mathbb{P}(y\succ y'\mid x)$, which is itself a non-trivial modeling step distinct from the more common reward-model pipeline [source:arxiv:2312.00886]. The field has not standardized on preference-model architectures or training recipes.
+- **Preference model dependency**: NLHF requires a trained preference oracle $\mathbb{P}(y\succ y'\mid x)$ [source:arxiv:2312.00886], SPPO requires a preference oracle [source:arxiv:2405.00675], and MNPO requires a preference oracle [source:arxiv:2509.23102], each of which is a non-trivial modeling step distinct from the more common reward-model pipeline. The field has not standardized on preference-model architectures or training recipes.
 - **Compute and engineering complexity**: SPPO and MNPO require multiple iterative rounds of generation, annotation, and optimization, increasing infrastructure burden compared to single-stage DPO/SimPO [source:arxiv:2405.00675][source:arxiv:2509.23102].
 - **Theoretical-practical gap**: MNPO’s heterogeneous setting (HT-MNPO) lacks convergence guarantees, and SPPO’s regression approximation introduces uncontrolled error. Practitioners may prefer methods with stronger guarantees (e.g., KL-regularized RLHF) or simpler objectives (DPO) unless the preference structure is known to be highly non-transitive.
 - **Evaluation fragmentation**: Reported benchmarks differ (AlpacaEval 2.0, MT-Bench, Arena-Hard, AIME, HumanEval, Open LLM Leaderboard), and judges vary (PaLM 2 Large, GPT-4-Turbo, GPT-5-mini). No independent large-scale reproduction has been reported in the sources.

@@ -3,7 +3,7 @@ id: arxiv:2509.23102
 type: paper
 title: Multiplayer Nash Preference Optimization
 url: https://arxiv.org/abs/2509.23102
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: nash-and-game-theoretic-po
 ---

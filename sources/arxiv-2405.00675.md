@@ -3,7 +3,7 @@ id: arxiv:2405.00675
 type: paper
 title: Self-Play Preference Optimization for Language Model Alignment
 url: https://arxiv.org/abs/2405.00675
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: nash-and-game-theoretic-po
 ---

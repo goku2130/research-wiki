@@ -3,7 +3,7 @@ id: arxiv:2407.18539
 type: paper
 title: Variational Analysis of Generalized Games over Banach spaces
 url: https://arxiv.org/abs/2407.18539
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: nash-and-game-theoretic-po
 ---

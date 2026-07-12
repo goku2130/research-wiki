@@ -4,7 +4,7 @@ type: paper
 title: On the Geometry of Nash and Correlated Equilibria with Cumulative Prospect
   Theoretic Preferences
 url: https://arxiv.org/abs/1712.00859
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: nash-and-game-theoretic-po
 ---

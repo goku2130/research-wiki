@@ -4,7 +4,7 @@ type: paper
 title: Query-Efficient Algorithm to Find all Nash Equilibria in a Two-Player Zero-Sum
   Matrix Game
 url: https://arxiv.org/abs/2310.16236
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: nash-and-game-theoretic-po
 ---

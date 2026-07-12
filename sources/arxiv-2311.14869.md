@@ -4,7 +4,7 @@ type: paper
 title: On the Complexity of Computing Sparse Equilibria and Lower Bounds for No-Regret
   Learning in Games
 url: https://arxiv.org/abs/2311.14869
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: nash-and-game-theoretic-po
 ---

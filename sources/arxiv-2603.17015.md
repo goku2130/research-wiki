@@ -3,7 +3,7 @@ id: arxiv:2603.17015
 type: paper
 title: Learning generalized Nash equilibria from pairwise preferences
 url: https://arxiv.org/abs/2603.17015
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: nash-and-game-theoretic-po
 ---

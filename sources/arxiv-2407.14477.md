@@ -3,9 +3,9 @@ id: arxiv:2407.14477
 type: paper
 title: Data-Centric Human Preference with Rationales for Direct Preference Alignment
 url: https://arxiv.org/abs/2407.14477
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: judging-bias-and-contamination
+topic: nash-and-game-theoretic-po
 ---
 
 # Data-Centric Human Preference with Rationales for Direct Preference Alignment

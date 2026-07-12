@@ -4,7 +4,7 @@ type: paper
 title: 'Acyclicity of Preferences, Nash Equilibria, and Subgame Perfect Equilibria:
   a Formal and Constructive Equivalence'
 url: https://arxiv.org/abs/0705.3316
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: nash-and-game-theoretic-po
 ---

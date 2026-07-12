@@ -4,7 +4,7 @@ type: paper
 title: Variational Reformulation of Generalized Nash Equilibrium Problems with Non-ordered
   Preferences
 url: https://arxiv.org/abs/2302.08702
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: nash-and-game-theoretic-po
 ---

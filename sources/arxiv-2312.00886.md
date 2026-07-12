@@ -3,7 +3,7 @@ id: arxiv:2312.00886
 type: paper
 title: Nash Learning from Human Feedback
 url: https://arxiv.org/abs/2312.00886
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: nash-and-game-theoretic-po
 ---
