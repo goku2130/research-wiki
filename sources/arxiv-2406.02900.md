@@ -3,7 +3,7 @@ id: arxiv:2406.02900
 type: paper
 title: Scaling Laws for Reward Model Overoptimization in Direct Preference Optimization
 url: https://arxiv.org/abs/2406.02900
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-model-overoptimization
 ---

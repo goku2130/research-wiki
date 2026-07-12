@@ -3,7 +3,7 @@ id: arxiv:2406.01013
 type: paper
 title: Scalable Ensembling For Mitigating Reward Overoptimisation
 url: https://arxiv.org/abs/2406.01013
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-model-overoptimization
 ---

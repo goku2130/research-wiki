@@ -3,9 +3,9 @@ id: arxiv:2210.10760
 type: paper
 title: Scaling Laws for Reward Model Overoptimization
 url: https://arxiv.org/abs/2210.10760
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: overoptimization-and-mode-collapse
+topic: reward-model-overoptimization
 ---
 
 # Scaling Laws for Reward Model Overoptimization

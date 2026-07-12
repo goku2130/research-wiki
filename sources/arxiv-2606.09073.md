@@ -3,7 +3,7 @@ id: arxiv:2606.09073
 type: paper
 title: A Unifying Lens on Reward Uncertainty in RLHF
 url: https://arxiv.org/abs/2606.09073
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-model-overoptimization
 ---

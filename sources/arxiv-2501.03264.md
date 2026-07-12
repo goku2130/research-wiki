@@ -3,7 +3,7 @@ id: arxiv:2501.03264
 type: paper
 title: Mitigating Reward Over-Optimization in RLHF via Behavior-Supported Regularization
 url: https://arxiv.org/abs/2501.03264
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-model-overoptimization
 ---
