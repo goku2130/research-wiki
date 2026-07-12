@@ -4,7 +4,7 @@ type: paper
 title: 'RLAIF vs. RLHF: Scaling Reinforcement Learning from Human Feedback with AI
   Feedback'
 url: https://arxiv.org/abs/2309.00267
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlaif
 ---

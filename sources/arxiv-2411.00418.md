@@ -3,7 +3,7 @@ id: arxiv:2411.00418
 type: paper
 title: Self-Evolved Reward Learning for LLMs
 url: https://arxiv.org/abs/2411.00418
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlaif
 ---

@@ -3,7 +3,7 @@ id: arxiv:2401.10020
 type: paper
 title: Self-Rewarding Language Models
 url: https://arxiv.org/abs/2401.10020
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlaif
 ---

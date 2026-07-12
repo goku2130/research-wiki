@@ -3,7 +3,7 @@ id: huggingface:sources-arxiv-2212-08073-md-rl-llm-wiki-
 type: web
 title: sources/arxiv-2212.08073.md · rl-llm-wiki/knowledge-base ...
 url: https://huggingface.co/datasets/rl-llm-wiki/knowledge-base/blob/refs%2Fpr%2F273/sources/arxiv-2212.08073.md
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlaif
 ---

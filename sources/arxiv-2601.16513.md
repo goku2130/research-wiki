@@ -3,7 +3,7 @@ id: arxiv:2601.16513
 type: paper
 title: 'Competing Visions of Ethical AI: A Case Study of OpenAI'
 url: https://arxiv.org/abs/2601.16513
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlaif
 ---

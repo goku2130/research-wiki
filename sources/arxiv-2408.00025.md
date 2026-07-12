@@ -3,7 +3,7 @@ id: arxiv:2408.00025
 type: paper
 title: 'Need of AI in Modern Education: in the Eyes of Explainable AI (xAI)'
 url: https://arxiv.org/abs/2408.00025
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlaif
 ---

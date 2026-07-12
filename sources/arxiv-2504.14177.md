@@ -3,7 +3,7 @@ id: arxiv:2504.14177
 type: paper
 title: 'Direct Advantage Regression: Aligning LLMs with Online AI Reward'
 url: https://arxiv.org/html/2504.14177v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlaif
 ---

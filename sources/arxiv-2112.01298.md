@@ -3,7 +3,7 @@ id: arxiv:2112.01298
 type: paper
 title: 'Meaningful human control: actionable properties for AI system development'
 url: https://arxiv.org/abs/2112.01298
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlaif
 ---

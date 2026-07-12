@@ -3,9 +3,9 @@ id: arxiv:2212.08073
 type: paper
 title: 'Constitutional AI: Harmlessness from AI Feedback'
 url: https://arxiv.org/abs/2212.08073
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: self-improvement-and-self-play
+topic: rlaif
 ---
 
 # Constitutional AI: Harmlessness from AI Feedback

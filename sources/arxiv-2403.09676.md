@@ -4,7 +4,7 @@ type: paper
 title: 'Unmasking the Shadows of AI: Investigating Deceptive Capabilities in Large
   Language Models'
 url: https://arxiv.org/abs/2403.09676
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlaif
 ---

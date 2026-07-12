@@ -3,7 +3,7 @@ id: saikatkumardey:constitutional-ai-teaching-models-to-sel
 type: web
 title: 'Constitutional AI: Teaching Models to Self-Correct - Saikat Kumar Dey'
 url: https://saikatkumardey.com/ml-wiki/sources/constitutional-ai-harmlessness-from-ai-feedback
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlaif
 ---

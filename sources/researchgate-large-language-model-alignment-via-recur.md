@@ -3,7 +3,7 @@ id: researchgate:large-language-model-alignment-via-recur
 type: web
 title: Large Language Model Alignment via Recursive Learning
 url: https://www.researchgate.net/publication/408155315_Large_Language_Model_Alignment_via_Recursive_Learning_Methods_Behaviors_and_Open_Challenges
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rlaif
 ---
