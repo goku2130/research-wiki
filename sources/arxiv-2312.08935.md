@@ -4,7 +4,7 @@ type: paper
 title: 'Math-Shepherd: A Label-free Step-by-Step Verifier for Mathematical Reasoning
   (Wang et al., 2023)'
 url: https://arxiv.org/abs/2312.08935
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: process-vs-outcome-rewards
 ---

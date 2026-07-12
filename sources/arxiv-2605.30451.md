@@ -3,7 +3,7 @@ id: arxiv:2605.30451
 type: paper
 title: 'VeriGate: Verifier-Gated Step-Level Supervision for GRPO'
 url: https://arxiv.org/abs/2605.30451
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: process-vs-outcome-rewards
 ---

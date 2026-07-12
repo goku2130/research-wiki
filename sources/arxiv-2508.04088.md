@@ -4,7 +4,7 @@ type: paper
 title: 'GM-PRM: A Generative Multimodal Process Reward Model for Multimodal Mathematical
   Reasoning'
 url: https://arxiv.org/abs/2508.04088
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: process-vs-outcome-rewards
 ---

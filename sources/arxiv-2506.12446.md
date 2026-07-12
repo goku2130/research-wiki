@@ -4,7 +4,7 @@ type: paper
 title: 'From Outcomes to Processes: Guiding PRM Learning from ORM for Inference-Time
   Alignment'
 url: https://arxiv.org/abs/2506.12446
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: process-vs-outcome-rewards
 ---

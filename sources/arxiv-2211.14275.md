@@ -3,7 +3,7 @@ id: arxiv:2211.14275
 type: paper
 title: Outcome-supervised Verifiers for Planning in Complex Reasoning Tasks
 url: https://arxiv.org/abs/2211.14275
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: process-vs-outcome-rewards
 ---

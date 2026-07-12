@@ -3,7 +3,7 @@ id: arxiv:2510.08049
 type: paper
 title: 'A Survey of Process Reward Models: From Outcome to Process Supervision'
 url: https://arxiv.org/html/2510.08049v3
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: process-vs-outcome-rewards
 ---

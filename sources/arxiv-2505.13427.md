@@ -4,7 +4,7 @@ type: paper
 title: 'MM-PRM: Enhancing Multimodal Mathematical Reasoning with Scalable Step-Level
   Supervision'
 url: https://arxiv.org/abs/2505.13427
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: process-vs-outcome-rewards
 ---

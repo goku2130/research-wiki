@@ -4,7 +4,7 @@ type: paper
 title: Improve Mathematical Reasoning in Language Models by Automated Process Supervision
   (OmegaPRM)
 url: https://arxiv.org/abs/2406.06592
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: process-vs-outcome-rewards
 ---

@@ -4,7 +4,7 @@ type: paper
 title: 'ReasonFlux-PRM: Trajectory-Aware PRMs for Long Chain-of-Thought Reasoning
   in LLMs'
 url: https://arxiv.org/abs/2506.18896
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: process-vs-outcome-rewards
 ---

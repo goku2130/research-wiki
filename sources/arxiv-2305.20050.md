@@ -3,7 +3,7 @@ id: arxiv:2305.20050
 type: paper
 title: Let's Verify Step by Step (Lightman et al., 2023)
 url: https://arxiv.org/abs/2305.20050
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: process-vs-outcome-rewards
 ---

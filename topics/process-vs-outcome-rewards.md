@@ -1,7 +1,7 @@
 ---
 title: Process vs outcome reward models
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - arxiv:2211.14275
 - arxiv:2312.08935
@@ -14,14 +14,14 @@ sources:
 - arxiv:2605.30451
 - arxiv:2508.04088
 open_questions:
-- Can ORM-to-PRM distillation (SP-PRM) match or exceed automated Monte Carlo pipelines
-  at scale, and does it generalize beyond math/dialogue/summarization?
-- How do trajectory-aware PRMs (ReasonFlux-PRM) perform on non-reasoning-model outputs
-  (standard CoT, code, agentic traces)?
-- Will verifier-gated RL (VeriGate) become standard for GRPO, or will pure outcome-based
-  RL with better verifiers (RLVR) dominate?
-- Can generative PRMs (GM-PRM) be trained without GPT-4o-level teachers, and do they
-  generalize to non-mathematical multimodal reasoning?
+- Can PRMs trained on mathematical reasoning transfer to code generation, agentic
+  tool use, or open-ended creative tasks without domain-specific redesign?
+- Will ORM-to-PRM distillation (SP-PRM) scale to larger models (>70B) and broader
+  domains, or does it inherit ORM blind spots?
+- 'How to resolve the granularity tension: fixed step segmentation vs. semantic reasoning
+  boundaries?'
+- Can generative PRMs (GM-PRM) be extended to text-only reasoning with comparable
+  data efficiency?
 ---
 
 Process Reward Models (PRMs) and Outcome Reward Models (ORMs) represent two paradigms for supervising LLM reasoning: ORMs score only the final answer, while PRMs assign credit or blame to individual reasoning steps. This distinction fundamentally changes the credit-assignment problem, the data-collection burden, and the resulting model's ability to detect and correct intermediate errors.
@@ -145,7 +145,7 @@ Lightman et al. used Best-of-1860 with product-of-step-probs, achieving 78.2% on
 - TL;DR: BoN-16 average reward +11.7% (0.60 → 0.67)
 - GSM8K: CBS + SP-PRM accuracy +3.5% (1B), +2.5% (3B); BoN-16 reached 65.5% (1B), 69.5% (3B)
 - AdvBench safety: ASR reduced 20% vs base RGS
-- Score consistency Agreement Rate: from ~60% (ORM) to 55% at 5 tokens, 64.7% at 50 tokens
+- Score consistency Agreement Rate: from ~60% (ORM) to over 55% at 5 tokens, 64.7% at 50 tokens
 
 **MM-PRM** evaluated via BoN-16 across multimodal benchmarks [source:arxiv:2505.13427]:
 | Model | MM-K12 | OlympiadBench | MathVista | MathVerse | MathVision |
@@ -162,9 +162,9 @@ Lightman et al. used Best-of-1860 with product-of-step-probs, achieving 78.2% on
 
 PRMs provide **dense, step-level rewards** for RL (typically PPO), replacing sparse outcome rewards. Math-Shepherd applied step-by-step PPO: at each step $t$, reward $r_t = R_{\text{PRM}}(x, y_{1:t})$ [source:arxiv:2312.08935]. This improved Mistral-7B from 77.9% → 84.1% (GSM8K) and 28.6% → 33.0% (MATH) [source:arxiv:2312.08935].
 
-Uesato et al. compared **Final-Answer RL** (expert = correct final answer), **ORM-RL** (expert = high ORM score), and **PRM-RL** (per-step expert = high PRM score) [source:arxiv:2211.14275]. PRM-RL treated each step as an episode. The best final-answer error (12.7%) came from SFT + ORM-RL with ORM reranking, but PRM-RL achieved lower trace error (3.4% vs higher for ORM variants) [source:arxiv:2211.14275].
+Uesato et al. compared **Final-Answer RL** (expert = correct final answer), **ORM-RL** (expert = high ORM score), and **PRM-RL** (per-step expert = high PRM score) [source:arxiv:2211.14275]. PRM-RL treated each step as an episode. The best final-answer error (12.7%) came from SFT + ORM-RL with ORM reranking, which also achieved a trace error of 3.4% [source:arxiv:2211.14275]. The trace error for PRM-RL specifically is not reported as 3.4% in the source.
 
-**VeriGate** introduces a **verifier-gated extension of GRPO** that integrates process supervision only when outcome rewards are uninformative [source:arxiv:2605.30451]:
+**VeriGate** introduces a **verifier-gated extension of GRPO** that integrates process supervision only when outcome rewards are uninformative [source:arxiv:2605.30452]:
 - **S1 Verifier Gating**: If group rewards mixed → standard GRPO; if all zero → activate PRM token-level supervision; if all correct → no PRM.
 - **S2 Future-Cumulated Token Rewards (FCTR)**: Token in step $j$ gets $c_{i,j} = \sum_{k=j}^{S_i} r_{i,k}$ (sum of subsequent PRM step rewards).
 - **S3 Group-Normalized Token Advantages**: $\bar{c} = \frac{\sum_{i,j} c_{i,j}}{\sum_i S_i}$, $A_{i,j} = (c_{i,j} - \bar{c}) / \sigma(c)$.
@@ -196,9 +196,9 @@ VeriGate on Qwen2.5-Instruct (1.5B/7B) trained on MATH: **~20% accuracy gain (1.
 | **GM-PRM (MiniCPM-V2.6-8B, Refined-BoN avg)** | — | — | — | **+5.9%** (WeMath +12.4%) |
 | **VeriGate (7B, AIME)** | — | — | — | **10.00%** (vs 6.67% GRPO) |
 
-**Critical nuance from Uesato et al.**: On GSM8K, ORM and PRM achieved **similar final-answer error rates** (~22-23%), but PRM reduced trace error (11.4% vs 19.8% for outcome-only RL) [source:arxiv:2211.14275]. They found ORM predictions **agreed more with PRM labels than with outcome labels** — in math, incorrect steps rarely yield correct answers, so ORM implicitly learns process supervision [source:arxiv:2211.14275]. This may not hold in domains where "undesirable behaviors" help achieve high-rated outcomes [source:arxiv:2211.14275].
+**Critical nuance from Uesato et al.**: On GSM8K, ORM and PRM achieved **similar final-answer error rates** (~22-23%), but process-based supervision (SFT) reduced trace error (11.4% vs 19.8% for outcome-only RL) [source:arxiv:2211.14275]. They found ORM predictions **agreed more with PRM labels than with outcome labels** — in math, incorrect steps rarely yield correct answers, so ORM implicitly learns process supervision [source:arxiv:2211.14275]. This may not hold in domains where "undesirable behaviors" help achieve high-rated outcomes [source:arxiv:2211.14275].
 
-**Data efficiency**: Math-Shepherd reports PRM outperforms ORM by ~4% with only 10k training instances [source:arxiv:2312.08935]. OmegaPRM generated 1.5M annotations at 75× efficiency vs brute-force MC [source:arxiv:2406.06592]. **SP-PRM achieves strong results without new annotations** (distills from ORM). **ReasonFlux-PRM achieves SOTA with only 1k curated samples** (vs 59k raw). **GM-PRM uses only ~20k samples** for strong multimodal gains.
+**Data efficiency**: Math-Shepherd reports PRM outperforms ORM by ~4% with only 10k training instances [source:arxiv:2312.08935]. OmegaPRM collected over 1.5M annotations and demonstrated 75× efficiency (15M vs 200K data points) vs brute-force MC [source:arxiv:2406.06592]. **SP-PRM achieves strong results without new annotations** (distills from ORM). **ReasonFlux-PRM achieves SOTA with only 1k curated samples** (vs 59k raw). **GM-PRM uses only ~20k samples** for strong multimodal gains.
 
 ## Limitations and Open Challenges
 
@@ -213,11 +213,11 @@ VeriGate on Qwen2.5-Instruct (1.5B/7B) trained on MATH: **~20% accuracy gain (1.
 9. **ORM granularity mismatch**: Using ORMs directly for process rewards causes inconsistent scoring (high final score, low prefix scores) leading to myopic decoding [source:arxiv:2506.12446].
 10. **Trajectory-format mismatch**: Standard PRMs trained on polished CoT fail on raw thinking trajectories with branching/backtracking [source:arxiv:2605.30451].
 11. **Multimodal complexity**: Visual perception errors cascade; PRMs need image-alignment supervision (GM-PRM's Image Alignment dimension) [source:arxiv:2508.04088].
-12. **PRM dependency in RL**: VeriGate still relies on PRM quality; systematic PRM biases influence updates on degenerate prompts [source:arxiv:2605.30451].
-13. **Segmentation sensitivity**: Credit assignment (FCTR, step rewards) depends on model's step segmentation; poor segmentation weakens supervision [source:arxiv:2605.30451].
-14. **Domain scope**: Most PRM work limited to math; transfer to code, tool use, long-horizon planning untested [source:arxiv:2605.30451][source:arxiv:2505.13427].
-15. **Model scale**: SP-PRM (1B-8B), MM-PRM (8B), ReasonFlux-PRM (7B), GM-PRM (7B), VeriGate (1.5B/7B) — findings may not transfer to larger models [source:arxiv:2506.12446][source:arxiv:2505.13427][source:arxiv:2605.30451][source:arxiv:2508.04088][source:arxiv:2605.30451].
-16. **Inference speed**: RGS methods (SP-PRM) and Refined-BoN (GM-PRM) require further optimization for generation speed [source:arxiv:2506.12446][source:arxiv:2508.04088].
+12. **PRM dependency in RL**: VeriGate still relies on PRM quality; systematic PRM biases influence updates on degenerate prompts [source:arxiv:2605.30452].
+13. **Segmentation sensitivity**: Credit assignment (FCTR, step rewards) depends on model's step segmentation; poor segmentation weakens supervision [source:arxiv:2605.30452].
+14. **Domain scope**: Most PRM work limited to math; transfer to code, tool use, long-horizon planning untested [source:arxiv:2605.30452][source:arxiv:2505.13427].
+15. **Model scale**: SP-PRM (1B-8B), MM-PRM (8B), ReasonFlux-PRM (7B), GM-PRM (7B), VeriGate (1.5B/7B) — findings may not transfer to larger models [source:arxiv:2506.12446][source:arxiv:2505.13427][source:arxiv:2605.30451][source:arxiv:2508.04088][source:arxiv:2605.30452].
+16. **Inference speed**: RGS methods (SP-PRM) require further optimization for generation speed [source:arxiv:2506.12446].
 
 ## Current Status and Trajectory
 
@@ -226,7 +226,7 @@ PRMs are **rising rapidly** as the dominant paradigm for mathematical and code r
 - **Not default**: Most open RLHF pipelines (e.g., standard PPO/DPO) still use ORMs or scalar reward models; PRM integration requires step-wise tokenization, specialized loss, and inference-time search infrastructure not yet standardized [source:arxiv:2510.08049].
 - **Fading?** No — but the **human-annotation paradigm** (PRM800K-style) is likely fading in favor of automated/hybrid pipelines due to cost and ceiling effects [source:arxiv:2510.08049].
 - **Hedge**: The Uesato et al. finding that ORMs emulate PRMs *in mathematics* suggests PRM gains may be domain-specific; not widely reported whether this holds for coding, agentic tasks, or creative reasoning [source:arxiv:2211.14275].
-- **New frontier**: **ORM-to-PRM distillation** (SP-PRM) offers a low-cost path to process supervision [source:arxiv:2506.12446]. **Multimodal PRMs** (MM-PRM, GM-PRM) are emerging for visual reasoning [source:arxiv:2505.13427][source:arxiv:2508.04088]. **Trajectory-aware PRMs** (ReasonFlux-PRM) address the "thinking trajectory" format of new reasoning models [source:arxiv:2605.30451]. **Verifier-gated RL** (VeriGate) mitigates reward hacking in GRPO [source:arxiv:2605.30451]. **Generative PRMs** (GM-PRM) shift from passive scoring to active correction [source:arxiv:2508.04088].
+- **New frontier**: **ORM-to-PRM distillation** (SP-PRM) offers a low-cost path to process supervision [source:arxiv:2506.12446]. **Multimodal PRMs** (MM-PRM, GM-PRM) are emerging for visual reasoning [source:arxiv:2505.13427][source:arxiv:2508.04088]. **Trajectory-aware PRMs** (ReasonFlux-PRM) address the "thinking trajectory" format of new reasoning models [source:arxiv:2605.30451]. **Verifier-gated RL** (VeriGate) mitigates reward hacking in GRPO [source:arxiv:2605.30452]. **Generative PRMs** (GM-PRM) shift from passive scoring to active correction [source:arxiv:2508.04088].
 
 ## Key Takeaways
 
@@ -239,7 +239,7 @@ PRMs are **rising rapidly** as the dominant paradigm for mathematical and code r
 - **SP-PRM enables PRM learning from ORMs alone** via dual-consistency (score + preference), resolving granularity mismatch for inference-time alignment [source:arxiv:2506.12446].
 - **Multimodal PRMs require specialized pipelines**: MM-PRM uses MCTS + soft labels on restructured CoT; GM-PRM uses GPT-4o critique generation + MC filtering + Refined-BoN active correction [source:arxiv:2505.13427][source:arxiv:2508.04088].
 - **Reasoning models need trajectory-aware PRMs**: Standard PRMs fail on raw thinking trajectories; ReasonFlux-PRM's step (alignment/quality/coherence) + trajectory (template-guided) rewards achieve SOTA with 1k samples [source:arxiv:2605.30451].
-- **VeriGate fixes PRM reward hacking in GRPO** by gating process supervision to zero-reward groups and using future-cumulated token rewards with group-normalized advantages [source:arxiv:2605.30451].
+- **VeriGate fixes PRM reward hacking in GRPO** by gating process supervision to zero-reward groups and using future-cumulated token rewards with group-normalized advantages [source:arxiv:2605.30452].
 
 ## Related Topics
 
