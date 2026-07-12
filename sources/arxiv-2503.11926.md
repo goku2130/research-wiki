@@ -3,7 +3,7 @@ id: arxiv:2503.11926
 type: paper
 title: Monitoring Reasoning Models for Misbehavior and the Risks of Promoting Obfuscation
 url: https://arxiv.org/abs/2503.11926
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: sycophancy-and-misgeneralization
 ---

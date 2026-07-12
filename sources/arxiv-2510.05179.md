@@ -3,7 +3,7 @@ id: arxiv:2510.05179
 type: paper
 title: 'Agentic Misalignment: How LLMs Could Be Insider Threats'
 url: https://arxiv.org/abs/2510.05179
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: sycophancy-and-misgeneralization
 ---

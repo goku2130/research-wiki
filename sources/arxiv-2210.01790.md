@@ -4,7 +4,7 @@ type: paper
 title: 'Goal Misgeneralization: Why Correct Specifications Aren''t Enough For Correct
   Goals'
 url: https://arxiv.org/abs/2210.01790
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: sycophancy-and-misgeneralization
 ---

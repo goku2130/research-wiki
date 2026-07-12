@@ -3,7 +3,7 @@ id: ojs:uncovering-the-internal-origins-of-sycop
 type: web
 title: Uncovering the Internal Origins of Sycophancy in Large Language Models
 url: https://ojs.aaai.org/index.php/AAAI/article/view/40645/44606
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: sycophancy-and-misgeneralization
 ---

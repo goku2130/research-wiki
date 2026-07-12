@@ -3,7 +3,7 @@ id: arxiv:2010.14534
 type: paper
 title: Goal Misgeneralization in Deep Reinforcement Learning
 url: https://arxiv.org/abs/2010.14534
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: sycophancy-and-misgeneralization
 ---

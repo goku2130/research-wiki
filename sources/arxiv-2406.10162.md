@@ -4,7 +4,7 @@ type: paper
 title: 'Sycophancy to Subterfuge: Investigating Reward-Tampering in Large Language
   Models'
 url: https://arxiv.org/abs/2406.10162
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: sycophancy-and-misgeneralization
 ---

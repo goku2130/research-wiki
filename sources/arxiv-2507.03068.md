@@ -3,7 +3,7 @@ id: arxiv:2507.03068
 type: paper
 title: Mitigating Goal Misgeneralization via Minimax Regret
 url: https://arxiv.org/abs/2507.03068
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: sycophancy-and-misgeneralization
 ---

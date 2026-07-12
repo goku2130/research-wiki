@@ -4,7 +4,7 @@ type: paper
 title: 'From Yes-Men to Truth-Tellers: Addressing Sycophancy in Large Language Models
   with Pinpoint Tuning'
 url: https://arxiv.org/abs/2409.01658
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: sycophancy-and-misgeneralization
 ---

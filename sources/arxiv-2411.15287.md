@@ -3,7 +3,7 @@ id: arxiv:2411.15287
 type: paper
 title: 'Sycophancy in Large Language Models: Causes and Mitigation Strategies (Survey)'
 url: https://arxiv.org/html/2411.15287v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: sycophancy-and-misgeneralization
 ---

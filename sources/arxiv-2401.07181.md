@@ -3,7 +3,7 @@ id: arxiv:2401.07181
 type: paper
 title: Reinforcement Learning from LLM Feedback to Counteract Goal Misgeneralization
 url: https://arxiv.org/abs/2401.07181
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: sycophancy-and-misgeneralization
 ---
