@@ -4,7 +4,7 @@ type: paper
 title: 'Arena-Hard-Auto: Automatic Evaluation of Large Language Models (Li et al.,
   2024)'
 url: https://arxiv.org/abs/2406.11939
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: alignment-and-winrate-evals
 ---

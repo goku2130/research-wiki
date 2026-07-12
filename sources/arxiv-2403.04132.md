@@ -3,7 +3,7 @@ id: arxiv:2403.04132
 type: paper
 title: 'Chatbot Arena: Benchmarking LLMs in the Wild (Chiang et al., 2024)'
 url: https://arxiv.org/abs/2403.04132
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: alignment-and-winrate-evals
 ---

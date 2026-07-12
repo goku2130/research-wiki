@@ -4,7 +4,7 @@ type: paper
 title: How Far Can Camels Go? Exploring the Limits of Instruction Tuning (AlpacaEval
   original paper, Li et al., 2023)
 url: https://arxiv.org/abs/2305.10403
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: alignment-and-winrate-evals
 ---

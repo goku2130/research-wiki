@@ -1,7 +1,7 @@
 ---
 title: Alignment and win-rate evals
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - arxiv:2404.04475
 - arxiv:2305.10403
@@ -12,15 +12,14 @@ sources:
 - arxiv:2402.14762
 - arxiv:2502.01860
 open_questions:
-- 'What is the right causal estimand for length/style debiasing: counterfactual equal-length
-  (AlpacaEval-LC) or conditional-on-style (Arena-Hard-Auto)?'
-- Can a unified multi-turn aggregation metric reconcile MT-Bench-101's minimum-score
-  (weakest-link) with SWE-Arena's CEI (efficiency-weighted), or are they fundamentally
-  task-dependent?
-- How should adversarial robustness be standardized and reported in leaderboard submissions?
-- Will interactive, domain-specific platforms (SWE-Arena for SE, potential equivalents
-  for math, science, agentic tasks) fragment the evaluation landscape or converge
-  into a meta-platform?
+- Can automatic benchmarks achieve robust adversarial immunity without sacrificing
+  sensitivity to genuine quality differences?
+- Will a standardized multi-turn aggregation metric emerge, or will domain-specific
+  metrics (minimum-score for safety, efficiency-weighted for coding) remain fragmented?
+- How can multilingual and safety evaluation be integrated into the automatic benchmark
+  pipeline without relying on human-in-the-loop?
+- Is there a principled way to reconcile the different causal estimands of AlpacaEval-LC
+  (mediator removal) and Arena-Hard-Auto (confounder conditioning)?
 ---
 
 Alignment and win-rate evaluations have become the de facto standard for measuring LLM alignment with human preferences, replacing static accuracy benchmarks with pairwise comparisons judged by humans or strong LLMs. This ecosystem centers on three pillars—MT-Bench, Chatbot Arena, and AlpacaEval—each making distinct trade-offs between control, scale, and ecological validity.
@@ -33,7 +32,7 @@ $$
 P(A \succ B) = \frac{e^{\xi_A}}{e^{\xi_A} + e^{\xi_B}} = \sigma(\xi_A - \xi_B)
 $$
 
-Parameters are estimated by minimizing binary cross-entropy over observed battles. Chatbot Arena uses this directly on crowdsourced votes [source:arxiv:2403.04132], while AlpacaEval and MT-Bench replace human annotators with an LLM judge (typically GPT-4) to enable cheap, reproducible automatic evaluation [source:arxiv:2306.05685]. The BT model assumes transitivity and independence of irrelevant alternatives—assumptions that can be violated when stylistic biases (length, formatting) systematically distort preferences [source:arxiv:2404.04475; arxiv:2406.11939].
+Parameters are estimated by minimizing binary cross-entropy over observed battles. Chatbot Arena uses this directly on crowdsourced votes [source:arxiv:2403.04132], while AlpacaEval and MT-Bench [source:arxiv:2306.05685] replace human annotators with an LLM judge (typically GPT-4) to enable cheap, reproducible automatic evaluation. The BT model assumes transitivity and independence of irrelevant alternatives—assumptions that can be violated when stylistic biases (length, formatting) systematically distort preferences [source:arxiv:2404.04475; arxiv:2406.11939].
 
 ## MT-Bench: Static Multi-turn Benchmark with LLM-as-Judge
 
@@ -60,7 +59,7 @@ $$
 
 ## Chatbot Arena: Crowdsourced Human Preference in the Wild
 
-Chatbot Arena [source:arxiv:2403.04132; arxiv:2306.05685] is an open platform where users chat with two anonymous models side-by-side and vote for their preference. As of January 2024, it collected >240,000 votes from ~90,000 users across 100+ languages (77% English) covering 50+ models [source:arxiv:2403.04132]. Votes are aggregated via BT model with **adaptive sampling** to maximize information gain: to estimate win probabilities to precision 0.2, adaptive sampling required 4,400 battles vs. 6,800 for random (35% reduction) [source:arxiv:2403.04132]. Crowd-expert agreement ranges 72–83% [source:arxiv:2403.04132]. Anomalous users (bots, repetitive voters) are detected via p-value comparison of their rating distribution against historical data, achieving 90% TPR and 60–70% TNR [source:arxiv:2403.04132]. Limitations: user base skews toward LLM hobbyists/researchers; domain bias toward chat use-cases; safety/helpfulness trade-offs not measured [source:arxiv:2403.04132]. Arena serves as the "ground truth" leaderboard against which automatic benchmarks (AlpacaEval, MT-Bench, Arena-Hard-Auto) validate their correlation.
+Chatbot Arena [source:arxiv:2403.04132] is an open platform where users chat with two anonymous models side-by-side and vote for their preference. As of January 2024, it collected >240,000 votes from ~90,000 users across 100+ languages (77% English) covering 50+ models [source:arxiv:2403.04132]. Votes are aggregated via BT model with **adaptive sampling** to maximize information gain: to estimate win probabilities to precision 0.2, adaptive sampling required 4,400 battles vs. 6,800 for random (35% reduction) [source:arxiv:2403.04132]. Crowd-expert agreement ranges 72–83% [source:arxiv:2403.04132]. Anomalous users (bots, repetitive voters) are detected via p-value comparison of their rating distribution against historical data, achieving 90% TPR and 60–70% TNR [source:arxiv:2403.04132]. Limitations: user base skews toward LLM hobbyists/researchers; domain bias toward chat use-cases; safety/helpfulness trade-offs not measured [source:arxiv:2403.04132]. Arena serves as the "ground truth" leaderboard against which automatic benchmarks (AlpacaEval, MT-Bench, Arena-Hard-Auto) validate their correlation [source:arxiv:2406.11939].
 
 ### SWE-Arena: Interactive Software Engineering Evaluation Platform
 
@@ -93,7 +92,7 @@ with outcome scores $s_i \in \{1 \text{ (win)}, 0.3 \text{ (draw, both working)}
 
 ## AlpacaEval: Automatic Evaluation with Length-Controlled Debiasing
 
-AlpacaEval (original) uses an LLM judge (GPT-4) to compare model outputs against a fixed baseline (initially `text-davinci-003`, later `gpt4_0314`) on 805 instructions, reporting raw win rate. A critical flaw: **length bias**—judges strongly prefer longer outputs, allowing models to "game" the metric via verbosity without quality gains [source:arxiv:2404.04475]. Length-Controlled AlpacaEval (AlpacaEval-LC) [source:arxiv:2404.04475] addresses this via a regression-based causal adjustment. For each instruction $x$, baseline $b$, and model $m$, the judge preference $y \in \{0,1\}$ is modeled as:
+AlpacaEval (original) uses an LLM judge (GPT-4) to compare model outputs against a fixed baseline, reporting raw win rate. A critical flaw: **length bias**—judges strongly prefer longer outputs, allowing models to "game" the metric via verbosity without quality gains [source:arxiv:2404.04475]. Length-Controlled AlpacaEval (AlpacaEval-LC) [source:arxiv:2404.04475] addresses this via a regression-based causal adjustment. For each instruction $x$, baseline $b$, and model $m$, the judge preference $y \in \{0,1\}$ is modeled as:
 
 $$
 q(y=1) = \text{logistic}\Big(\underbrace{\theta_m - \theta_b}_{\text{Model}} + \underbrace{\phi_{m,b} \cdot \tanh\!\Big(\frac{\text{len}(z_m)-\text{len}(z_b)}{\text{std}(\text{len}(z_m)-\text{len}(z_b))}\Big)}_{\text{Length}} + \underbrace{(\psi_m - \psi_b)\gamma_x}_{\text{Instruction difficulty}}\Big)
@@ -130,7 +129,7 @@ where $Z_i$ are normalized style features (e.g., $\tanh((\text{len}_A-\text{len}
 |------|-------------|---------------------|---------------|
 | **Position bias** | Judge favors first-presented response | Two-game swap (MT-Bench, Arena-Hard-Auto) [source:arxiv:2306.05685; arxiv:2406.11939]; few-shot judging (consistency 65\% → 77.5\%) [source:arxiv:2306.05685] | Not fully eliminated; interacts with other biases |
 | **Length/verbosity bias** | Preference for longer outputs regardless of quality | AlpacaEval-LC regression control [source:arxiv:2404.04475]; Arena-Hard-Auto style features in Enhanced BT [source:arxiv:2406.11939] | Assumes equal-length ideal; regularization vs. truncation attack trade-off [source:arxiv:2404.04475] |
-| **Self-enhancement bias** | Judge favors its own outputs | Inconclusive evidence [source:arxiv:2306.05685]; not systematically addressed | Potential circularity when judge = evaluated model family |
+| **Self-enhancement bias** | Judge favors its own outputs | Inconclusive evidence; not systematically addressed | Potential circularity when judge = evaluated model family |
 | **Formatting/style bias** | Preference for markdown, lists, structured output | Arena-Hard-Auto includes markdown density, list usage as style covariates [source:arxiv:2406.11939] | Limited set of style features; new formats may emerge |
 | **Reasoning failure** | Judge misled by incorrect answer context | CoT prompting (judge solves first) [source:arxiv:2306.05685]; reference-guided grading [source:arxiv:2306.05685] | Math failure rate 3/20 even with reference [source:arxiv:2306.05685] |
 

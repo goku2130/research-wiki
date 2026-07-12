@@ -4,7 +4,7 @@ type: paper
 title: 'Length-Controlled AlpacaEval: A Simple Way to Debias Automatic Evaluators
   (Dubois et al., 2024)'
 url: https://arxiv.org/abs/2404.04475
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: alignment-and-winrate-evals
 ---

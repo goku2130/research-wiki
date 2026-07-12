@@ -4,7 +4,7 @@ type: paper
 title: 'MT-Bench-101: A Fine-Grained Benchmark for Evaluating Large Language Models
   in Multi-Turn Dialogues'
 url: https://arxiv.org/abs/2402.14762
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: alignment-and-winrate-evals
 ---

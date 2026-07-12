@@ -3,9 +3,9 @@ id: arxiv:2306.05685
 type: paper
 title: Language Models are Good Evaluators but Need Careful Prompting
 url: https://arxiv.org/abs/2306.05685
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: judging-bias-and-contamination
+topic: alignment-and-winrate-evals
 ---
 
 # Summary: Language Models are Good Evaluators but Need Careful Prompting

@@ -3,7 +3,7 @@ id: arxiv:2410.07137
 type: paper
 title: 'Cheating Automatic LLM Benchmarks: Null Models Achieve High Win Rates (2024)'
 url: https://arxiv.org/abs/2410.07137
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: alignment-and-winrate-evals
 ---

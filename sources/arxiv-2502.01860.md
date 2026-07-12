@@ -4,7 +4,7 @@ type: paper
 title: 'SWE-Arena: An Interactive Platform for Evaluating Foundation Models in Software
   Engineering'
 url: https://arxiv.org/abs/2502.01860
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: alignment-and-winrate-evals
 ---
