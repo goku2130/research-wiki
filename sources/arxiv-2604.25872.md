@@ -4,7 +4,7 @@ type: paper
 title: 'When Errors Can Be Beneficial: A Categorization of Imperfect Rewards for Policy
   Gradient'
 url: https://arxiv.org/abs/2604.25872
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rl-for-math-and-code
 ---

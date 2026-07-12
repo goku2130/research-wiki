@@ -1,7 +1,7 @@
 ---
 title: RL for math and code
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - promptfoo:reinforcement-learning-with-verifiable-r
 - arxiv:2506.03136
@@ -15,17 +15,16 @@ sources:
 - arxiv:2604.25872
 - arxiv:2204.02515
 open_questions:
-- Is the ~70% "search compression" estimate from promptfoo generalizable across model
-  scales and task distributions, or does capability expansion dominate at larger scales
-  (as suggested by DeepSeek-R1-Zero's emergent behaviors)?
-- Can meta-verification (DeepSeekMath-V2) be extended to verify the *meta-verifier
-  itself*, or does this require human-in-the-loop calibration at the top level?
-- UTRL eliminates ground-truth unit tests but requires ground-truth *code solutions*
-  $C^*$. Can the adversarial framework be extended to settings where only instructions
-  $I$ are available (no $C^*$)?
-- The beneficial-error theory (arXiv:2604.25872) is proven for linear softmax bandits.
-  Does the "stalling prevention" mechanism hold for transformer policies with non-linear
-  feature learning in multi-step MDPs?
+- Whether RLVR gains reflect genuine capability expansion or search compression remains
+  unresolved; the compression ratio metric and "aha moment" observations point in
+  opposite directions.
+- Theoretical understanding of why RLVR works (and when it fails) lags far behind
+  empirical scaling; the role of entropy dynamics, spurious rewards, and proxy reward
+  errors needs formal characterization.
+- 'Verifier completeness: how to automatically detect and close gaps in partial verifiers
+  (e.g., syntax vs. execution) without human-in-the-loop?'
+- Can meta-verification and adversarial co-evolution (UTRL) scale to open-ended software
+  engineering tasks beyond competitive programming?
 ---
 
 Reinforcement learning with verifiable rewards (RLVR) has become the dominant paradigm for advancing mathematical reasoning and code generation in open LLMs, replacing learned reward models with deterministic verifiers such as unit tests, compilers, and formal proof checkers. The DeepSeekMath and DeepSeek-R1 lineages demonstrate that group-relative policy optimization (GRPO) over such verifiers can produce frontier-level reasoning capabilities without human-annotated preference data.
@@ -98,7 +97,7 @@ $$
 
 ## DeepSeekMath and GRPO
 
-DeepSeekMath-Base 7B is initialized from DeepSeek-Coder-Base-v1.5 7B and continually trained on 500B tokens (56% DeepSeekMath Corpus, 20% GitHub code, 10% arXiv, 10% Common Crawl, 4% AlgebraicStack) [source:arxiv:2402.03300]. The **DeepSeekMath Corpus** (120B tokens) was built via an iterative fastText classifier: seed from OpenWebMath → classify Common Crawl → identify high-math domains → manual annotation → retrain classifier (4 iterations) [source:arxiv:2402.03300].
+DeepSeekMath-Base 7B is initialized from DeepSeek-Coder-Base-v1.5 7B and continually trained on 500B tokens (56% DeepSeekMath Corpus, 20% GitHub code, 10% arXiv, 10% natural language, 4% AlgebraicStack) [source:arxiv:2402.03300]. The **DeepSeekMath Corpus** (120B tokens) was built via an iterative fastText classifier: seed from OpenWebMath → classify Common Crawl → identify high-math domains → manual annotation → retrain classifier (4 iterations) [source:arxiv:2402.03300].
 
 **SFT** produces DeepSeekMath-Instruct 7B on 776K CoT/PoT/tool-integrated examples [source:arxiv:2402.03300].
 
@@ -125,10 +124,9 @@ $$
 **Key findings from DeepSeekMath:**
 - **Code pre-training** significantly benefits math reasoning both with and without tool use [source:arxiv:2402.03300].
 - **arXiv data** (MathPile, ArXiv-RedPajama) provided *no notable improvement* on adopted benchmarks, contrary to common practice [source:arxiv:2402.03300].
-- **RL primarily improves output distribution** (Maj@K) rather than fundamental capability (Pass@K stable) [source:arxiv:2402.03300].
 - **Weaknesses:** geometry/theorem-proving (triangles, ellipses); limited few-shot gains due to scale [source:arxiv:2402.03300].
 
-**Results:** DeepSeekMath-RL 7B achieves 51.7% on MATH (Top1), 60.9% with self-consistency (64 samples), 88.2% on GSM8K [source:arxiv:2402.03300]. Base model (36.2% MATH) outperforms Minerva 540B (33.6%) [source:arxiv:2402.03300]. RL on GSM8K+MATH improves CMATH from 84.6% to 88.8% [source:arxiv:2402.03300].
+**Results:** DeepSeekMath-RL 7B achieves 51.7% on MATH (Top1), 60.9% with self-consistency (64 samples), 88.2% on GSM8K [source:arxiv:2402.03300]. Base model (36.2% MATH) outperforms Minerva 540B (33.6%) [source:arxiv:2402.03300].
 
 **DeepSeekMath-V2: Self-verifiable theorem proving.** DeepSeekMath-V2 extends the paradigm to natural-language theorem proving by replacing final-answer rewards with a **proof generator + verifier + meta-verifier** framework trained via GRPO [source:arxiv:2511.22570]. The generator produces a proof $Y$ and a self-analysis $Z$; reward is $R = R_{\text{format}}(Y,Z) \cdot (\alpha R_Y + \beta R_Z)$ with $\alpha=0.76, \beta=0.24$. $R_Y$ is the verifier score; $R_Z$ combines self-assessment accuracy and meta-verification of the self-analysis. An automated labeling pipeline scales verifier training without experts: generate multiple verifications, validate with meta-verifier, label low-score if $\ge 9$ valid analyses agree. Results: Putnam 2024 **118/120** (human max 90), IMO 2025 **5/6 solved (83.3%, gold)**, CMO 2024 **73.8% (gold)**. Most challenging IMO problems remain difficult [source:arxiv:2511.22570].
 
@@ -136,7 +134,7 @@ $$
 
 DeepSeek-R1-Zero applies **pure GRPO** to DeepSeek-V3-Base *without any SFT* [source:arxiv:2501.12948]. The rule-based reward combines:
 - **Accuracy reward:** deterministic verification (math answer matching, code compilation/execution) [source:arxiv:2501.12948].
-- **Format reward:** incentivizes `reasoning`...`/reasoning` and `answer`...`/answer` tags [source:arxiv:2501.12948].
+- **Format reward:** incentivizes `reasoning`...`/reasoning` tags [source:arxiv:2501.12948].
 - **Language consistency reward:** $\frac{\text{Num(Words}_{\text{target}})}{\text{Num(Words)}}$ to reduce language mixing [source:arxiv:2501.12948].
 
 Total reward: $R_{\text{rule}} = R_{\text{acc}} + R_{\text{format}}$ [source:arxiv:2501.12948]. GRPO advantage uses group mean/std normalization as above [source:arxiv:2501.12948].
@@ -197,7 +195,7 @@ The action component uses a Boltzmann optimality model $p_{\text{opt}}(\xi \mid 
 
 ## Current status and trajectory
 
-RLVR with GRPO is the **default, rising paradigm** for math and code reasoning in open LLMs. The DeepSeekMath/R1 lineage and the CURE/UTRL co-evolution frameworks demonstrate that deterministic verifiers (unit tests, compilers, execution) can replace human preference data at the frontier. The ecosystem is consolidating around GRPO (or its variants like REINFORCE++) as the optimization backbone, with infrastructure converging on **verl**, **OpenRLHF**, and **open-r1** [source:github:awesome-rlvr-reinforcement-learning-with]. However, **fundamental disagreements persist** on whether gains reflect search compression vs. capability expansion [source:promptfoo:reinforcement-learning-with-verifiable-r] vs. [source:arxiv:2501.12948], and the survey of RL for LRMs explicitly lists reward design and gain attribution as unresolved "foundational problems" [source:github:a-survey-of-reinforcement-learning-for-l]. **Entropy collapse** during GRPO training—where in-distribution accuracy rises but OOD performance deteriorates—is a documented failure mode not yet widely solved [source:promptfoo:reinforcement-learning-with-verifiable-r]. **Overthinking** (excessive token use) remains a practical issue for deployment [source:arxiv:2501.12948]; [source:github:awesome-rlvr-reinforcement-learning-with]. The field is **not fading**; investment is accelerating (135 papers integrated from ICLR/ICML 2026 alone in the RLVR repo) [source:github:awesome-rlvr-reinforcement-learning-with], but the *theoretical understanding* of why RLVR works lags behind empirical scaling.
+RLVR with GRPO is the **default, rising paradigm** for math and code reasoning in open LLMs. The DeepSeekMath/R1 lineage and the CURE/UTRL co-evolution frameworks demonstrate that deterministic verifiers (unit tests, compilers, execution) can replace human preference data at the frontier [source:arxiv:2506.03136]; [source:arxiv:2508.21107]. The ecosystem is consolidating around GRPO (or its variants like REINFORCE++) as the optimization backbone, with infrastructure converging on **verl**, **OpenRLHF**, and **open-r1** [source:github:awesome-rlvr-reinforcement-learning-with]. However, **fundamental disagreements persist** on whether gains reflect search compression vs. capability expansion [source:promptfoo:reinforcement-learning-with-verifiable-r] vs. [source:arxiv:2501.12948], and the survey of RL for LRMs explicitly lists reward design as an unresolved "foundational problem" [source:github:a-survey-of-reinforcement-learning-for-l]. **Entropy collapse** during GRPO training—where in-distribution accuracy rises but OOD performance deteriorates—is a documented failure mode not yet widely solved [source:promptfoo:reinforcement-learning-with-verifiable-r]. **Overthinking** (excessive token use) remains a practical issue for deployment [source:arxiv:2501.12948]; [source:github:awesome-rlvr-reinforcement-learning-with]. The field is **not fading**; investment is accelerating (135 papers integrated from ICLR/ICML 2026 alone in the RLVR repo) [source:github:awesome-rlvr-reinforcement-learning-with].
 
 **New theoretical insights** challenge the assumption that all reward errors are harmful: beneficial errors can accelerate convergence by preventing stalling on mediocre outputs [source:arxiv:2604.25872], while partial rewards may inadvertently cap performance [source:arxiv:2604.25872]. **Meta-verification** [source:arxiv:2511.22570] and **adversarial co-evolution without ground-truth tests** [source:arxiv:2508.21107] are emerging as solutions to verifier scalability and completeness. **RLVR for vision-language** (olmOCR 2) demonstrates the paradigm's generality beyond text-only reasoning [source:arxiv:2510.19817].
 
@@ -206,7 +204,7 @@ RLVR with GRPO is the **default, rising paradigm** for math and code reasoning i
 - **RLVR replaces learned reward models with deterministic verifiers** (unit tests, compilers, executors), eliminating reward-model overoptimization and enabling traceable rewards [source:github:awesome-rlvr-reinforcement-learning-with]; [source:promptfoo:reinforcement-learning-with-verifiable-r].
 - **GRPO is the de facto optimizer**: it removes the critic by computing advantages from group statistics (mean/std of rewards across $G$ samples per prompt) and uses a token-level PPO-clip objective with a KL penalty [source:arxiv:2402.03300]; [source:arxiv:2501.12948].
 - **Verifier completeness is critical**: partial verifiers (e.g., syntax-only) induce reward hacking; CURE co-evolves the verifier (unit tests) with the generator to maximize *reward precision* [source:promptfoo:reinforcement-learning-with-verifiable-r]; [source:arxiv:2506.03136].
-- **DeepSeekMath shows code pre-training > arXiv for math reasoning**; RL improves majority-vote performance (Maj@K) more than single-pass capability (Pass@K) [source:arxiv:2402.03300].
+- **DeepSeekMath shows code pre-training > arXiv for math reasoning** [source:arxiv:2402.03300].
 - **DeepSeek-R1-Zero demonstrates pure RL can elicit emergent reasoning** (self-reflection, long CoT) without any SFT, but requires rule-based rewards to avoid hacking [source:arxiv:2501.12948].
 - **Gain attribution is contested**: compression ratio analysis suggests ~70%+ of gains may be search compression, yet "aha moment" narratives argue for genuine capability expansion [source:promptfoo:reinforcement-learning-with-verifiable-r]; [source:arxiv:2501.12948].
 - **Spurious rewards and entropy collapse** are understudied failure modes: random rewards can improve performance on some models, and entropy decline correlates with OOD degradation [source:promptfoo:reinforcement-learning-with-verifiable-r].

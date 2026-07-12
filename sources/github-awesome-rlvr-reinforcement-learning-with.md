@@ -5,7 +5,7 @@ title: Awesome RLVR — Reinforcement Learning with Verifiable Rewards
 url: https://github.com/opendilab/awesome-RLVR
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: verifiable-rewards
+topic: rl-for-math-and-code
 ---
 
 # Reinforcement Learning with Verifiable Rewards (RLVR)

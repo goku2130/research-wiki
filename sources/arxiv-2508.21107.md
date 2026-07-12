@@ -3,7 +3,7 @@ id: arxiv:2508.21107
 type: paper
 title: Learning to Generate Unit test via Adversarial Reinforcement Learning
 url: https://arxiv.org/abs/2508.21107
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rl-for-math-and-code
 ---

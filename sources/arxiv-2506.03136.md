@@ -3,7 +3,7 @@ id: arxiv:2506.03136
 type: paper
 title: Co-Evolving LLM Coder and Unit Tester via Reinforcement Learning
 url: https://arxiv.org/html/2506.03136v2
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rl-for-math-and-code
 ---

@@ -3,7 +3,7 @@ id: arxiv:2511.22570
 type: paper
 title: 'DeepSeekMath-V2: Towards Self-Verifiable Mathematical Reasoning'
 url: https://arxiv.org/abs/2511.22570
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rl-for-math-and-code
 ---

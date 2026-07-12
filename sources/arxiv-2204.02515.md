@@ -3,7 +3,7 @@ id: arxiv:2204.02515
 type: paper
 title: Inferring Rewards from Language in Context
 url: https://arxiv.org/abs/2204.02515
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rl-for-math-and-code
 ---

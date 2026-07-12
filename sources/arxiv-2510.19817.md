@@ -3,7 +3,7 @@ id: arxiv:2510.19817
 type: paper
 title: 'olmOCR 2: Unit Test Rewards for Document OCR'
 url: https://arxiv.org/abs/2510.19817
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rl-for-math-and-code
 ---
