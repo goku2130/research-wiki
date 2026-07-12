@@ -1002,6 +1002,30 @@ def compose(topic: dict, distilled: list[dict], tax: dict, verbose: bool = True,
     return article, open_qs, {"rounds": rounds}
 
 
+def factcheck_article(topic: dict, article: str, open_qs: list[str],
+                      distilled: list[dict], tax: dict):
+    """Run the (now-fixed) grounding fact-check + LaTeX validation over an EXISTING
+    article and revise ONLY what's flagged, in preserve mode — never rewrites structure,
+    shrinks, or adds sources. This is the remediation for articles that passed through
+    the broken (truncating) gate. Returns (article, open_qs, meta)."""
+    slug = topic["slug"]
+    rounds = []
+    for rnd in range(MAX_REVIEW_ROUNDS):
+        t = time.time()
+        grounding = fact_check(topic, article, distilled)      # nemotron, 32k budget
+        latex = check_formulas(article)                        # deterministic
+        issues = [f"[grounding] {g}" for g in grounding] + [f"[latex] {x}" for x in latex]
+        rounds.append({"grounding": len(grounding), "latex": len(latex)})
+        if not issues:
+            log(slug, f"sweep r{rnd+1}: CLEAN ({len(distilled)} sources, {time.time()-t:.0f}s)")
+            break
+        log(slug, f"sweep r{rnd+1}: {len(grounding)} grounding, {len(latex)} latex "
+                  f"-> revise ({time.time()-t:.0f}s)")
+        article, new_qs = revise(topic, article, issues, distilled, tax, preserve=True)
+        open_qs = new_qs or open_qs
+    return article, open_qs, {"rounds": rounds}
+
+
 def enrich(topic: dict, tax: dict) -> bool:
     """Re-visit a done topic: gather NEW sources (not already cited), DEEPEN the
     existing article to fold them in, advance maturity. Returns True if changed."""
