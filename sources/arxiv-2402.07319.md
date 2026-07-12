@@ -3,9 +3,9 @@ id: arxiv:2402.07319
 type: paper
 title: 'ODIN: Disentangled Reward Mitigates Hacking in RLHF'
 url: https://arxiv.org/abs/2402.07319
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: length-and-format-bias
+topic: reward-hacking
 ---
 
 # ODIN: Disentangled Reward Mitigates Hacking in RLHF

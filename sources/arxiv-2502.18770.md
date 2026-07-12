@@ -3,7 +3,7 @@ id: arxiv:2502.18770
 type: paper
 title: Reward Shaping to Mitigate Reward Hacking in RLHF
 url: https://arxiv.org/abs/2502.18770
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-hacking
 ---

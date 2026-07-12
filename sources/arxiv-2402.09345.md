@@ -4,7 +4,7 @@ type: paper
 title: 'InfoRM: Mitigating Reward Hacking in RLHF via Information-Theoretic Reward
   Modeling'
 url: https://arxiv.org/abs/2402.09345
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-hacking
 ---

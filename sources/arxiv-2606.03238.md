@@ -4,9 +4,9 @@ type: paper
 title: 'When RLHF Fails: A Mechanistic Taxonomy of Reward Hacking, Collapse, and Evaluator
   Gaming'
 url: https://arxiv.org/abs/2606.03238
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: length-and-format-bias
+topic: reward-hacking
 ---
 
 # Summary: When RLHF Fails: A Mechanistic Taxonomy of Reward Hacking, Collapse, and Evaluator Gaming

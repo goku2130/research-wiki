@@ -3,7 +3,7 @@ id: arxiv:2605.04266
 type: paper
 title: Explaining and Preventing Alignment Collapse in Iterative RLHF
 url: https://arxiv.org/abs/2605.04266
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-hacking
 ---

@@ -3,7 +3,7 @@ id: ai-safety-atlas:learning-from-feedback-specification-gam
 type: web
 title: Learning from feedback - Specification Gaming (AI Safety Atlas)
 url: https://ai-safety-atlas.com/chapters/v1/specification-gaming/learning-from-feedback/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-hacking
 ---

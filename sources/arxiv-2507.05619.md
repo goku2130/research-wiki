@@ -3,7 +3,7 @@ id: arxiv:2507.05619
 type: paper
 title: Detecting and Mitigating Reward Hacking in RLHF
 url: https://arxiv.org/html/2507.05619v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-hacking
 ---

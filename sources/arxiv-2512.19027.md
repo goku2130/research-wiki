@@ -3,7 +3,7 @@ id: arxiv:2512.19027
 type: paper
 title: Recontextualization Mitigates Specification Gaming without Modifying the Specification
 url: https://arxiv.org/abs/2512.19027
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-hacking
 ---

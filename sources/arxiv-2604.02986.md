@@ -3,7 +3,7 @@ id: arxiv:2604.02986
 type: paper
 title: Mitigating Reward Hacking in RLHF via Advantage Sign Robustness
 url: https://arxiv.org/abs/2604.02986
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-hacking
 ---

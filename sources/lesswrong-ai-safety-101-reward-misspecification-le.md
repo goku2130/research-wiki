@@ -3,7 +3,7 @@ id: lesswrong:ai-safety-101-reward-misspecification-le
 type: web
 title: 'AI Safety 101: Reward Misspecification (LessWrong)'
 url: https://www.lesswrong.com/posts/mMBoPnFrFqQJKzDsZ/ai-safety-101-reward-misspecification
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-hacking
 ---

@@ -3,7 +3,7 @@ id: deepmind:specification-gaming-the-flip-side-of-ai
 type: web
 title: 'Specification gaming: the flip side of AI ingenuity (Krakovna et al.)'
 url: https://deepmind.google/discover/blog/specification-gaming-the-flip-side-of-ai-ingenuity/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-hacking
 ---
