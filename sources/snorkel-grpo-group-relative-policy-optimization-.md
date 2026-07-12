@@ -3,7 +3,7 @@ id: snorkel:grpo-group-relative-policy-optimization-
 type: web
 title: GRPO (Group Relative Policy Optimization), explained - Snorkel AI
 url: https://snorkel.ai/grpo/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: grpo
 ---

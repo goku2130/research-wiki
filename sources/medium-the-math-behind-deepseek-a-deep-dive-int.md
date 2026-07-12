@@ -3,7 +3,7 @@ id: medium:the-math-behind-deepseek-a-deep-dive-int
 type: web
 title: 'The Math Behind DeepSeek: A Deep Dive into Group Relative ...'
 url: https://medium.com/@sahin.samia/the-math-behind-deepseek-a-deep-dive-into-group-relative-policy-optimization-grpo-8a75007491ba
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: grpo
 ---

@@ -3,7 +3,7 @@ id: cameronrwolfe:group-relative-policy-optimization-grpo-
 type: web
 title: Group Relative Policy Optimization (GRPO) - Deep (Learning) Focus
 url: https://cameronrwolfe.substack.com/p/grpo
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: grpo
 ---

@@ -4,7 +4,7 @@ type: paper
 title: 'DeepSeek-RLHF: A Strong and Customizable LLM with Reinforcement Learning from
   Human Feedback'
 url: https://arxiv.org/abs/2405.02104
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: grpo
 ---

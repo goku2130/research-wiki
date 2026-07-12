@@ -3,7 +3,7 @@ id: arxiv:2511.03527
 type: paper
 title: Learning Without Critics? Revisiting GRPO in Classical Control and LLMs
 url: https://arxiv.org/abs/2511.03527
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: grpo
 ---

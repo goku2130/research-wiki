@@ -4,9 +4,9 @@ type: paper
 title: 'DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language
   Models (RLVR/GRPO)'
 url: https://arxiv.org/abs/2402.03300
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: rl-for-math-and-code
+topic: grpo
 ---
 
 # DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models

@@ -3,7 +3,7 @@ id: youtube:deepseek-s-grpo-group-relative-policy-op
 type: web
 title: DeepSeek's GRPO (Group Relative Policy Optimization) - YouTube
 url: https://www.youtube.com/watch?v=xT4jxQUl0X8
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: grpo
 ---

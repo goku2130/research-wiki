@@ -3,7 +3,7 @@ id: aayushgarg:understanding-grpo-ppo-without-the-criti
 type: web
 title: 'Understanding GRPO: PPO without the Critic'
 url: https://aayushgarg.dev/posts/2026-01-01-understanding-grpo.html
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: grpo
 ---

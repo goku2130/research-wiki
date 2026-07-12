@@ -3,7 +3,7 @@ id: turingpost:what-is-grpo-group-relative-policy-optim
 type: web
 title: What Is GRPO? Group Relative Policy Optimization Explained
 url: https://www.turingpost.com/p/grpo
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: grpo
 ---
