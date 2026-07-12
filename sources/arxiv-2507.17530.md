@@ -3,7 +3,7 @@ id: arxiv:2507.17530
 type: paper
 title: Generalized Advantage Estimation for Distributional Policy Gradients
 url: https://arxiv.org/abs/2507.17530v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: policy-gradient-methods
 ---

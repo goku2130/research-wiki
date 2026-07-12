@@ -1,7 +1,7 @@
 ---
 title: Policy gradient methods for LLMs
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - papers:policy-gradient-methods-for-reinforcemen
 - arxiv:1506.02438
@@ -13,20 +13,15 @@ sources:
 - arxiv:1707.06347
 - arxiv:1706.03741
 open_questions:
-- How does the Christiano et al. (2017) finding that offline reward training fails
-  (leading to "bizarre" behaviors) map to modern LLM RLHF where reward models are
-  typically trained offline on static datasets? Are current LLM reward models suffering
-  from analogous distributional shift issues?
-- The 2017 paper used active querying based on ensemble variance. Modern LLM RLHF
-  almost never uses active querying—preference data is collected passively. What is
-  the efficiency gap, and could active querying reduce the human feedback needed for
-  LLM alignment?
-- 'Christiano et al. found that comparing single frames was far less effective than
-  short clips. For LLMs, what is the optimal "segment" for preference comparison:
-  single tokens, sentences, full completions, or multi-turn trajectories?'
-- The 2017 paper modeled human noise as a uniform 10% error rate. LLM preference annotation
-  has complex, structured biases (position bias, length bias, style bias). How should
-  reward modeling account for these?
+- What is the precise relationship between the compatibility condition and the choice
+  of advantage vs. Q-function approximation in modern deep actor-critic methods?
+- Can the theoretical guarantees of the compatibility condition be extended to nonlinear
+  function approximators used in deep RL?
+- How does the bias-variance tradeoff of GAE($\gamma,\lambda$) change when the value
+  function is learned with a trust-region constraint on squared difference rather
+  than KL divergence?
+- Does the offline reward model training used in modern LLM RLHF reintroduce the "bizarre
+  behavior" failure modes identified by Christiano et al. (2017)?
 ---
 
 Policy gradient methods form the theoretical backbone of reinforcement learning from human feedback (RLHF) for large language models, providing the gradient estimators that enable direct optimization of non-differentiable reward signals. This article traces the lineage from the foundational REINFORCE estimator through actor-critic architectures, advantage estimation techniques including GAE, the seminal RLHF foundation of learning rewards from human preferences, and their modern instantiations in LLM alignment pipelines.
@@ -45,7 +40,7 @@ $$
 \Delta \theta = \alpha (r - b) \nabla_\theta \log \pi_\theta(a|s)
 $$
 
-where $b$ is a baseline that reduces variance without introducing bias, provided $b$ does not depend on the action $a$ [source:link:simple-statistical-gradient-following-al]. For Bernoulli stochastic units with output probability $p = f(\text{net})$, the eligibility term becomes $(y - p) \frac{\partial \text{net}}{\partial w}$; for Gaussian units with mean $\mu = f(\text{net})$ and fixed variance $\sigma^2$, it becomes $\frac{(y - \mu)}{\sigma^2} \frac{\partial \mu}{\partial w}$ [source:link:simple-statistical-gradient-following-al].
+where $b$ is a baseline that reduces variance without introducing bias, provided $b$ does not depend on the weights $w_{ij}$ [source:link:simple-statistical-gradient-following-al]. For Bernoulli stochastic units with output probability $p = f(\text{net})$, the eligibility term becomes $(y - p) \frac{\partial \text{net}}{\partial w}$; for Gaussian units with mean $\mu = f(\text{net})$ and fixed variance $\sigma^2$, it becomes $\frac{(y - \mu)}{\sigma^2} \frac{\partial \mu}{\partial w}$ [source:link:simple-statistical-gradient-following-al].
 
 Sutton et al. (2000) generalized this to the **Policy Gradient Theorem** for Markov decision processes, showing that for either the average-reward objective $\rho(\pi) = \lim_{n\to\infty} \frac{1}{n}\mathbb{E}[\sum_{k=1}^n r_k]$ or the discounted start-state objective $\rho(\pi) = \mathbb{E}[\sum_{k=0}^\infty \gamma^k r_{k+1} | s_0]$, the gradient takes the form [source:papers:policy-gradient-methods-for-reinforcemen]:
 
@@ -63,7 +58,7 @@ $$
 \Delta \theta = \alpha \sum_s d^\pi(s) \sum_a \frac{\partial \pi(s,a)}{\partial \theta} f_w(s,a)
 $$
 
-Konda and Tsitsiklis (2000) analyzed two-time-scale actor-critic algorithms where the critic (parameters $w$) updates on a faster timescale than the actor (parameters $\theta$) [source:proceedings:actor-critic-algorithms]. They showed that for the critic to provide an unbiased gradient estimate, it must satisfy a **compatibility condition**:
+Sutton et al. (2000) showed that for the critic to provide an unbiased gradient estimate, it must satisfy a **compatibility condition**:
 
 $$
 \frac{\partial f_w(s,a)}{\partial w} = \frac{\partial \pi(s,a)}{\partial \theta} \frac{1}{\pi(s,a)}
@@ -75,9 +70,9 @@ $$
 \sum_s d^\pi(s) \sum_a \pi(s,a) [Q^\pi(s,a) - f_w(s,a)] \frac{\partial f_w(s,a)}{\partial w} = 0
 $$
 
-[source:papers:policy-gradient-methods-for-reinforcemen]. Konda and Tsitsiklis proved convergence to a local optimum under the two-timescale stepsize conditions $\sum \beta_k = \infty, \sum \beta_k^2 < \infty$ for the actor and $\sum \gamma_k = \infty, \sum \gamma_k^2 < \infty$ for the critic, with $\beta_k / \gamma_k \to 0$ [source:proceedings:actor-critic-algorithms].
+[source:papers:policy-gradient-methods-for-reinforcemen]. Konda and Tsitsiklis (2000) analyzed two-time-scale actor-critic algorithms where the critic (parameters $w$) updates on a faster timescale than the actor (parameters $\theta$) [source:proceedings:actor-critic-algorithms]. Konda and Tsitsiklis proved convergence to a local optimum under the two-timescale stepsize conditions $\sum \beta_k = \infty, \sum \beta_k^2 < \infty$ for the actor and $\sum \gamma_k = \infty, \sum \gamma_k^2 < \infty$ for the critic, with $\beta_k / \gamma_k \to 0$ [source:proceedings:actor-critic-algorithms].
 
-**Disagreement on critic parameterization**: Sutton et al. (2000) require the compatibility condition $\frac{\partial f_w}{\partial w} = \frac{\partial \pi}{\partial \theta} \frac{1}{\pi}$, which forces $f_w$ to be linear in the policy's score function features [source:papers:policy-gradient-methods-for-reinforcemen]. Konda and Tsitsiklis (2000) instead project the true $q^\pi$ onto the span of $\psi^\theta = \nabla_\theta \log \pi_\theta$, using a linear architecture $Q_r^\theta(x,u) = \sum_j r_j \phi_j^\theta(x,u)$ where $\text{span}\{\phi_j\}$ contains $\text{span}\{\psi_j\}$ [source:proceedings:actor-critic-algorithms]. The latter is more flexible but introduces approximation bias if the projection is imperfect. Modern deep actor-critic methods (e.g., PPO, SAC) typically use separate neural networks for policy and value function without enforcing strict compatibility, relying on empirical performance rather than theoretical guarantees [source:arxiv:1707.06347][source:arxiv:1801.01290].
+**Disagreement on critic parameterization**: Sutton et al. (2000) require the compatibility condition $\frac{\partial f_w}{\partial w} = \frac{\partial \pi}{\partial \theta} \frac{1}{\pi}$, which forces $f_w$ to be linear in the policy's score function features [source:papers:policy-gradient-methods-for-reinforcemen]. Konda and Tsitsiklis (2000) instead project the true $q^\pi$ onto the span of $\psi^\theta = \nabla_\theta \log \pi_\theta$, using a linear architecture $Q_r^\theta(x,u) = \sum_j r_j \phi_j^\theta(x,u)$ where $\text{span}\{\phi_j\}$ contains $\text{span}\{\psi_j\}$ [source:proceedings:actor-critic-algorithms]. The latter is more flexible but introduces approximation bias if the projection is imperfect. Modern deep actor-critic methods (e.g., PPO, SAC) typically use separate neural networks for policy and value function without enforcing strict compatibility, relying on empirical performance rather than theoretical guarantees.
 
 ## Advantage Estimation and GAE
 
@@ -95,7 +90,7 @@ $$
 
 Special cases: $\lambda=0$ gives the one-step TD residual $\delta_t$ (low variance, high bias if $V \neq V^\pi$); $\lambda=1$ gives the Monte Carlo return $\sum_{l=0}^\infty \gamma^l r_{t+l} - V(s_t)$ (low bias, high variance) [source:arxiv:1506.02438]. The paper also introduces a discount parameter $\gamma \leq 1$ distinct from the MDP discount, which downweights delayed effects to further reduce variance at the cost of bias [source:arxiv:1506.02438].
 
-Empirically, on MuJoCo continuous control tasks, the best $\gamma$ values were in $[0.96, 0.995]$ and best $\lambda$ in $[0.92, 0.99]$, with $\lambda$ typically lower than $\gamma$ [source:arxiv:1506.02438]. The value function was trained by minimizing squared error to Monte Carlo returns with a trust-region constraint on the KL divergence between old and new value predictions [source:arxiv:1506.02438].
+Empirically, on MuJoCo continuous control tasks, the best $\gamma$ values were in $[0.96, 0.995]$ and best $\lambda$ in $[0.92, 0.99]$, with $\lambda$ typically lower than $\gamma$ [source:arxiv:1506.02438]. The value function was trained by minimizing squared error to Monte Carlo returns with a trust-region constraint on the squared difference between old and new value predictions [source:arxiv:1506.02438].
 
 **Distributional extension**: A 2025 paper extends GAE to distributional RL by defining a Wasserstein-like directional metric $d(F_U, G_V) = \inf_{U,V}(U-V) = \int_0^1 L(F_U^{-1}(q) - G_V^{-1}(q)) dq$ that captures both distance and "superiority" between return distributions [source:arxiv:2507.17530]. The distributional TD error becomes $\delta^G(s_t,a_t) = r(s_t,a_t) + d(\gamma G(S_{t+1}), G(s_t))$, and DGAE is defined analogously. On MuJoCo tasks, distributional PPO (DPPO) and TRPO (DTRPO) outperformed their scalar baselines, though A2C/DA2C remained weak [source:arxiv:2507.17530]. The directional metric ignores shape similarity (e.g., variance differences), but this occurred in only ~0.093% of cases on Hopper [source:arxiv:2507.17530].
 
@@ -129,7 +124,7 @@ where $\mu$ is the distribution over the human's choice.
 
 **Key modifications for stability and performance** [source:arxiv:1706.03741]:
 *   **Ensembling:** An ensemble of predictors is trained on bootstrapped samples of the preference database; the final $\hat{r}$ is the average of these normalized predictors.
-*   **Regularization:** $\ell_2$ regularization is used, with coefficients adjusted to keep validation loss between 1.1 and 1.5 times the training loss.
+*   **Regularization:** $\ell_2$ regularization is used, with coefficients adjusted using a validation set.
 *   **Noise Modeling:** The model assumes a 10% probability that the human responds uniformly at random to account for human error.
 *   **Active Querying:** Pairs are selected for human labeling based on the highest variance in predictions across the ensemble members.
 
@@ -149,7 +144,7 @@ The method was evaluated on MuJoCo robotics and Atari games, requiring feedback 
 *   **Offline Training Failure:** Training the reward predictor on a static dataset (no online queries) performed poorly. Due to the nonstationarity of the occupancy distribution, the agent often developed "bizarre" behaviors, such as avoiding losing points in *Pong* without attempting to score [source:arxiv:1706.03741].
 *   **Feedback Granularity:** Comparing single frames was significantly less helpful than comparing short clips; longer clips provided necessary context for human evaluation [source:arxiv:1706.03741].
 *   **Human Consistency:** Real human feedback was occasionally less efficient than synthetic oracle feedback due to labeling errors or inconsistent rates of labeling [source:arxiv:1706.03741].
-*   **Task Complexity:** Some environments (e.g., *Qbert*) proved difficult to learn from short clips because the clips were confusing to evaluate [source:arxiv:1706.03741].
+*   **Task Complexity:** Some environments proved difficult to learn from short clips because the clips were confusing to evaluate [source:arxiv:1706.03741].
 
 ## Application to LLM Fine-tuning: PPO and RLHF
 
@@ -161,26 +156,26 @@ $$
 L^{\text{CLIP}}(\theta) = \hat{\mathbb{E}}_t \left[ \min\left( r_t(\theta) \hat{A}_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t \right) \right]
 $$
 
-where $r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}$ and $\hat{A}_t$ is computed via GAE [source:arxiv:1707.06347]. For LLMs, the "state" $s_t$ is the prompt plus generated tokens so far, the "action" $a_t$ is the next token, and the episode terminates at the end of the response. The KL penalty term $-\beta \text{KL}[\pi_{\theta_{\text{old}}}(\cdot|s_t), \pi_\theta(\cdot|s_t)]$ regularizes against reward hacking [source:arxiv:2203.02155]. The combined objective includes a value function loss and entropy bonus:
+where $r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}$ and $\hat{A}_t$ is computed via GAE [source:arxiv:1707.06347]. For LLMs, the "state" $s_t$ is the prompt plus generated tokens so far, the "action" $a_t$ is the next token, and the episode terminates at the end of the response. The KL penalty term $-\beta \text{KL}[\pi^{\text{SFT}}(\cdot|s_t), \pi_\theta(\cdot|s_t)]$ regularizes against reward hacking [source:arxiv:2203.02155]. The combined objective includes a value function loss and entropy bonus:
 
 $$
 L_t^{\text{CLIP+VF+S}}(\theta) = \hat{\mathbb{E}}_t \left[ L_t^{\text{CLIP}}(\theta) - c_1 L_t^{\text{VF}}(\theta) + c_2 S[\pi_\theta](s_t) \right]
 $$
 
-[source:arxiv:1707.06347]. InstructGPT used $\epsilon=0.2$, GAE with $\gamma=1, \lambda=0.95$, and a per-token KL coefficient $\beta$ [source:arxiv:2203.02155]. The PPO-ptx variant added a pretraining gradient term $\gamma \mathbb{E}_{x\sim D_{\text{pretrain}}}[\log \pi_\theta(x)]$ to mitigate the alignment tax [source:arxiv:2203.02155].
+[source:arxiv:1707.06347]. InstructGPT used PPO with GAE and a KL coefficient [source:arxiv:2203.02155]. The PPO-ptx variant added a pretraining gradient term $\gamma \mathbb{E}_{x\sim D_{\text{pretrain}}}[\log \pi_\theta(x)]$ to mitigate the alignment tax [source:arxiv:2203.02155].
 
-**Quantitative results**: On continuous control, PPO with $\epsilon=0.2$ achieved a normalized score of 0.82 vs. TRPO's 0.77; on Atari, PPO won 30/49 games by average reward during training vs. ACER's 18 [source:arxiv:1707.06347]. For InstructGPT, the 1.3B model was preferred over 175B GPT-3, and 175B InstructGPT was preferred over 175B GPT-3 $85\pm3\%$ of the time [source:arxiv:2203.02155]. TruthfulQA truthfulness doubled; hallucination rate dropped from 41% to 21% on closed-domain tasks [source:arxiv:2203.02155].
+**Quantitative results**: On continuous control, PPO with $\epsilon=0.2$ achieved a normalized score of 0.82 [source:arxiv:1707.06347]; on Atari, PPO won 30/49 games by average reward during training vs. ACER's 18 [source:arxiv:1707.06347]. For InstructGPT, the 1.3B model was preferred over 175B GPT-3, and 175B InstructGPT was preferred over 175B GPT-3 $85\pm3\%$ of the time [source:arxiv:2203.02155]. TruthfulQA truthfulness doubled; hallucination rate dropped from 41% to 21% on closed-domain tasks [source:arxiv:2203.02155].
 
-**Disagreement on KL penalty form**: The original PPO paper proposed both clipping and an adaptive KL penalty $L^{\text{KLPEN}} = \hat{\mathbb{E}}_t[r_t(\theta)\hat{A}_t - \beta \text{KL}]$ with $\beta$ adjusted to target a KL divergence $d_{\text{targ}}$ [source:arxiv:1707.06347]. InstructGPT uses a fixed per-token KL coefficient $\beta$ added to the reward, not the clipped objective [source:arxiv:2203.02155]. Later work (e.g., PPO implementations in TRL, OpenRLHF) often uses the clipped objective **with** a fixed KL penalty term, combining both mechanisms. The theoretical interaction between clipping and KL penalties is not fully characterized; Schulman et al. note clipping in log space offered no improvement [source:arxiv:1707.06347], but the combined effect in LLM settings is empirically tuned.
+**Disagreement on KL penalty form**: The original PPO paper proposed both clipping and an adaptive KL penalty $L^{\text{KLPEN}} = \hat{\mathbb{E}}_t[r_t(\theta)\hat{A}_t - \beta \text{KL}]$ with $\beta$ adjusted to target a KL divergence $d_{\text{targ}}$ [source:arxiv:1707.06347]. InstructGPT used PPO's clipped surrogate objective with a KL penalty [source:arxiv:2203.02155]. Later work (e.g., PPO implementations in TRL, OpenRLHF) often uses the clipped objective **with** a fixed KL penalty term, combining both mechanisms. The theoretical interaction between clipping and KL penalties is not fully characterized, but the combined effect in LLM settings is empirically tuned.
 
 ## Current Status and Trajectory
 
 Policy gradient methods—specifically PPO with GAE—remain the **default** algorithm for the RL step of RLHF in open-source and industrial LLM alignment (e.g., Llama 2, Zephyr, TRL library). However, the trajectory shows **rising interest in alternatives** that avoid the complexity and instability of on-policy PPO:
 
-- **Direct Preference Optimization (DPO)** and variants (IPO, KTO, SimPO) replace the RL loop with a direct supervised loss on preference pairs, eliminating the need for a separate RM, value function, and GAE estimation [source:arxiv:2203.02155] (see sibling article on DPO).
-- **Group Relative Policy Optimization (GRPO)** removes the critic entirely, estimating advantages via group statistics over multiple responses per prompt, reducing memory and compute [source:arxiv:2507.17530] (see sibling article on GRPO).
-- **Off-policy methods (SAC, TD3)** have seen limited adoption for LLM fine-tuning due to the difficulty of replay buffers with long sequences and the non-stationarity of the reward model, though they remain standard in continuous control [source:arxiv:1801.01290].
-- **Distributional critics (DGAE)** are a recent research direction (2025) with promising MuJoCo results but **not widely reported** in LLM settings; the quantile-Huber loss and inverse CDF networks add significant complexity for unclear gains in discrete token spaces [source:arxiv:2507.17530].
+- **Direct Preference Optimization (DPO)** and variants (IPO, KTO, SimPO) replace the RL loop with a direct supervised loss on preference pairs, eliminating the need for a separate RM, value function, and GAE estimation [source:arxiv:2305.18290] (see sibling article on DPO).
+- **Group Relative Policy Optimization (GRPO)** removes the critic entirely, estimating advantages via group statistics over multiple responses per prompt, reducing memory and compute [source:arxiv:2402.03300] (see sibling article on GRPO).
+- **Off-policy methods (SAC, TD3)** remain standard in continuous control [source:arxiv:1801.01290].
+- **Distributional critics (DGAE)** are a recent research direction (2025) with promising MuJoCo results [source:arxiv:2507.17530].
 
 The field is **not abandoning** policy gradients—PPO remains the benchmark—but the **consensus is shifting** toward methods that simplify or eliminate the critic and advantage estimation pipeline, especially for instruction-following where reward models are noisy and the action space is discrete and massive. The Christiano et al. (2017) foundation—online reward learning with active querying—remains the conceptual backbone, though modern LLM RLHF typically uses **offline** reward model training on static preference datasets, a simplification that the 2017 paper showed can lead to reward hacking and "bizarre" behaviors if not carefully managed [source:arxiv:1706.03741].
 
@@ -219,5 +214,5 @@ The field is **not abandoning** policy gradients—PPO remains the benchmark—b
 - [source:arxiv:2203.02155] [Training language models to follow instructions with human feedback (InstructGPT)](https://arxiv.org/abs/2203.02155)
 - [source:arxiv:2507.17530] [Generalized Advantage Estimation for Distributional Policy Gradients](https://arxiv.org/abs/2507.17530v1)
 - [source:arxiv:1801.01290] [Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor](https://arxiv.org/abs/1801.01290)
-- [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347)
-- [source:arxiv:1706.03741] [Deep Reinforcement Learning from Human Preferences (RLHF Foundation)](https://arxiv.org/abs/1706.03741)
+- [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms (Schulman et al. 2017)](https://arxiv.org/abs/1707.06347)
+- [source:arxiv:1706.03741] [Deep reinforcement learning from human preferences (Christiano et al. 2017)](https://arxiv.org/abs/1706.03741)

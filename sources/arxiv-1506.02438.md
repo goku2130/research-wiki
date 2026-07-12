@@ -4,7 +4,7 @@ type: paper
 title: High-Dimensional Continuous Control Using Generalized Advantage Estimation
   and Trust Region Policy Optimization
 url: https://arxiv.org/pdf/1506.02438
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: policy-gradient-methods
 ---

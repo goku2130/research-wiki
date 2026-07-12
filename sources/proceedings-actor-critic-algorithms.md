@@ -3,7 +3,7 @@ id: proceedings:actor-critic-algorithms
 type: web
 title: Actor-Critic Algorithms
 url: https://proceedings.neurips.cc/paper/1786-actor-critic-algorithms.pdf
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: policy-gradient-methods
 ---

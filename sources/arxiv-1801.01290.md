@@ -4,7 +4,7 @@ type: paper
 title: 'Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning
   with a Stochastic Actor'
 url: https://arxiv.org/abs/1801.01290
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: policy-gradient-methods
 ---

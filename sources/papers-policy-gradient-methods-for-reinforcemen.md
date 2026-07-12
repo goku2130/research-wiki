@@ -3,7 +3,7 @@ id: papers:policy-gradient-methods-for-reinforcemen
 type: web
 title: Policy Gradient Methods for Reinforcement Learning with Function Approximation
 url: https://papers.neurips.cc/paper/1713-policy-gradient-methods-for-reinforcement-learning-with-function-approximation.pdf
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: policy-gradient-methods
 ---

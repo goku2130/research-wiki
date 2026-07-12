@@ -4,7 +4,7 @@ type: web
 title: Simple statistical gradient-following algorithms for connectionist reinforcement
   learning
 url: https://link.springer.com/article/10.1007/BF00992696
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: policy-gradient-methods
 ---

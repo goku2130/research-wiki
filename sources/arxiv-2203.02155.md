@@ -5,7 +5,7 @@ title: Training language models to follow instructions with human feedback (Inst
 url: https://arxiv.org/abs/2203.02155
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: reward-modeling
+topic: policy-gradient-methods
 ---
 
 # Training Language Models to Follow Instructions with Human Feedback (InstructGPT)
