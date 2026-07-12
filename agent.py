@@ -770,7 +770,7 @@ def review(topic: dict, article: str, open_qs: list[str], distilled: list[dict])
                f"Open questions present: {len(open_qs)}\n\nARTICLE:\n{article}")
     try:
         resp = _chat(reviewer_client(),
-            model=REVIEWER_MODEL, temperature=0.2, max_tokens=16000,
+            model=REVIEWER_MODEL, temperature=0.2, max_tokens=32000,  # ~gemma's 32,768 output cap
             messages=[{"role": "system", "content": REVIEW_SYS},
                       {"role": "user", "content": content}])
         msg = resp.choices[0].message
@@ -811,7 +811,7 @@ def fact_check(topic: dict, article: str, distilled: list[dict]) -> list[str]:
     content = f"ARTICLE:\n{article}\n\nSOURCE SUMMARIES:\n{corpus}"
     try:
         resp = _chat(factcheck_client(),
-            model=FACTCHECK_MODEL, temperature=0.1, max_tokens=16000,
+            model=FACTCHECK_MODEL, temperature=0.1, max_tokens=32000,  # headroom for thinking + issues
             messages=[{"role": "system", "content": FACTCHECK_SYS},
                       {"role": "user", "content": content}])
         msg = resp.choices[0].message
