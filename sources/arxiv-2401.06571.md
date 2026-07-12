@@ -3,7 +3,7 @@ id: arxiv:2401.06571
 type: paper
 title: 'CPO: Contrastive Preference Optimization for LLM Alignment'
 url: https://arxiv.org/abs/2401.06571
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: dpo-variants
 ---

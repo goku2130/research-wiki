@@ -5,7 +5,7 @@ title: 'Direct Preference Optimization: Your Language Model is Secretly a Reward
 url: https://arxiv.org/abs/2305.18290
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: dpo-and-preference-optimization
+topic: dpo-variants
 ---
 
 # Direct Preference Optimization (DPO)

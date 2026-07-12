@@ -5,7 +5,7 @@ title: Kahneman-Tversky Optimization (KTO)
 url: https://arxiv.org/abs/2402.01306
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: dpo-and-preference-optimization
+topic: dpo-variants
 ---
 
 # Kahneman-Tversky Optimization (KTO)

@@ -3,9 +3,9 @@ id: arxiv:2405.14734
 type: paper
 title: 'SimPO: Simple Preference Optimization with a Reference-Free Reward'
 url: https://arxiv.org/abs/2405.14734
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: length-and-format-bias
+topic: dpo-variants
 ---
 
 # SimPO: Simple Preference Optimization with a Reference-Free Reward

@@ -5,7 +5,7 @@ title: Identity Preference Optimization (IPO)
 url: https://arxiv.org/abs/2310.12036
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: dpo-and-preference-optimization
+topic: dpo-variants
 ---
 
 # Identity Preference Optimization (IPO)

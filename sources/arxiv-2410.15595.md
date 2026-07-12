@@ -3,7 +3,7 @@ id: arxiv:2410.15595
 type: paper
 title: A Comprehensive Survey of Direct Preference Optimization
 url: https://arxiv.org/abs/2410.15595
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: dpo-variants
 ---

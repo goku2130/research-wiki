@@ -3,7 +3,7 @@ id: arxiv:2410.04203
 type: paper
 title: 'Rainbow PO: A Unified Framework for Combining Improvements in Preference Optimization'
 url: https://arxiv.org/abs/2410.04203
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: dpo-variants
 ---

@@ -4,7 +4,7 @@ type: paper
 title: 'Contrastive Preference Optimization: Pushing the Boundaries of LLM Alignment
   in Large-Scale Settings'
 url: https://arxiv.org/abs/2401.06518
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: dpo-variants
 ---
