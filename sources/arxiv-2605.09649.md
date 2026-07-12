@@ -4,7 +4,7 @@ type: paper
 title: 'Make Each Token Count: Towards Improving Long-Context Performance with KV
   Cache Eviction'
 url: https://arxiv.org/abs/2605.09649
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

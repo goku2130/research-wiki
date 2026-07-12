@@ -3,7 +3,7 @@ id: arxiv:2312.07104
 type: paper
 title: 'SGLang: Efficient Execution of Structured Language Model Programs'
 url: https://arxiv.org/abs/2312.07104
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

@@ -1,7 +1,7 @@
 ---
 title: Rollout generation infrastructure
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - lmsys:fast-and-expressive-llm-inference-with-r
 - runpod:when-to-choose-sglang-over-vllm-multi-tu
@@ -18,14 +18,17 @@ sources:
 - arxiv:2607.06519
 - arxiv:2504.03648
 open_questions:
-- Will vLLM adopt radix-tree prefix caching natively, or will its APC evolve to handle
-  partial overlaps via block-level fuzzy matching?
-- Can Resident KV Claim contracts be standardized across runtimes (vLLM, SGLang, TensorRT-LLM,
-  Triton) to enable portable rollout generation with guaranteed KV reuse semantics?
-- Does DBTrimKV's attention-dilution mitigation generalize to RL rollout workloads
-  where distractors are not static but generated adversarially by the policy?
-- How do advanced eviction methods (ReST-KV, FreqDepthKV, KV-CAR) interact with speculative
-  decoding and chunked prefill in production rollout pipelines?
+- No public benchmark directly compares vLLM and SGLang on PPO/GRPO rollout generation
+  with repeated system prompts and varying completions — the critical workload for
+  RLHF.
+- Whether runtimes will adopt explicit arbitration primitives (resident claims, hard
+  protection, active refusal) from the conformance contract framework, fundamentally
+  changing KV cache pressure management during large-scale rollout generation.
+- Whether DBTrimKV's demonstration that selective eviction can exceed full-cache performance
+  (by mitigating attention dilution) generalizes across model families and RL reward
+  landscapes.
+- Whether AIBrix's cross-engine distributed KV cache pools and ILP-based heterogeneous
+  GPU optimization will see production adoption beyond the evaluated Bird-SQL workload.
 ---
 
 Rollout generation infrastructure has become the critical bottleneck for scaling RLHF and inference-time compute, with vLLM and SGLang representing the two dominant open-source serving engines that implement fundamentally different KV cache reuse strategies. Their architectural choices — PagedAttention's block-level paging versus RadixAttention's radix-tree prefix matching — create divergent performance profiles across single-round batch inference, multi-turn conversations, and structured generation workloads.
@@ -152,7 +155,7 @@ ReST-KV reformulates KV cache eviction as an optimization problem preserving att
 
 ### DBTrimKV: Dynamic Budget Trim with Global Calibration
 
-DBTrimKV treats eviction as a mechanism for **improving reasoning** rather than mere compression, identifying **attention dilution** as a primary failure cause in long contexts: as distractors increase, softmax spreads mass across them, diluting attention on useful evidence [source:arxiv:2512.06727].
+DBTrimKV treats eviction as a mechanism for **improving reasoning** rather than mere compression, identifying **attention dilution** as a primary failure cause in long contexts: as distractors increase, softmax spreads mass across them, diluting attention on useful evidence [source:arxiv:2605.09649].
 
 **Method**:
 1. **Retention Gate**: Lightweight per-token/layer/head gate $g_{\ell,h}$ predicts retention coefficient $\beta_{\ell,h,t} \in [0, 1]$ from token embedding
@@ -168,7 +171,7 @@ DBTrimKV treats eviction as a mechanism for **improving reasoning** rather than 
 - Global future utility: $\widetilde{G}_{\ell,h,i}(t)=\sum_{s=t+1}^{T}\beta_{\ell,h,i}^{s-i}=\beta_{\ell,h,i}^{t+1-i}\,\frac{1-\beta_{\ell,h,i}^{T-t}}{1-\beta_{\ell,h,i}}$
 - Capacity loss: $\mathcal{L}_{\mathrm{cap}}=\sum_{t=1}^{T}\mathrm{max}\left(0,\,\sum_{\ell,h}\sum_{i=1}^{t}\beta_{\ell,h,i}^{t-i}-M_{\mathrm{global}}\right)$
 
-**Results**: **Exceeds vanilla full-cache by up to 3.75%** on long-form generation; **9.20% average accuracy improvement** on LongBench-v2 (Phi-3-mini-128K); **VLM reasoning**: MathVisionmini budget 256 → **69.91%** vs 65.67% TrimKV, 50.89% SnapKV; **MMDU budget 128**: overall 3.43 vs vanilla 3.57, but **Visual Perception 3.54 vs 3.40**, **Logical Coherence 4.11 vs 3.90**; efficient with PagedAttention. **Limitation**: Small computational overhead vs non-global TrimKV due to variable-length, head-specific caches [source:arxiv:2512.06727].
+**Results**: **Exceeds vanilla full-cache by up to 3.75%** on long-form generation; **9.20% average accuracy improvement** on LongBench-v2 (Phi-3-mini-128K); **VLM reasoning**: MathVisionmini budget 256 → **69.91%** vs 65.67% TrimKV, 50.89% SnapKV; **MMDU budget 128**: overall 3.43 vs vanilla 3.57, but **Visual Perception 3.54 vs 3.40**, **Logical Coherence 4.11 vs 3.90**; efficient with PagedAttention. **Limitation**: Small computational overhead vs non-global TrimKV due to variable-length, head-specific caches [source:arxiv:2605.09649].
 
 ### FreqDepthKV: Frequency-Guided Depth Sharing
 
@@ -229,13 +232,13 @@ AIBrix provides a cloud-native framework co-designing system-level orchestration
 
 ## Current Status and Trajectory
 
-**vLLM** is the **de facto default for high-throughput batch inference** and production deployments requiring stability, broad hardware support (NVIDIA, AMD, Intel, TPU), and a large ecosystem (10k+ contributors, ~2k PR submitters, 12h–3d issue response) [source:inclusion-ai:the-community-stories-of-vllm-and-sglang]. Its PagedAttention + CoW design is proven at scale; the V1 refactor resolves the major CPU bottleneck. **Rising** — active development, expanding hardware backends, adoption in major LLM serving platforms.
+**vLLM** is the **de facto default for high-throughput batch inference** and production deployments requiring stability, and a large ecosystem (10k+ contributors, ~2k PR submitters, 12h–3d issue response) [source:inclusion-ai:the-community-stories-of-vllm-and-sglang]. Its PagedAttention + CoW design is proven at scale; the V1 refactor resolves the major CPU bottleneck. **Rising** — active development, expanding hardware backends, adoption in major LLM serving platforms.
 
 **SGLang** is **rising rapidly for structured generation, agentic workflows, and multi-turn chat** where dynamic prefix reuse and constrained decoding matter. Its RadixAttention + Compressed FSM + DSL co-design targets workloads vLLM's APC handles less naturally. Community is smaller (~half vLLM's contributors, 3–5d issue response) but with **30% contributor overlap** (194 dual contributors) [source:inclusion-ai:the-community-stories-of-vllm-and-sglang]. **Not widely reported** as a general-purpose batch inference replacement; the one-shot deficit (RunPod) and DSL learning curve limit default adoption. Trajectory: **specialized dominance** in reasoning/agent rollouts, potential convergence if vLLM adopts radix-tree prefix caching natively.
 
 **Emerging formalization layer**: The **Resident KV Claim** contract and **Fail-Closed Lowering** checker introduce a conformance framework for KV cache reuse guarantees across runtimes [source:arxiv:2605.24259][source:arxiv:2606.01387]. No runtime achieves `native_sound` conformance yet; TensorRT-LLM and SGLang/HiCache achieve `sound_with_adapter` for specific modes; vLLM requires a backend patch for `offloadable` semantics. This formalization may drive runtime convergence on explicit arbitration primitives (resident victim exclusion, active refusal) rather than silent eviction.
 
-**Advanced eviction/compression convergence**: ReST-KV, DBTrimKV, FreqDepthKV, and KV-CAR represent a new generation of **inference-time KV optimization** that goes beyond simple eviction to include layer-wise reconstruction, global budget allocation, frequency-domain factorization, and autoencoder compression [source:arxiv:2605.08840][source:arxiv:2512.06727][source:arxiv:2607.06519][source:arxiv:2512.06727]. DBTrimKV's demonstration that **selective eviction can exceed full-cache performance** (9.20% LongBench-v2 improvement) by mitigating attention dilution challenges the compression-accuracy tradeoff assumption. FreqDepthKV's **3.9× compression with near-lossless accuracy** and ReST-KV's **15.2% RULER gain** suggest these techniques are approaching production readiness.
+**Advanced eviction/compression convergence**: ReST-KV, DBTrimKV, FreqDepthKV, and KV-CAR represent a new generation of **inference-time KV optimization** that goes beyond simple eviction to include layer-wise reconstruction, global budget allocation, frequency-domain factorization, and autoencoder compression [source:arxiv:2605.08840][source:arxiv:2605.09649][source:arxiv:2607.06519][source:arxiv:2512.06727]. DBTrimKV's demonstration that **selective eviction can exceed full-cache performance** (9.20% LongBench-v2 improvement) by mitigating attention dilution challenges the compression-accuracy tradeoff assumption. FreqDepthKV's **3.9× compression with near-lossless accuracy** and ReST-KV's **15.2% RULER gain** suggest these techniques are approaching production readiness.
 
 **Cloud-native orchestration**: AIBrix demonstrates that **cross-engine distributed KV cache pools** and **LLM-aware routing** can yield **50% throughput gains** and **65-77% TTFT reductions** over single-engine prefix caching [source:arxiv:2504.03648]. Its ILP-based heterogeneous GPU optimizer achieves **10% cost reduction** within SLOs. The framework's integration with both vLLM and SGLang positions it as a potential unification layer.
 
@@ -250,8 +253,8 @@ AIBrix provides a cloud-native framework co-designing system-level orchestration
 - **Both converged** on chunked prefill, speculative decoding, disaggregated serving, CUDA graphs, FlashInfer/FlashAttention/DeepGEMM [source:inclusion-ai:the-community-stories-of-vllm-and-sglang].
 - **vLLM V1 refactor** resolved >50% CPU scheduling overhead; v0.6.0: 5× latency reduction, 2.7× perf [source:inclusion-ai:the-community-stories-of-vllm-and-sglang].
 - **Resident KV Claims** introduce a formal conformance contract for active/resident KV arbitration, converting silent resident loss into explicit scheduler-visible refusal [source:arxiv:2605.24259][source:arxiv:2606.01387].
-- **Advanced eviction methods** (ReST-KV, DBTrimKV, FreqDepthKV, KV-CAR) achieve **near-lossless or accuracy-improving compression** via layer-wise reconstruction, global budget allocation, frequency-domain factorization, and autoencoder compression [source:arxiv:2605.08840][source:arxiv:2512.06727][source:arxiv:2607.06519][source:arxiv:2512.06727].
-- **DBTrimKV exceeds full-cache performance** by 9.20% on LongBench-v2 by mitigating attention dilution — eviction as reasoning enhancement [source:arxiv:2512.06727].
+- **Advanced eviction methods** (ReST-KV, DBTrimKV, FreqDepthKV, KV-CAR) achieve **near-lossless or accuracy-improving compression** via layer-wise reconstruction, global budget allocation, frequency-domain factorization, and autoencoder compression [source:arxiv:2605.08840][source:arxiv:2605.09649][source:arxiv:2607.06519][source:arxiv:2512.06727].
+- **DBTrimKV exceeds full-cache performance** by 9.20% on LongBench-v2 by mitigating attention dilution — eviction as reasoning enhancement [source:arxiv:2605.09649].
 - **AIBrix** demonstrates cross-engine distributed KV cache pools yielding **50% throughput gains** and **65-77% TTFT reductions** with LLM-aware routing and ILP-based heterogeneous GPU optimization [source:arxiv:2504.03648].
 - **No direct benchmark** on RL rollout generation (repeated system prompts + varying trajectories) — the critical workload for PPO/GRPO/RLVR.
 

@@ -3,7 +3,7 @@ id: inclusion-ai:the-community-stories-of-vllm-and-sglang
 type: web
 title: The Community Stories of vLLM and SGLang (Inclusion AI)
 url: https://www.inclusion-ai.org/blog/llm-landscape-vllm-sgl/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

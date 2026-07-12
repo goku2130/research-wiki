@@ -3,7 +3,7 @@ id: arxiv:2606.01387
 type: paper
 title: Fail-Closed Lowering of Resident KV Claims onto LLM Serving Runtimes
 url: https://arxiv.org/abs/2606.01387
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

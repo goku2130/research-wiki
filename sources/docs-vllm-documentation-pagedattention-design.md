@@ -3,7 +3,7 @@ id: docs:vllm-documentation-pagedattention-design
 type: web
 title: 'vLLM Documentation: PagedAttention Design'
 url: https://docs.vllm.ai/en/latest/design/paged_attention/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

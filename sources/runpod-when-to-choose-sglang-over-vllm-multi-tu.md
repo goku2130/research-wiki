@@ -3,7 +3,7 @@ id: runpod:when-to-choose-sglang-over-vllm-multi-tu
 type: web
 title: 'When to Choose SGLang Over vLLM: Multi-Turn Conversations (RunPod)'
 url: https://www.runpod.io/blog/sglang-vs-vllm-kv-cache
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

@@ -3,7 +3,7 @@ id: lmsys:fast-and-expressive-llm-inference-with-r
 type: web
 title: Fast and Expressive LLM Inference with RadixAttention and SGLang (LMSYS Blog)
 url: https://www.lmsys.org/blog/2024-01-17-sglang/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

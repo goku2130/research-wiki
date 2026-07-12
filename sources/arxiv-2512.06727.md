@@ -4,7 +4,7 @@ type: paper
 title: 'KV-CAR: KV Cache Compression using Autoencoders and KV Reuse in Large Language
   Models'
 url: https://arxiv.org/abs/2512.06727
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

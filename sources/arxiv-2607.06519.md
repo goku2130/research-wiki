@@ -4,7 +4,7 @@ type: paper
 title: 'FreqDepthKV: Frequency-Guided Depth Sharing for Robust KV Cache Compression
   in Long-Context LLM Inference'
 url: https://arxiv.org/abs/2607.06519
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

@@ -3,7 +3,7 @@ id: arxiv:2504.03648
 type: paper
 title: 'AIBrix: Towards Scalable, Cost-Effective Large Language Model Serving'
 url: https://arxiv.org/abs/2504.03648
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

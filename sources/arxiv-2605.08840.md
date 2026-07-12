@@ -4,7 +4,7 @@ type: paper
 title: 'ReST-KV: Robust KV Cache Eviction with Layer-wise Output Reconstruction and
   Spatial-Temporal Smoothing'
 url: https://arxiv.org/abs/2605.08840
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

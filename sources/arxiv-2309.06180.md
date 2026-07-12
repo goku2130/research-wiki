@@ -4,7 +4,7 @@ type: paper
 title: Efficient Memory Management for Large Language Model Serving with PagedAttention
   (vLLM)
 url: https://arxiv.org/abs/2309.06180
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

@@ -4,7 +4,7 @@ type: paper
 title: 'Resident KV Claims: A Conformance Contract for Future Reuse under Active KV
   Pressure'
 url: https://arxiv.org/abs/2605.24259
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---

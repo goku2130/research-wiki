@@ -3,7 +3,7 @@ id: blog:sglang-vs-vllm-the-new-throughput-king-g
 type: web
 title: 'SGLang vs. vLLM: The New Throughput King? (GoPenAI)'
 url: https://blog.gopenai.com/sglang-vs-vllm-the-new-throughput-king-7daec596f7fa
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rollout-generation-infra
 ---
