@@ -3,7 +3,7 @@ id: arxiv:1909.08077
 type: paper
 title: Learning to summarize with human feedback
 url: https://arxiv.org/pdf/1909.08077
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-modeling
 ---

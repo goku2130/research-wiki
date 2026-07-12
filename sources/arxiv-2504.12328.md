@@ -4,7 +4,7 @@ type: paper
 title: 'A Comprehensive Survey of Reward Models: Taxonomy, Applications, Challenges,
   and Future'
 url: https://arxiv.org/html/2504.12328v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-modeling
 ---

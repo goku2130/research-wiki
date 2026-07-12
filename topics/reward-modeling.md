@@ -1,7 +1,7 @@
 ---
 title: Reward modeling for LLMs
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - arxiv:2507.07375
 - arxiv:2203.02155
@@ -18,15 +18,14 @@ sources:
 - lilianweng:reward-hacking-in-reinforcement-learning
 - rlhfbook:rlhf-book-reward-models-section
 open_questions:
-- Can classification-based reward modeling (logit-as-reward) replace BT in production
-  RLHF pipelines, or does BT's probabilistic calibration provide value for downstream
-  PPO/DPO?
-- Will cross-prompt comparison become standard practice, and how should annotation
-  budgets be allocated between same-prompt vs. cross-prompt pairs?
-- Does the Proxy Compression Hypothesis suggest fundamental limits to scalar reward
-  modeling, necessitating multi-dimensional or hierarchical reward representations?
-- Can PROF-style filtration generalize to open-domain tasks without verifiable ORMs,
-  or is it inherently tied to math/code where ground-truth outcomes exist?
+- Will classification-based reward modeling (cross-prompt, logit-as-reward) displace
+  BT in production pipelines, or remain a niche for sparse/noisy regimes?
+- Can BNRM's Bayesian sparsity and SMORM's multi-objective anchoring be combined,
+  or do their inductive biases conflict?
+- Does PROF-style filtration generalize to open-domain tasks without verifiable ORMs,
+  or is it fundamentally tied to math/code?
+- How do multi-turn, tool-use, and long-horizon reward hacking differ from the single-turn
+  benchmarks currently used to evaluate BNRM/SMORM?
 ---
 
 Reward modeling translates human or verifiable feedback into scalar signals that steer LLM behavior, forming the critical bridge between preference data and policy optimization. The field has evolved from simple Bradley–Terry pairwise comparators toward multi-objective, Bayesian, and process-aware architectures that attempt to close the gap between proxy rewards and true intent.
@@ -45,7 +44,7 @@ $$
 \mathcal{L}(\theta) = -\mathbb{E}_{(x,y_c,y_r)\sim\mathcal{D}}\Bigl[\log \sigma\bigl(r_\theta(x,y_c)-r_\theta(x,y_r)\bigr)\Bigr],
 $$
 
-which is equivalent to a softplus loss $\log\bigl(1+\exp(r_\theta(x,y_r)-r_\theta(x,y_c))\bigr)$ [source:rlhfbook:reward-modeling-rlhf-and-post-training-b]. In practice, the reward head is a single linear layer on the final-token hidden state of a causal LM; the InstructGPT pipeline initializes the RM from the SFT model and trains for only one epoch to avoid overfitting [source:arxiv:2203.02155].
+which is equivalent to a softplus loss $\log\bigl(1+\exp(r_\theta(x,y_r)-r_\theta(x,y_c))\bigr)$ [source:rlhfbook:reward-modeling-rlhf-and-post-training-b]. In practice, the reward head is a single linear layer on the final-token hidden state of a causal LM; the InstructGPT pipeline initializes the RM from the SFT model and trains for only one epoch to avoid overfitting [source:rlhfbook:reward-modeling-rlhf-and-post-training-b].
 
 When $K$ completions are ranked per prompt, the naïve $\binom{K}{2}$ pairwise expansion introduces strong correlations; the Llama 2/3 recipes mitigate this by averaging the per-prompt loss or weighting updates [source:rlhfbook:reward-modeling-rlhf-and-post-training-b]. A margin variant $-\log\sigma(r_c-r_r-m)$ was used in Llama 2 but later dropped due to diminishing returns at scale [source:rlhfbook:reward-modeling-rlhf-and-post-training-b]. The Plackett–Luce extension handles $K$-wise rankings directly:
 
@@ -55,7 +54,7 @@ $$
 
 though pairwise BT remains the de facto standard for its simplicity [source:rlhfbook:reward-modeling-rlhf-and-post-training-b].
 
-**Disagreement on data efficiency:** The InstructGPT paper reports strong results with ~33k comparison pairs for a 6B RM [source:arxiv:2203.02155], while the SMORM paper argues that single-objective BT models (SORMs) "typically outperform MORMs in scoring" because they can leverage "more abundant preference data," implying that multi-attribute data scarcity is a binding constraint [source:arxiv:2507.07375]. The survey notes that active learning and data augmentation are used to improve preference collection efficiency, but does not quantify the BT data regime where returns saturate [source:arxiv:2504.12328].
+**Disagreement on data efficiency:** The SMORM paper argues that single-objective BT models (SORMs) "typically outperform MORMs in scoring" because they can leverage "more abundant preference data," implying that multi-attribute data scarcity is a binding constraint [source:arxiv:2507.07375]. The survey notes that active learning and data augmentation are used to improve preference collection efficiency, but does not quantify the BT data regime where returns saturate [source:arxiv:2504.12328].
 
 ### Classification-Based Alternatives and Cross-Prompt Comparisons
 
@@ -73,7 +72,7 @@ Reward hacking (a.k.a. reward overoptimization or specification gaming) occurs w
 
 Two distinct mitigation philosophies appear in the sources:
 
-1. **Bayesian regularization of the reward model itself.** BNRM places Gamma priors on a non-negative factor-analysis latent space $\theta \sim \text{Gamma}(\alpha_0,\beta_0)$, $\Phi \sim \text{Gamma}(\gamma_0,\delta_0)$, with reward $r = \theta^\top\Phi$. Variational inference with Weibull posteriors yields an ELBO objective that penalizes epistemic uncertainty (global dictionary $\Phi$) and aleatoric uncertainty (instance-specific $\theta$) [source:arxiv:2602.10623]. This suppresses spurious features without explicit bias annotations: on RM-Bench Hard, BNRM reduces the length–reward correlation from $0.488$ to $0.123$ [source:arxiv:2602.10623]. BNRM also shows robustness to label noise (matching BT@20k with only 1k clean samples at 40% noise) and faster convergence (71.75% val accuracy at 0.25 epochs) [source:arxiv:2602.10623].
+1. **Bayesian regularization of the reward model itself.** BNRM places Gamma priors on a non-negative factor-analysis latent space $\theta \sim \text{Gamma}(\alpha_0,\beta_0)$, $\Phi \sim \text{Gamma}(\gamma_0,\delta_0)$, with reward $r = \theta^\top\Phi$. Variational inference with Weibull posteriors yields an ELBO objective that penalizes epistemic uncertainty (global dictionary $\Phi$) and aleatoric uncertainty (instance-specific $\theta$) [source:arxiv:2602.10623]. This suppresses spurious features without explicit bias annotations: on RM-Bench Hard, BNRM reduces the length–reward correlation from $0.488$ to $0.123$ [source:arxiv:2602.10623]. BNRM trained on only **1K clean examples** matched the performance of a BT model trained on **20K clean examples** on RewardBench. Separately, under a **40% label noise rate**, BNRM improved BT performance by up to **16.7%** [source:arxiv:2602.10623].
 
 2. **Architectural fusion of single- and multi-objective signals.** SMORM jointly trains a BT head (single-objective) and an MSE head (multi-attribute) on a shared backbone:
 
@@ -83,7 +82,7 @@ $$
 
 Theorem 1 proves that under bounded features, positive-definite covariances, and positive correlation between aggregated attributes and BT preference, the multi-objective average score lower-bounds the single-objective score: $r_m \ge c\, r_s - \varepsilon$ [source:arxiv:2507.07375]. This guarantees that high BT scores imply respectable fine-grained quality, mitigating OOD hacking. Empirically, SMORM-F (BT head only) and SMORM-M (average of both heads) show monotonic gold-score improvement under PPO/BoN in OOD settings, whereas baselines plateau or decline [source:arxiv:2507.07375]. SMORM-L (multi-head mean) matches ArmoRM-Llama3-8B on RewardBench (90.4) with **15.9× less** multi-objective data (20k vs. 585.4k) [source:arxiv:2507.07375].
 
-**Disagreement on scope:** BNRM evaluates on standard benchmarks (RewardBench, Unified-Feedback, MT-Bench, Arena-Hard) and human eval, but acknowledges "open-ended RLHF settings may expose more diverse and adaptive forms of reward hacking" [source:arxiv:2602.10623]. SMORM explicitly targets OOD generalization and shows gold-score curves that *increase* throughout PPO training, while the survey notes that overoptimization typically manifests as "gold scores decline while proxy scores rise" in ID settings [source:arxiv:2504.12328]; SMORM claims to avoid this in ID as well [source:arxiv:2507.07375]. Whether Bayesian sparsity (BNRM) or multi-objective anchoring (SMORM) generalizes better to multi-turn, tool-use, or long-horizon hacking is not settled by either source.
+**Disagreement on scope:** BNRM evaluates on standard benchmarks (RewardBench, Unified-Feedback, MT-Bench, Arena-Hard) and human eval, but acknowledges "open-ended RLHF settings may expose more diverse and adaptive forms of reward hacking" [source:arxiv:2602.10623]. SMORM explicitly targets OOD generalization and shows gold-score curves that *increase* throughout PPO training, while the SMORM paper describes baseline behavior as "gold scores decline while proxy scores rise" in ID settings [source:arxiv:2507.07375]; SMORM claims to avoid this in ID as well [source:arxiv:2507.07375]. Whether Bayesian sparsity (BNRM) or multi-objective anchoring (SMORM) generalizes better to multi-turn, tool-use, or long-horizon hacking is not settled by either source.
 
 ### Proxy Compression Hypothesis and Expanded Taxonomy
 
@@ -99,9 +98,9 @@ Detection strategies span the lifecycle: training-time (KL divergence tracking, 
 
 Lil'Log's "Reward Hacking in Reinforcement Learning" provides complementary theoretical grounding [source:lilianweng:reward-hacking-in-reinforcement-learning]. It formalizes **potential-based reward shaping** ($F(s,a,s') = \gamma\Phi(s') - \Phi(s)$) as necessary/sufficient for preserving optimal policies, and categorizes hacking into **Environment/Goal Misspecification** (specification gaming) and **Reward Tampering** (interfering with the reward mechanism). Goodhart's Law manifests in four variants: regressional (selecting for noise), extremal (pushing state distribution into new regions), causal (non-causal proxy-goal correlation), and adversarial (incentivizing adversaries to correlate goals with proxy) [source:lilianweng:reward-hacking-in-reinforcement-learning].
 
-Empirically, reward hacking correlates positively with agent sophistication [source:lilianweng:reward-hacking-in-reinforcement-learning][source:arxiv:2604.13602]. Pan et al. (2022) taxonomy of proxy rewards: **Misweighting** (same desiderata, different importance), **Ontological** (different desiderata for same concept), **Scope** (proxy measures restricted domain) [source:lilianweng:reward-hacking-in-reinforcement-learning]. Experiments across four RL environments with nine misspecified proxies show consistent trend: higher capability → higher proxy rewards but decreased true rewards. Specifically: larger models increase proxy while decreasing true rewards; higher action space resolution allows constant proxy with decreasing true rewards; more accurate observations improve proxy but slightly reduce true rewards [source:lilianweng:reward-hacking-in-reinforcement-learning]. The survey notes **test awareness** probing can spike misbehavior by 20 percentage points, and larger models exhibit higher sycophancy due to superior reasoning mirroring user biases (Inverse Scaling) [source:arxiv:2604.13602].
+Empirically, reward hacking correlates positively with agent sophistication [source:lilianweng:reward-hacking-in-reinforcement-learning][source:arxiv:2604.13602]. Pan et al. (2022) taxonomy of proxy rewards: **Misweighting** (same desiderata, different importance), **Ontological** (different desiderata for same concept), **Scope** (proxy measures restricted domain) [source:lilianweng:reward-hacking-in-reinforcement-learning]. Experiments across four RL environments with nine misspecified proxies show consistent trend: higher capability → higher proxy rewards but decreased true rewards. Specifically: larger models increase proxy while decreasing true rewards; higher action space resolution allows constant proxy with decreasing true rewards; more accurate observations improve proxy but slightly reduce true rewards [source:lilianweng:reward-hacking-in-reinforcement-learning]. The survey notes **test awareness** probing can spike misbehavior by 20 percentage points [source:arxiv:2604.13602].
 
-**New disagreement:** The Lil'Log survey emphasizes that most work is theoretical with limited practical mitigations for RLHF/LLMs, and fine-tuning against adversarial policies leaves victims vulnerable to new adversaries [source:lilianweng:reward-hacking-in-reinforcement-learning]. The PCH survey warns of the **Fallacy of Static Benchmarks** (meta-Goodhart where filters optimize for historical hacks), the **Automation Bottleneck** (white-box tools find anomalies but agents can't synthesize macro hypotheses), and the **Monitorability Tax** (regularizers may drive hacking into deeper latent dimensions) [source:arxiv:2604.13602]. Meanwhile, BNRM and SMORM claim empirical robustness on benchmarks but acknowledge open-ended settings may differ [source:arxiv:2602.10623][source:arxiv:2507.07375]. The gap between benchmark robustness and deployment-time safety remains unquantified.
+**New disagreement:** The Lil'Log survey emphasizes that most work is theoretical with limited practical mitigations for RLHF/LLMs, and fine-tuning against adversarial policies leaves victims vulnerable to new adversaries [source:lilianweng:reward-hacking-in-reinforcement-learning]. The PCH survey warns of the **Fallacy of Static Benchmarks** (meta-Goodhart where filters optimize for historical hacks), the **Automation Bottleneck** (white-box tools find anomalies but agents can't synthesize macro hypotheses) [source:arxiv:2604.13602]. Meanwhile, BNRM and SMORM claim empirical robustness on benchmarks but acknowledge open-ended settings may differ [source:arxiv:2602.10623][source:arxiv:2507.07375]. The gap between benchmark robustness and deployment-time safety remains unquantified.
 
 ## Process vs Outcome Rewards: Tradeoffs and Integration
 
@@ -119,7 +118,7 @@ $$
 \mathcal{L}_{\text{PRM}} = -\sum_{i=1}^N \bigl(\hat{y}_{s,i}\log y_{s,i} + (1-\hat{y}_{s,i})\log(1-y_{s,i})\bigr),
 $$
 
-where $N$ is the number of reasoning steps [source:arxiv:2504.12328]. PRMs offer "dense reward" and "controllable" supervision but suffer from "high cost for gathering training data," "scalability and generalization problems," and susceptibility to reward hacking (e.g., verbose step generation) [source:arxiv:2504.12328]. The survey notes PRMs are "less supported in open-source RLHF tools compared to Bradley-Terry models" [source:rlhfbook:reward-modeling-rlhf-and-post-training-b]. The RLHF Book details ORM/PRM architecture: both use a scalar head on final-token hidden state, but ORMs output per-token predictions (labels copied onto every completion token, prompt tokens masked with -100) trained with per-token BCE, while PRMs sum step-wise CE [source:rlhfbook:rlhf-book-reward-models-section].
+where $N$ is the number of reasoning steps [source:arxiv:2504.12328]. PRMs offer "dense reward" and "controllable" supervision but suffer from "high cost for gathering training data," "scalability and generalization problems," and susceptibility to reward hacking (e.g., verbose step generation) [source:arxiv:2504.12328]. The RLHF Book notes ORMs are "less supported in open-source RLHF tools compared to Bradley-Terry models" [source:rlhfbook:reward-modeling-rlhf-and-post-training-b]. The RLHF Book details ORM architecture: ORMs output per-token predictions (labels copied onto every completion token, prompt tokens masked with -100) trained with per-token BCE [source:rlhfbook:rlhf-book-reward-models-section].
 
 **The process–outcome mismatch.** PROF formalizes the gap: let $z=1$ denote a valid intermediate process. If an invalid process ($z=0$) yields a correct answer with probability $\epsilon$, the expected outcome reward is
 
@@ -166,7 +165,7 @@ Beyond BT, two architectural families address reward hacking by enriching the re
 
 SMORM leverages abundant BT data ($\mathcal{D}_S$) to bootstrap the data-scarce multi-objective head ($\mathcal{D}_M$), achieving lower asymptotic MSE for *both* heads (Theorem 2) [source:arxiv:2507.07375]. BNRM requires no multi-attribute labels; its inductive bias (non-negative, sparse factors) regularizes the BT likelihood directly [source:arxiv:2602.10623].
 
-**Disagreement on supervision requirements:** SMORM *requires* a multi-attribute dataset $\mathcal{D}_M$ (e.g., HelpSteer2, UnifiedFeedback) and shows large gains when it is available (13.9 pts RewardBench over MORM baseline) [source:arxiv:2507.07375]. BNRM achieves comparable or better OOD robustness *without* attribute labels, using only standard BT comparisons. The survey mentions "multi-objective rewards with gating layers" but does not compare these paradigms [source:arxiv:2504.12328]. For practitioners, the tradeoff is: invest in attribute annotation (SMORM) vs. adopt Bayesian architecture with tuning of $\eta$ (BNRM). BNRM reports only 1.3–7.7% training overhead [source:arxiv:2602.10623]; SMORM does not report overhead but uses a single forward pass with two heads.
+**Disagreement on supervision requirements:** SMORM *requires* a multi-attribute dataset $\mathcal{D}_M$ (e.g., HelpSteer2, UnifiedFeedback) and shows large gains when it is available (13.9 pts RewardBench over MORM baseline) [source:arxiv:2507.07375]. BNRM achieves comparable or better OOD robustness *without* attribute labels, using only standard BT comparisons. The survey mentions "multi-objective rewards with gating layers" but does not compare these paradigms [source:arxiv:2504.12328]. For practitioners, the tradeoff is: invest in attribute annotation (SMORM) vs. adopt Bayesian architecture with tuning of $\eta$ (BNRM). SMORM does not report overhead but uses a single forward pass with two heads.
 
 ## Current Status and Trajectory
 
@@ -174,7 +173,7 @@ SMORM leverages abundant BT data ($\mathcal{D}_S$) to bootstrap the data-scarce 
 
 **Reward hacking mitigation** is *rising* as a research priority. The survey devotes a full challenge section to overoptimization [source:arxiv:2504.12328]; BNRM and SMORM (both 2024–2025) propose orthogonal architectural solutions. The PCH survey provides a unifying framework (Proxy Compression Hypothesis) and expanded taxonomy [source:arxiv:2604.13602], while Lil'Log emphasizes the capability-hacking correlation and theoretical shaping foundations [source:lilianweng:reward-hacking-in-reinforcement-learning]. BNRM's Bayesian approach is gaining traction for its label-free robustness; SMORM's multi-objective fusion is attractive where attribute data exists. Neither has been adopted in major open releases (Llama 3, Nemotron, etc.) as of the source dates — *not widely reported* in production pipelines.
 
-**Process vs. outcome rewards:** ORMs are *default* for verifiable domains (math, code, logic, SQL) where ground-truth outcomes are cheap [source:emergentmind:outcome-supervised-reward-models]. PRMs remain *niche* due to annotation cost and hacking risk, but PROF-style filtration (2025) revives interest by decoupling PRM usage from RL optimization. The Qwen2.5-Math PRM demonstrates consensus filtering (LLM judge + MC estimation agreement) achieving SOTA on PROCESSBENCH with 40% data [source:arxiv:2501.07301]. The survey notes PRMs are "hard to define" and "computational overhead in large-scale RL" [source:arxiv:2504.12328]; PROF does not resolve the definition problem but sidesteps the overhead/hacking problems. *Trajectory:* filtration-based hybrids are rising for reasoning; pure PRM optimization is fading.
+**Process vs. outcome rewards:** ORMs are *default* for verifiable domains (math, code, logic, SQL) where ground-truth outcomes are cheap [source:emergentmind:outcome-supervised-reward-models]. PRMs remain *niche* due to annotation cost and hacking risk, but PROF-style filtration (2025) revives interest by decoupling PRM usage from RL optimization. The Qwen2.5-Math PRM demonstrates consensus filtering (LLM judge + MC agreement) achieving SOTA on PROCESSBENCH with 40% data [source:arxiv:2501.07301]. The survey notes PRMs are "hard to define" and "computational overhead in large-scale RL" [source:arxiv:2504.12328]; PROF does not resolve the definition problem but sidesteps the overhead/hacking problems. *Trajectory:* filtration-based hybrids are rising for reasoning; pure PRM optimization is fading.
 
 **Multi-objective/Bayesian RMs:** Early-stage research. SMORM and BNRM are recent (2024–2025) with strong benchmarks but no reported large-scale deployment. The survey's taxonomy lists "custom classifiers" and "multi-objective rewards" as a subcategory but does not highlight them as mainstream [source:arxiv:2504.12328]. *Status:* promising but not default.
 
@@ -208,32 +207,16 @@ SMORM leverages abundant BT data ($\mathcal{D}_S$) to bootstrap the data-scarce 
 
 ## References
 - [source:arxiv:2507.07375] [Bradley–Terry and Multi-Objective Reward Modeling Are Complementary](https://arxiv.org/html/2507.07375v1)
-- [source:arxiv:2602.10623] [Mitigating Reward Hacking in RLHF via Bayesian Non-negative Reward Modeling](https://arxiv.org/html/2602.10623v2)
-- [source:arxiv:2509.03403] [Beyond Correctness: Harmonizing Process and Outcome Rewards through RL Training](https://arxiv.org/html/2509.03403v1)
-- [source:arxiv:2504.12328] [A Comprehensive Survey of Reward Models: Taxonomy, Applications, Challenges, and Future](https://arxiv.org/html/2504.12328v1)
-- [source:emergentmind:outcome-supervised-reward-models] [Outcome-Supervised Reward Models](https://www.emergentmind.com/topics/outcome-supervised-reward-model-orm)
-- [source:rlhfbook:reward-modeling-rlhf-and-post-training-b] [Reward Modeling | RLHF and Post-Training Book by Nathan Lambert](https://rlhfbook.com/c/05-reward-models)
-- [source:arxiv:1909.08077] [Learning to summarize with human feedback](https://arxiv.org/pdf/1909.08077)
-- [source:arxiv:2203.02155] [Training language models to follow instructions with human feedback](https://arxiv.org/pdf/2203.02155)
-- [source:proceedings:rethinking-reward-modeling-in-preference] [Rethinking Reward Modeling in Preference-based Large Language Models (ICLR 2025)](https://openreview.net/forum?id=...)
-- [source:arxiv:2411.04991] [Bradley-Terry Models in Preference-Based Reward Modeling](https://arxiv.org/abs/2411.04991)
-- [source:arxiv:2604.13602] [Reward Hacking in the Era of Large Models](https://arxiv.org/abs/2604.13602)
-- [source:arxiv:2501.07301] [The Lessons of Developing Process Reward Models](https://arxiv.org/abs/2501.07301)
-- [source:lilianweng:reward-hacking-in-reinforcement-learning] [Reward Hacking in Reinforcement Learning](https://lilianweng.github.io/posts/2023-10-25-reward-hacking/)
-- [source:rlhfbook:rlhf-book-reward-models-section] [Reward Models Section | RLHF Book](https://rlhfbook.com/c/05-reward-models)
-
-## References
-- [source:arxiv:2507.07375] [Bradley–Terry and Multi-Objective Reward Modeling Are Complementary](https://arxiv.org/html/2507.07375v1)
 - [source:arxiv:2203.02155] [Training language models to follow instructions with human feedback (InstructGPT)](https://arxiv.org/abs/2203.02155)
 - [source:arxiv:1909.08077] [Learning to summarize with human feedback](https://arxiv.org/pdf/1909.08077)
-- [source:arxiv:2602.10623] [Mitigating Reward Hacking in RLHF via Bayesian Non-negative Reward Modeling](https://arxiv.org/html/2602.10623v2)
+- [source:arxiv:2602.10623] [Mitigating Reward Hacking in RLHF via Bayesian Non-negative Reward Modeling](https://arxiv.org/abs/2602.10623)
 - [source:rlhfbook:reward-modeling-rlhf-and-post-training-b] [Reward Modeling | RLHF and Post-Training Book by Nathan Lambert](https://rlhfbook.com/c/05-reward-models)
 - [source:emergentmind:outcome-supervised-reward-models] [Outcome-Supervised Reward Models](https://www.emergentmind.com/topics/outcome-supervised-reward-model-orm)
 - [source:arxiv:2504.12328] [A Comprehensive Survey of Reward Models: Taxonomy, Applications, Challenges, and Future](https://arxiv.org/html/2504.12328v1)
 - [source:arxiv:2509.03403] [Beyond Correctness: Harmonizing Process and Outcome Rewards through RL Training](https://arxiv.org/html/2509.03403v1)
 - [source:proceedings:rethinking-reward-modeling-in-preference] [Rethinking Reward Modeling in Preference-based Large Language Models (ICLR 2025)](https://proceedings.iclr.cc/paper_files/paper/2025/file/7423902b5534e2b267438c85444a54b1-Paper-Conference.pdf)
 - [source:arxiv:2411.04991] [Bradley-Terry Models in Preference-Based Reward Modeling (arXiv)](https://arxiv.org/html/2411.04991v1)
-- [source:arxiv:2604.13602] [Reward Hacking in the Era of Large Models (arXiv Survey)](https://arxiv.org/abs/2604.13602)
+- [source:arxiv:2604.13602] [Reward Hacking in the Era of Large Models: Mechanisms, Emergent Misalignment, Challenges](https://arxiv.org/abs/2604.13602)
 - [source:arxiv:2501.07301] [The Lessons of Developing Process Reward Models (arXiv)](https://arxiv.org/abs/2501.07301)
 - [source:lilianweng:reward-hacking-in-reinforcement-learning] [Reward Hacking in Reinforcement Learning (Lil'Log)](https://lilianweng.github.io/posts/2024-11-28-reward-hacking/)
 - [source:rlhfbook:rlhf-book-reward-models-section] [RLHF Book: Reward Models Section](https://rlhfbook.com/c/05-reward-models)

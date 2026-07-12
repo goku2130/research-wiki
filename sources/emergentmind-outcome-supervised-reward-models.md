@@ -3,7 +3,7 @@ id: emergentmind:outcome-supervised-reward-models
 type: web
 title: Outcome-Supervised Reward Models
 url: https://www.emergentmind.com/topics/outcome-supervised-reward-model-orm
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-modeling
 ---

@@ -3,7 +3,7 @@ id: rlhfbook:reward-modeling-rlhf-and-post-training-b
 type: web
 title: Reward Modeling | RLHF and Post-Training Book by Nathan Lambert
 url: https://rlhfbook.com/c/05-reward-models
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-modeling
 ---

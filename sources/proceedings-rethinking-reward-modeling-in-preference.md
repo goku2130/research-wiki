@@ -4,7 +4,7 @@ type: web
 title: Rethinking Reward Modeling in Preference-based Large Language Models (ICLR
   2025)
 url: https://proceedings.iclr.cc/paper_files/paper/2025/file/7423902b5534e2b267438c85444a54b1-Paper-Conference.pdf
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-modeling
 ---

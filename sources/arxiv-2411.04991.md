@@ -3,7 +3,7 @@ id: arxiv:2411.04991
 type: paper
 title: Bradley-Terry Models in Preference-Based Reward Modeling (arXiv)
 url: https://arxiv.org/html/2411.04991v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-modeling
 ---

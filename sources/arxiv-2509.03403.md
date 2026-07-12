@@ -3,7 +3,7 @@ id: arxiv:2509.03403
 type: paper
 title: 'Beyond Correctness: Harmonizing Process and Outcome Rewards through RL Training'
 url: https://arxiv.org/html/2509.03403v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-modeling
 ---

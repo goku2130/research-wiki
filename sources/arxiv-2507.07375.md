@@ -3,7 +3,7 @@ id: arxiv:2507.07375
 type: paper
 title: Bradley–Terry and Multi-Objective Reward Modeling Are Complementary
 url: https://arxiv.org/html/2507.07375v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-modeling
 ---

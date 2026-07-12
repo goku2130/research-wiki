@@ -3,7 +3,7 @@ id: arxiv:2501.07301
 type: paper
 title: The Lessons of Developing Process Reward Models (arXiv)
 url: https://arxiv.org/abs/2501.07301
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-modeling
 ---

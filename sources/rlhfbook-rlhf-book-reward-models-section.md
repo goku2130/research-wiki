@@ -3,7 +3,7 @@ id: rlhfbook:rlhf-book-reward-models-section
 type: web
 title: 'RLHF Book: Reward Models Section'
 url: https://rlhfbook.com/c/05-reward-models
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: reward-modeling
 ---

@@ -3,9 +3,9 @@ id: arxiv:2602.10623
 type: paper
 title: Mitigating Reward Hacking in RLHF via Bayesian Non-negative Reward Modeling
 url: https://arxiv.org/abs/2602.10623
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: overoptimization-and-mode-collapse
+topic: reward-modeling
 ---
 
 # Summary: Mitigating Reward Hacking in RLHF via Bayesian Non-negative Reward Modeling
