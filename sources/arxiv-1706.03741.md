@@ -3,9 +3,9 @@ id: arxiv:1706.03741
 type: paper
 title: Deep reinforcement learning from human preferences (Christiano et al. 2017)
 url: https://arxiv.org/abs/1706.03741
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: rlhf-ppo-pipeline
+topic: ppo-for-llms
 ---
 
 # Deep Reinforcement Learning from Human Preferences

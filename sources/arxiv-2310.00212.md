@@ -3,7 +3,7 @@ id: arxiv:2310.00212
 type: paper
 title: Pairwise Proximal Policy Optimization (P3O)
 url: https://arxiv.org/abs/2310.00212
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: ppo-for-llms
 ---

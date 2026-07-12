@@ -1,6 +1,6 @@
 # RL for LLMs — Wiki
 
-_Auto-generated 2026-07-11._
+_Auto-generated 2026-07-12._
 
 - ✅ [PPO for LLM fine-tuning (RLHF)](topics/ppo-for-llms.md)
 - ✅ [Direct Preference Optimization and variants](topics/dpo-and-preference-optimization.md)

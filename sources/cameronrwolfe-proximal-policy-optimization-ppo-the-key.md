@@ -3,7 +3,7 @@ id: cameronrwolfe:proximal-policy-optimization-ppo-the-key
 type: web
 title: 'Proximal Policy Optimization (PPO): The Key to LLM Alignment (Overview)'
 url: https://cameronrwolfe.substack.com/p/ppo-llm
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: ppo-for-llms
 ---

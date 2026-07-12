@@ -3,9 +3,9 @@ id: arxiv:2203.02155
 type: paper
 title: Training language models to follow instructions with human feedback (InstructGPT)
 url: https://arxiv.org/abs/2203.02155
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: rlhf-ppo-pipeline
+topic: ppo-for-llms
 ---
 
 # Training Language Models to Follow Instructions with Human Feedback (InstructGPT)

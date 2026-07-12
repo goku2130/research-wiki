@@ -3,7 +3,7 @@ id: arxiv:2307.04964
 type: paper
 title: 'Secrets of RLHF in Large Language Models Part I: PPO'
 url: https://arxiv.org/abs/2307.04964
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: ppo-for-llms
 ---

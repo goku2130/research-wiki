@@ -3,7 +3,7 @@ id: bair:rethinking-the-role-of-ppo-in-rlhf-bair-
 type: web
 title: Rethinking the Role of PPO in RLHF (BAIR Blog)
 url: http://bair.berkeley.edu/blog/2023/10/16/p3o/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: ppo-for-llms
 ---

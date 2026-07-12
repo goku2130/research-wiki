@@ -3,7 +3,7 @@ id: arxiv:2403.19279
 type: paper
 title: Fine-Tuning Language Models with Reward Learning on Policy
 url: https://arxiv.org/abs/2403.19279
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: ppo-for-llms
 ---

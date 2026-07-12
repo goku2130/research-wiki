@@ -3,7 +3,7 @@ id: spinningup:spinning-up-in-deep-rl-ppo-documentation
 type: web
 title: 'Spinning Up in Deep RL: PPO Documentation'
 url: https://spinningup.openai.com/en/latest/algorithms/ppo.html
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: ppo-for-llms
 ---

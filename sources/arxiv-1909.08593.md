@@ -3,9 +3,9 @@ id: arxiv:1909.08593
 type: paper
 title: The Boltzmann Optimum in RLHF (Ziegler et al. 2019)
 url: https://arxiv.org/abs/1909.08593
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: kl-regularization
+topic: ppo-for-llms
 ---
 
 # Summary: Fine-Tuning Language Models from Human Preferences (Ziegler et al. 2019)

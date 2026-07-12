@@ -3,9 +3,9 @@ id: arxiv:2009.01325
 type: paper
 title: Simple, Scalable, and Effective Reinforcement Learning from Human Feedback
 url: https://arxiv.org/abs/2009.01325
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: kl-regularization
+topic: ppo-for-llms
 ---
 
 The authors address the problem of training and evaluating summarization models, noting that traditional methods like training on human reference summaries and evaluating with ROUGE are imperfect proxies for actual summary quality. They propose a method to significantly improve summary quality by training a model to optimize for human preferences.
