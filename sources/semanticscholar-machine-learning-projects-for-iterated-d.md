@@ -3,7 +3,7 @@ id: semanticscholar:machine-learning-projects-for-iterated-d
 type: web
 title: Machine Learning Projects for Iterated Distillation and Amplification
 url: https://www.semanticscholar.org/paper/Machine-Learning-Projects-for-Iterated-Distillation-Evans-Saunders/bdf2e444eb59702f1a119396498c8c80a88f6e6a
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: self-improvement-and-self-play
 ---

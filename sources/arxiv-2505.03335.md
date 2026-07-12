@@ -3,7 +3,7 @@ id: arxiv:2505.03335
 type: paper
 title: 'Absolute Zero: Reinforced Self-play Reasoning with Zero Data'
 url: https://arxiv.org/abs/2505.03335
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: self-improvement-and-self-play
 ---

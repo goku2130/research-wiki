@@ -4,7 +4,7 @@ type: web
 title: 'Iterated Amplification: Supervising strong learners by amplifying weak experts
   (OpenAI blog/paper context)'
 url: https://openai.com/index/learning-complex-goals-with-iterated-amplification/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: self-improvement-and-self-play
 ---

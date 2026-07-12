@@ -3,7 +3,7 @@ id: openai:iterated-distillation-and-amplification-
 type: web
 title: Iterated Distillation and Amplification (IDA) - OpenAI Blog
 url: https://openai.com/index/learning-complex-goals-with-iterated-amplification/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: self-improvement-and-self-play
 ---

@@ -1,7 +1,7 @@
 ---
 title: Self-improvement and self-play RL
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - openai:iterated-distillation-and-amplification-
 - arxiv:2212.08073
@@ -15,15 +15,14 @@ sources:
 - semanticscholar:machine-learning-projects-for-iterated-d
 - aclanthology:re-rest-reflection-reinforced-self-train
 open_questions:
-- Can Re-ReST's reflector mechanism be integrated with Absolute Zero's proposer/solver
-  loop to improve sample quality in zero-data settings?
-- Does IDA's recursive decomposition provide complementary benefits to verifiable-reward
-  self-play when applied to domains with natural hierarchical structure (e.g., software
-  engineering, theorem proving)?
-- How does the "learnability reward" in Absolute Zero ($1 - \text{solve rate}$) compare
-  theoretically to Re-ReST's implicit curriculum (reflector improves hard samples)?
-- Can Re-ReST's inference-time reflection without ground-truth feedback be formalized
-  as a test-time compute scaling method akin to Best-of-N or self-consistency?
+- Can STaR-style rationale bootstrapping work without any ground-truth answers, using
+  only a verifier (e.g., code execution) as in Absolute Zero?
+- Will ReST's growing-batch offline RL paradigm re-emerge as the dominant LLM post-training
+  recipe under a different name (e.g., iterative DPO, online DPO)?
+- Can Re-ReST's reflector mechanism be combined with Absolute Zero's proposer/solver
+  to create a self-play loop with reflection on environmental feedback?
+- Does IDA's recursive decomposition have a practical implementation for LLMs that
+  doesn't require human decomposers (e.g., using the model itself as $H'$)?
 ---
 
 Self-improvement and self-play RL methods enable language models to enhance their reasoning and alignment capabilities by generating their own training data, rewards, or task decompositions, reducing reliance on human annotation. These techniques span from rationale bootstrapping (STaR) and reward-model-guided self-training (ReST) to fully autonomous task proposal and solving (Absolute Zero), recursive task decomposition (Iterated Amplification), and reflection-reinforced self-training (Re-ReST).
@@ -34,9 +33,9 @@ STaR (Self-Taught Reasoner) bootstraps chain-of-thought reasoning by iteratively
 
 The method approximates a policy gradient objective where the reward is the indicator of answer correctness. The expected reward is $J(M, X, Y) = \sum_i \mathbb{E}_{\hat{r}_i, \hat{y}_i \sim p_M(\cdot|x_i)} [\mathbb{1}(\hat{y}_i = y_i)]$, and its gradient uses the log-derivative trick: $\nabla J = \sum_i \mathbb{E}[\mathbb{1}(\hat{y}_i = y_i) \nabla \log p_M(\hat{y}_i, \hat{r}_i | x_i)]$ [source:arxiv:2203.14465]. Filtering implements the indicator, discarding gradients from incorrect rationales.
 
-Key results on GPT-J (6B): CommonsenseQA accuracy reached **72.5%** (vs. 60.0% direct fine-tuning, 36.6% few-shot CoT), approaching GPT-3 30$\times$ larger at 73.0% [source:arxiv:2203.14465]. On $n$-digit addition, 16 iterations yielded **89.5%** overall (vs. 76.3% without rationales); rationalization jumped 2-digit addition from <1% to **32%** in one iteration [source:arxiv:2203.14465]. GSM8K reached **10.7%** (vs. 5.8% direct, 3.1% few-shot) [source:arxiv:2203.14465].
+Key results on GPT-J (6B): CommonsenseQA accuracy reached **72.5%** (vs. 60.0% direct fine-tuning, 36.6% few-shot CoT), approaching GPT-3 30$\times$ larger at 73.0% [source:arxiv:2203.14465]. On $n$-digit addition, 16 iterations yielded **89.5%** overall (vs. 76.3% without rationales); Rationalization allowed the model to learn multiple digit lengths simultaneously [source:arxiv:2203.14465]. GSM8K reached **10.7%** (vs. 5.8% direct, 3.0% few-shot) [source:arxiv:2203.14465].
 
-Limitations: requires initial few-shot performance above chance (GPT-2 failed on arithmetic); high chance-performance settings (e.g., binary) admit spurious rationales; models exhibit logical fallacies like begging the question; rationalization hint formatting can be non-trivial [source:arxiv:2203.14465].
+Limitations: requires initial few-shot performance above chance (GPT-2 failed on arithmetic); high chance-performance settings (e.g., binary) admit spurious rationales; rationalization hint formatting can be non-trivial [source:arxiv:2203.14465].
 
 ## ReST: Reinforced Self-Training
 
@@ -123,7 +122,7 @@ Limitations: Experiments used algorithmic oracle instead of real humans; domains
 |-----------|------|------|---------|---------------|-----|
 | **External supervision** | Ground-truth answers $y_i$; few-shot rationales $\mathcal{P}$ | Reward model $R(x,y)$ (trained on human prefs) | Environmental feedback (unit tests, etc.); reflector model | None (code executor verifies); seed triplet only | Human expert $H$ (or oracle) for decomposition & atomic answers |
 | **Self-generated signal** | Rationales filtered by answer correctness | Samples filtered by reward threshold | Refined trajectories via reflector + env. feedback | Tasks proposed for learnability; solutions verified by executor | Subtask answers from current model; decomposition from $H'$ |
-| **Optimization** | Offline SL on filtered rationales (re-train from init each outer loop) | Offline RL (BC loss) on filtered samples; growing batch | Offline SL on reflector-enriched dataset | Online RL (TRR++) on proposer+solver joint objective | SL on amplified targets; iterative distillation |
+| **Optimization** | Offline SL on filtered rationales (iteratively fine-tunes across outer loops) | Offline RL (BC loss) on filtered samples; growing batch | Offline SL on reflector-enriched dataset | Online RL (TRR++) on proposer+solver joint objective | SL on amplified targets; iterative distillation |
 | **Reasoning mode** | Chain-of-thought (forward) | General LM generation (translation) | Reasoning-action trajectories (agentic) | Deduction, abduction, induction (code-based) | Algorithmic decomposition (recursive) |
 | **Scalability bottleneck** | Needs initial CoT ability; ground-truth answers required | Reward model generalization & overfitting | Quality of reflector & environmental feedback | Code executor scope (deterministic only); safety | Human decomposition capacity; distribution coverage |
 | **Key theoretical framing** | Policy gradient with indicator reward | Growing-batch offline RL | Reflection + self-training loop | Self-play with learnability reward | HCH (Human Consulting HCH) approximation |
@@ -131,7 +130,7 @@ Limitations: Experiments used algorithmic oracle instead of real humans; domains
 **Disagreements / tensions**: 
 - STaR and ReST both use filtering but STaR's filter is *ground-truth correctness* (exact, sparse) while ReST's is a *learned reward model* (dense, proxy) [source:arxiv:2203.14465] [source:arxiv:2308.08998]. ReST explicitly argues offline RL losses (GOLD, BVMPO) underperform simple BC within its framework [source:arxiv:2308.08998]; STaR's gradient derivation suggests REINFORCE with baseline could be used but they implement SL on filtered data [source:arxiv:2203.14465].
 - Absolute Zero claims "zero data" but relies on a *code executor* as an external verifier — a form of environment supervision distinct from human labels [source:arxiv:2505.03335]. IDA requires human decomposition, which Christiano et al. acknowledge is untested on real-world "messy" tasks [source:arxiv:1810.08575].
-- STaR re-trains from the original model each outer loop to avoid overfitting [source:arxiv:2203.14465]; ReST continues training the same policy across Grow/Improve cycles with decreasing LR [source:arxiv:2308.08998]; Absolute Zero uses TRR++ with per-task baselines to stabilize online RL [source:arxiv:2505.03335]; Re-ReST finetunes on a reflector-enriched dataset in a single-stage offline loop [source:aclanthology:re-rest-reflection-reinforced-self-train].
+- STaR iteratively fine-tunes the model across outer loops [source:arxiv:2203.14465]; ReST continues training the same policy across Grow/Improve cycles with decreasing LR [source:arxiv:2308.08998]; Absolute Zero uses TRR++ with per-task baselines to stabilize online RL [source:arxiv:2505.03335]; Re-ReST finetunes on a reflector-enriched dataset in a single-stage offline loop [source:aclanthology:re-rest-reflection-reinforced-self-train].
 - On generalization: STaR shows cross-task transfer within domain (arithmetic iterations help larger digits) [source:arxiv:2203.14465]; Absolute Zero demonstrates *cross-domain* transfer (code $\to$ math +10–15 pp) [source:arxiv:2505.03335]; ReST evaluates only within translation; IDA only on algorithmic toys; Re-ReST shows gains on diverse agent tasks (HotpotQA, AlfWorld, VQA, code) but cross-domain transfer not explicitly measured [source:aclanthology:re-rest-reflection-reinforced-self-train].
 - **New tension**: Re-ReST introduces a *reflector* as a separate component that uses environmental feedback to refine samples, whereas Absolute Zero's proposer/solver and ReST's reward model operate without an explicit reflection step. Re-ReST's inference-time reflection without ground-truth feedback [source:aclanthology:re-rest-reflection-reinforced-self-train] contrasts with prior reflection methods that required such feedback — a potential disagreement with earlier reflection literature not captured in the existing sources.
 

@@ -3,7 +3,7 @@ id: arxiv:2212.10560
 type: paper
 title: 'Self-Instruct: Aligning Language Model with Self Generated Instructions'
 url: https://arxiv.org/abs/2212.10560
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: self-improvement-and-self-play
 ---

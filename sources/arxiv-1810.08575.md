@@ -3,7 +3,7 @@ id: arxiv:1810.08575
 type: paper
 title: Supervising strong learners by amplifying weak experts (Christiano et al.)
 url: https://arxiv.org/abs/1810.08575
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: self-improvement-and-self-play
 ---

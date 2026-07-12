@@ -3,7 +3,7 @@ id: aclanthology:re-rest-reflection-reinforced-self-train
 type: web
 title: 'Re-ReST: Reflection-Reinforced Self-Training for Language Agents'
 url: https://aclanthology.org/2024.emnlp-main.861/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: self-improvement-and-self-play
 ---

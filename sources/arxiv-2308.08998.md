@@ -3,7 +3,7 @@ id: arxiv:2308.08998
 type: paper
 title: 'ReST: Reinforced Self-Training for Language Modeling'
 url: https://arxiv.org/abs/2308.08998
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: self-improvement-and-self-play
 ---

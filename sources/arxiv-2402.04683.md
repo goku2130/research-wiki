@@ -4,7 +4,7 @@ type: paper
 title: 'Q*: Improving Generalization and Reasoning in LLMs via Q-learning and Self-play
   (Reference Context)'
 url: https://arxiv.org/abs/2402.04683
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: self-improvement-and-self-play
 ---
