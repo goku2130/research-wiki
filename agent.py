@@ -140,12 +140,21 @@ def route(model: str) -> OpenAI:
 ORCH_MODEL = os.getenv("ORCH_MODEL", "google/gemini-2.5-flash")
 DISTILL_MODEL = os.getenv("DISTILL_MODEL", "google/gemini-2.5-flash")
 REVIEWER, REVIEWER_MODEL = QWEN, os.getenv("REVIEWER_MODEL", "google/gemini-2.5-flash")
+# Grounding fact-checker; defaults to the reviewer but can differ (e.g. the 550B writer,
+# which is faster here and returns a clean reasoning_content field).
+FACTCHECK_MODEL = os.getenv("FACTCHECK_MODEL", REVIEWER_MODEL)
 
 
 def writer_client() -> OpenAI:
     if WRITER_MODEL.startswith(("mistral", "magistral")) and _MKEYS:
         return mistral_client()   # next key in the round-robin
     return route(WRITER_MODEL)
+
+
+def factcheck_client() -> OpenAI:
+    if FACTCHECK_MODEL.startswith(("mistral", "magistral")) and _MKEYS:
+        return mistral_client()
+    return route(FACTCHECK_MODEL)
 
 
 def reviewer_client() -> OpenAI:
@@ -761,10 +770,12 @@ def review(topic: dict, article: str, open_qs: list[str], distilled: list[dict])
                f"Open questions present: {len(open_qs)}\n\nARTICLE:\n{article}")
     try:
         resp = _chat(reviewer_client(),
-            model=REVIEWER_MODEL, temperature=0.2, max_tokens=4000,
+            model=REVIEWER_MODEL, temperature=0.2, max_tokens=16000,
             messages=[{"role": "system", "content": REVIEW_SYS},
                       {"role": "user", "content": content}])
         msg = resp.choices[0].message
+        if resp.choices[0].finish_reason == "length":  # truncated -> below defaults to approve
+            log(topic["slug"], "  ⚠ review truncated (finish=length) — raise REVIEW max_tokens")
         out = strip_thoughts(content_text(msg))
         if "VERDICT:" not in out:
             out = (getattr(msg, "reasoning_content", "") or "") + "\n" + out
@@ -799,11 +810,13 @@ def fact_check(topic: dict, article: str, distilled: list[dict]) -> list[str]:
                          for d in distilled)
     content = f"ARTICLE:\n{article}\n\nSOURCE SUMMARIES:\n{corpus}"
     try:
-        resp = _chat(reviewer_client(),
-            model=REVIEWER_MODEL, temperature=0.1, max_tokens=8000,
+        resp = _chat(factcheck_client(),
+            model=FACTCHECK_MODEL, temperature=0.1, max_tokens=16000,
             messages=[{"role": "system", "content": FACTCHECK_SYS},
                       {"role": "user", "content": content}])
         msg = resp.choices[0].message
+        if resp.choices[0].finish_reason == "length":  # thinking ate the budget -> would pass silently
+            log(topic["slug"], "  ⚠ fact_check truncated (finish=length) — raise FACTCHECK max_tokens")
         out = strip_thoughts(content_text(msg))
         if "ISSUES:" not in out:  # reasoning model may leave answer only in reasoning
             out = (getattr(msg, "reasoning_content", "") or "") + "\n" + out
