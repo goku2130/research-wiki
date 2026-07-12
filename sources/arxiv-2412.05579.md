@@ -3,7 +3,7 @@ id: arxiv:2412.05579
 type: paper
 title: 'LLMs-as-Judges: A Comprehensive Survey on LLM-based Evaluation Methods'
 url: https://arxiv.org/abs/2412.05579
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---

@@ -3,7 +3,7 @@ id: aclanthology:a-systematic-study-of-position-bias-in-l
 type: web
 title: A Systematic Study of Position Bias in LLM-as-a-Judge (ACL Anthology)
 url: https://aclanthology.org/2025.ijcnlp-long.18.pdf
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---

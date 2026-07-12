@@ -3,7 +3,7 @@ id: wandb:exploring-llm-as-a-judge-weights-biases
 type: web
 title: Exploring LLM-as-a-Judge (Weights & Biases)
 url: https://wandb.ai/site/articles/exploring-llm-as-a-judge/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---

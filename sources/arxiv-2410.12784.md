@@ -3,7 +3,7 @@ id: arxiv:2410.12784
 type: paper
 title: 'JudgeBench: A Benchmark for Evaluating LLM-based Judges'
 url: https://arxiv.org/abs/2410.12784
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---

@@ -3,7 +3,7 @@ id: arxiv:2410.02736
 type: paper
 title: Justice or Prejudice? Quantifying Biases in LLM-as-a-Judge (Wang et al., 2024)
 url: https://arxiv.org/html/2410.02736v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---

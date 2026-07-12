@@ -4,7 +4,7 @@ type: paper
 title: 'Fine-Grained Bias Detection in LLM: Enhancing detection mechanisms for nuanced
   biases'
 url: https://arxiv.org/abs/2503.06054
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---

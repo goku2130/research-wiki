@@ -3,7 +3,7 @@ id: arxiv:2411.15594
 type: paper
 title: A Survey on LLM-as-a-Judge (Gu et al., 2024)
 url: https://arxiv.org/html/2411.15594v6
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---

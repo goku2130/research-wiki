@@ -4,7 +4,7 @@ type: paper
 title: 'Verbosity ≠ Veracity: Demystify Verbosity Compensation Behavior of Large Language
   Models'
 url: https://arxiv.org/abs/2411.07858
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---

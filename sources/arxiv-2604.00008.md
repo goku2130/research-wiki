@@ -4,7 +4,7 @@ type: paper
 title: How Trustworthy Are LLM-as-Judge Ratings for Interpretive Responses? Implications
   for Qualitative Research Workflows
 url: https://arxiv.org/abs/2604.00008
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---

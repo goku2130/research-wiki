@@ -5,7 +5,7 @@ title: 'Position Bias in LLM Judges: Measurement and Mitigation'
 url: https://mbrenndoerfer.com/writing/position-bias-in-llm-judges
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: length-and-format-bias
+topic: llm-as-judge
 ---
 
 # Position Bias in LLM Judges: Measurement and Mitigation

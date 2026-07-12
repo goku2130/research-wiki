@@ -4,7 +4,7 @@ type: paper
 title: When LLMs Agree, Are They Right? Auditing Self-Consistency and Cross-Model
   Agreement as Confidence Signals
 url: https://arxiv.org/abs/2607.08065
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---

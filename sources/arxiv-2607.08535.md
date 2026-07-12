@@ -3,7 +3,7 @@ id: arxiv:2607.08535
 type: paper
 title: 'When the Judge Changes, So Does the Measurement: Auditing LLM-as-Judge Reliability'
 url: https://arxiv.org/abs/2607.08535
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---

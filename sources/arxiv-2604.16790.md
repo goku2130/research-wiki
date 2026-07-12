@@ -3,7 +3,7 @@ id: arxiv:2604.16790
 type: paper
 title: 'Bias in the Loop: Auditing LLM-as-a-Judge for Software Engineering'
 url: https://arxiv.org/html/2604.16790v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---

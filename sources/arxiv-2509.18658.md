@@ -4,7 +4,7 @@ type: paper
 title: 'Analyzing Uncertainty of LLM-as-a-Judge: Interval Evaluations with Conformal
   Prediction'
 url: https://arxiv.org/abs/2509.18658
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: llm-as-judge
 ---
