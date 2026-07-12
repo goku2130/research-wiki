@@ -3,9 +3,9 @@ id: arxiv:2305.18290
 type: paper
 title: 'Direct Preference Optimization: Your Language Model is Secretly a Reward Model'
 url: https://arxiv.org/abs/2305.18290
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: rlhf-ppo-pipeline
+topic: dpo-and-preference-optimization
 ---
 
 # Direct Preference Optimization (DPO)

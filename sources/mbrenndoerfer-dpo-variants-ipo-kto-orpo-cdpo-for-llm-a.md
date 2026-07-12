@@ -3,7 +3,7 @@ id: mbrenndoerfer:dpo-variants-ipo-kto-orpo-cdpo-for-llm-a
 type: web
 title: 'DPO Variants: IPO, KTO, ORPO & cDPO for LLM Alignment'
 url: https://mbrenndoerfer.com/writing/dpo-variants-ipo-kto-orpo-cdpo-llm-alignment
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: dpo-and-preference-optimization
 ---

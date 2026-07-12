@@ -3,7 +3,7 @@ id: mesuvash:reward-modeling-and-dpo-learning-what-go
 type: web
 title: 'Reward Modeling and DPO: Learning What "Good" Means'
 url: https://mesuvash.github.io/blog/2026/reward-modeling/
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: dpo-and-preference-optimization
 ---

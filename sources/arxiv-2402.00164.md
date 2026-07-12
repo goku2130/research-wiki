@@ -3,7 +3,7 @@ id: arxiv:2402.00164
 type: paper
 title: 'Beyond DPO: A Survey of Preference-Based Alignment Algorithms for LLMs'
 url: https://arxiv.org/abs/2402.00164
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: dpo-and-preference-optimization
 ---

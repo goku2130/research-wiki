@@ -3,7 +3,7 @@ id: youtube:orpo-explained-superior-llm-alignment-te
 type: web
 title: 'ORPO Explained: Superior LLM Alignment Technique vs. DPO/RLHF'
 url: https://www.youtube.com/watch?v=32S_xBt2IXw
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: dpo-and-preference-optimization
 ---

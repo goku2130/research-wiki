@@ -3,7 +3,7 @@ id: cameronrwolfe:direct-preference-optimization-dpo-deep-
 type: web
 title: Direct Preference Optimization (DPO) - Deep (Learning) Focus
 url: https://cameronrwolfe.substack.com/p/direct-preference-optimization
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: dpo-and-preference-optimization
 ---

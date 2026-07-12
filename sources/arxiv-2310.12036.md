@@ -3,9 +3,9 @@ id: arxiv:2310.12036
 type: paper
 title: Identity Preference Optimization (IPO)
 url: https://arxiv.org/abs/2310.12036
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: dpo-variants
+topic: dpo-and-preference-optimization
 ---
 
 # Identity Preference Optimization (IPO)

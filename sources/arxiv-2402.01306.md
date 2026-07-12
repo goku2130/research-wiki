@@ -3,9 +3,9 @@ id: arxiv:2402.01306
 type: paper
 title: Kahneman-Tversky Optimization (KTO)
 url: https://arxiv.org/abs/2402.01306
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: dpo-variants
+topic: dpo-and-preference-optimization
 ---
 
 # Kahneman-Tversky Optimization (KTO)

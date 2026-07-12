@@ -4,7 +4,7 @@ type: paper
 title: 'From RLHF to Direct Alignment: A Theoretical Unification of Preference Optimization
   Algorithms'
 url: https://arxiv.org/abs/2401.06108
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: dpo-and-preference-optimization
 ---

@@ -3,7 +3,7 @@ id: arxiv:2403.07693
 type: paper
 title: 'ORPO: Monolithic Preference Optimization without Reference Model'
 url: https://arxiv.org/abs/2403.07693
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: dpo-and-preference-optimization
 ---

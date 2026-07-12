@@ -3,7 +3,7 @@ id: icml:alphadpo-adaptive-reward-margin-for-dire
 type: web
 title: 'AlphaDPO: Adaptive Reward Margin for Direct Preference Optimization'
 url: https://icml.cc/virtual/2025/poster/45946
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: dpo-and-preference-optimization
 ---
