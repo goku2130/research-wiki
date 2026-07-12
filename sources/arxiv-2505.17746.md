@@ -3,7 +3,7 @@ id: arxiv:2505.17746
 type: paper
 title: 'Fast Quiet-STaR: Thinking Without Thought Tokens'
 url: https://arxiv.org/abs/2505.17746
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rl-for-reasoning
 ---

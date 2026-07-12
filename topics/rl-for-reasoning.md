@@ -1,7 +1,7 @@
 ---
 title: RL for reasoning models
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - cameronrwolfe:demystifying-reasoning-models-by-cameron
 - interconnects:deepseek-r1-s-recipe-to-replicate-o1-and
@@ -15,16 +15,14 @@ sources:
 - cameronrwolfe:demystifying-reasoning-models-cameron-r-
 - arxiv:2505.17746
 open_questions:
-- Is cold-start SFT strictly necessary for reasoning emergence in base models, or
-  does it only improve readability/stability? [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and;
-  arxiv:2506.14245; arxiv:2501.12948]
-- What are the optimal data compositions and reward-model choices for the rejection-sampling
-  and final-RL stages in multi-stage pipelines? [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and]
-- Can verifiable rewards be constructed for domains beyond math/code (e.g., creative
-  writing, open-ended reasoning) without introducing reward hacking? [source:arxiv:2501.12948;
-  arxiv:2506.14245]
-- Do distilled models genuinely acquire new reasoning capabilities from RLVR, or only
-  improve sampling efficiency? [source:arxiv:2506.14245]
+- What are the minimal base-model capabilities required for direct RL to succeed without
+  cold-start SFT?
+- How should verifiable-reward RL be balanced with general preference RL in multi-stage
+  pipelines to avoid catastrophic forgetting of reasoning?
+- Can the logic-prior theory ($\alpha > \beta$) be extended to non-verifiable domains
+  via learned process reward models?
+- What infrastructure and data-composition recipes enable stable 1000s-of-steps GRPO
+  training at scale?
 ---
 
 Reinforcement learning with verifiable rewards (RLVR) has emerged as the dominant paradigm for training large reasoning models (LRMs), replacing subjective human-preference reward models with objective, executable verification functions for math and code. This shift enables massive-scale RL on verifiable domains, producing models that generate long chains-of-thought (CoT) and achieve inference-time scaling — where performance improves monotonically with test-time compute.
@@ -43,7 +41,7 @@ $$
 
 ### Self-Taught Reasoning Precursors: STaR and Quiet-STaR
 
-Before RLVR became dominant, bootstrapping methods demonstrated that models could improve reasoning by learning from their own generated rationales. **STaR (Self-Taught Reasoner)** [source:arxiv:2203.14465] introduced an iterative loop: (1) generate rationales for problems using few-shot CoT prompting, (2) filter rationales that yield correct answers, (3) for failed problems, provide the ground-truth answer as a hint and ask the model to "rationalize" backward to produce a valid rationale, (4) fine-tune on the combined correct rationales, and (5) repeat. STaR frames this as approximating the policy gradient objective $J(M, X, Y) = \sum_i \mathbb{E}[\mathbb{1}(\hat{y}_i = y_i) \nabla \log p_M(\hat{y}_i, \hat{r}_i \mid x_i)]$ [source:arxiv:2203.14465]. On GPT-J (6B), STaR with rationalization reached **72.5%** on CommonsenseQA (vs. 36.6% few-shot CoT), **89.5%** on multi-digit arithmetic (vs. 76.3% direct fine-tuning), and **10.7%** on GSM8K (vs. 3.0% few-shot). Limitations include requiring baseline few-shot performance above chance, vulnerability to spurious rationales in high-chance settings (e.g., binary tasks), and non-trivial hint design for rationalization [source:arxiv:2203.14465].
+Before RLVR became dominant, bootstrapping methods demonstrated that models could improve reasoning by learning from their own generated rationales. **STaR (Self-Taught Reasoner)** [source:arxiv:2203.14465] introduced an iterative loop: (1) generate rationales for problems using few-shot CoT prompting, (2) filter rationales that yield correct answers, (3) for failed problems, provide the ground-truth answer as a hint and ask the model to "rationalize" backward to produce a valid rationale, (4) fine-tune on the combined correct rationales, and (5) repeat. STaR frames this as approximating the policy gradient objective with expected reward $J(M, X, Y) = \sum_i \mathbb{E}_{\hat{r}_i, \hat{y}_i \sim p_M(\cdot | x_i)} [\mathbb{1}(\hat{y}_i = y_i)]$ and gradient $\nabla J = \sum_i \mathbb{E}[\mathbb{1}(\hat{y}_i = y_i) \nabla \log p_M(\hat{y}_i, \hat{r}_i \mid x_i)]$ [source:arxiv:2203.14465]. On GPT-J (6B), STaR with rationalization reached **72.5%** on CommonsenseQA (vs. 36.6% few-shot CoT), **89.5%** on multi-digit arithmetic (vs. 76.3% direct fine-tuning), and **10.7%** on GSM8K (vs. 3.0% few-shot). Limitations include requiring baseline few-shot performance above chance, vulnerability to spurious rationales in high-chance settings (e.g., binary tasks), and non-trivial hint design for rationalization [source:arxiv:2203.14465].
 
 **Quiet-STaR** [source:arxiv:2403.09629] generalizes STaR to unstructured text, enabling LMs to "think" at every token position. It uses a **Think-Talk-Learn** cycle: (1) **Think** — generate $r$ parallel rationales of length $t$ at each token using learned `<startofthought>`/`<endofthought>` tokens and a diagonal attention mask to isolate counterfactual rationale paths; (2) **Talk** — a shallow MLP mixing head interpolates between base LM logits and rationale-conditioned logits via weight $w$; (3) **Learn** — REINFORCE rewards rationales that increase likelihood of future $n_{true}$ tokens (non-myopic loss). On Mistral 7B, Quiet-STaR trained on OpenWebMath improved GSM8K from **5.9% → 10.9%** and CommonsenseQA from **36.3% → 47.2%** zero-shot; with CoT majority voting (maj@8), GSM8K rose from **40.6% → 47.7%** [source:arxiv:2403.09629]. Limitations include substantial inference overhead, testing only at 7B scale, fixed rationale lengths, and no faithfulness guarantee for generated rationales [source:arxiv:2403.09629].
 
@@ -62,7 +60,7 @@ DeepSeek R1 (2025) published a replicable four-stage pipeline [source:interconne
 
 **DeepSeek-R1-Zero (Pure RL)**: The paper also introduces **DeepSeek-R1-Zero**, trained directly from DeepSeek-V3-Base using pure RL **without any SFT cold-start** [source:arxiv:2501.12948]. Using GRPO with a rule-based reward system (accuracy reward via deterministic math/code verification + format reward for `` tags), R1-Zero achieved **15.6% → 77.9% Pass@1 on AIME 2024** (reaching **86.7%** with self-consistency) over 10,400 training steps. The model naturally developed "aha moments" (self-correction) and increased thinking time (response length) as performance improved. However, R1-Zero exhibited poor readability and language mixing, motivating the multi-stage R1 pipeline [source:arxiv:2501.12948].
 
-**Disagreement on cold-start necessity**: DeepSeek reports R1-Zero (pure RL, no cold-start) exhibits "minor usability issues" like language switching, implying cold-start SFT is essential for readability [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and; arxiv:2501.12948]. However, [source:arxiv:2506.14245] shows that **base models without cold-start** (Qwen2.5-32B → DAPO-Qwen-32B via GRPO) still achieve significant CoT-Pass@K gains on AIME 2024/2025, suggesting cold-start may accelerate but is not strictly necessary for reasoning emergence. The survey [source:github:a-survey-of-reinforcement-learning-for-l] notes base model requirements for direct RL remain unclear.
+**Disagreement on cold-start necessity**: DeepSeek reports R1-Zero (pure RL, no cold-start) exhibits "minor usability issues" like language switching, implying cold-start SFT is essential for readability [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and; arxiv:2501.12948]. However, [source:arxiv:2506.14245] shows that **base models without cold-start** (Qwen2.5-32B → DAPO-Qwen-32B via GRPO) still achieve significant CoT-Pass@K gains on AIME 2024/2025, suggesting cold-start may accelerate but is not strictly necessary for reasoning emergence. [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and] notes base model requirements for direct RL remain unclear.
 
 ## Algorithmic Foundations: GRPO and Policy Optimization
 
@@ -92,7 +90,7 @@ $$
 \mathbb {D} _ {K L} \left(\pi_ {\theta} | | \pi_ {r e f}\right) = \frac {\pi_ {r e f} (o _ {i} | q)}{\pi_ {\theta} (o _ {i} | q)} - \log \frac {\pi_ {r e f} (o _ {i} | q)}{\pi_ {\theta} (o _ {i} | q)} - 1
 $$
 
-[source:arxiv:2501.12948]. GRPO eliminates the critic/value network of PPO, reducing memory and compute — critical for the 1000s-of-steps training regime [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and]. The survey [source:github:a-survey-of-reinforcement-learning-for-l] categorizes GRPO under "Critic-Free Algorithms" in its policy-optimization taxonomy.
+[source:arxiv:2501.12948]. GRPO eliminates the critic/value network of PPO, reducing memory and compute — critical for the 1000s-of-steps training regime [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and]. GRPO is categorized as a critic-free method in policy-optimization taxonomies.
 
 **KL regularization**: Both PPO and GRPO typically add a KL penalty $\beta \cdot \mathrm{KL}(\pi_\theta \| \pi_{\text{ref}})$ to the loss to prevent deviation from the reference (SFT) model [source:magazine:the-state-of-reinforcement-learning-for-; arxiv:2506.14245; arxiv:2501.12948]. The magnitude of $\beta$ controls the alignment tax [source:alignment-tax.md] and exploration-exploitation trade-off [source:entropy-and-exploration.md].
 
@@ -130,7 +128,7 @@ where $p_c = P(\mathcal{I}_{\mathrm{CoT}}=1)$ [source:arxiv:2506.14245]. This sh
 
 **STaR's theoretical framing**: STaR [source:arxiv:2203.14465] derives its objective as the expected reward over the dataset $J(M, X, Y) = \sum_i \mathbb{E}_{\hat{r}_i, \hat{y}_i \sim p_M(\cdot | x_i)} [\mathbb{1}(\hat{y}_i = y_i)]$, with gradient $\nabla J = \sum_i \mathbb{E}[\mathbb{1}(\hat{y}_i = y_i) \nabla \log p_M(\hat{y}_i, \hat{r}_i | x_i)]$. STaR approximates this by greedy decoding and multiple gradient steps on filtered correct rationales, effectively performing a low-variance policy gradient update.
 
-**Disagreement on distilled models**: [source:arxiv:2506.14245] reports that for **distilled LLMs** (e.g., DeepSeek-R1-Distill-Qwen-7B) in math, RLVR primarily improves sampling efficiency (Pass@1 rises but Pass@K and CoT-Pass@K gaps vanish for large $K$), suggesting distilled models already internalize major reasoning patterns. In contrast, **base models** show persistent CoT-Pass@K gaps up to $K=1024$, indicating genuine reasoning acquisition. The survey [source:github:a-survey-of-reinforcement-learning-for-l] does not distinguish these regimes.
+**Disagreement on distilled models**: [source:arxiv:2506.14245] reports that for **distilled LLMs** (e.g., DeepSeek-R1-Distill-Qwen-7B) in math, RLVR primarily improves sampling efficiency (Pass@1 rises but Pass@K and CoT-Pass@K gaps vanish for large $K$), suggesting distilled models already internalize major reasoning patterns. In contrast, **base models** show persistent CoT-Pass@K gaps up to $K=1024$, indicating genuine reasoning acquisition.
 
 ## Empirical Evidence: Pass@K, CoT-Pass@K, and Generalization
 
@@ -167,7 +165,7 @@ where $p_c = P(\mathcal{I}_{\mathrm{CoT}}=1)$ [source:arxiv:2506.14245]. This sh
 
 ## Current status and trajectory
 
-RLVR is the **default and rising** paradigm for frontier reasoning models (o1/o3, DeepSeek R1, Kimi 1.5, Qwen 3, Nemotron, Skywork, Phi-4 Reasoning, Llama-Nemotron, MiMo, Hunyuan-TurboS, all 2024–2025) [source:rlhfbook:reasoning-and-inference-time-scaling-nat; github:a-survey-of-reinforcement-learning-for-l; cameronrwolfe:demystifying-reasoning-models-cameron-r-]. The field is converging on **GRPO + verifiable rewards + long-CoT cold-start + multi-stage RL/SFT** as the canonical recipe. However, critical details remain **not widely reported**: optimal data composition (verifiable vs. general), reward-model choices for Stage 3/4, KL schedules, and infrastructure for 1000s of RL steps [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and]. The survey [source:github:a-survey-of-reinforcement-learning-for-l] explicitly solicits missing work, indicating the literature is still rapidly expanding.
+RLVR is the **default and rising** paradigm for frontier reasoning models (o1/o3, DeepSeek R1, Kimi 1.5, Qwen 3, Nemotron, Skywork, Phi-4 Reasoning, Llama-Nemotron, MiMo, Hunyuan-TurboS, all 2024–2025) [source:rlhfbook:reasoning-and-inference-time-scaling-nat; github:a-survey-of-reinforcement-learning-for-l; cameronrwolfe:demystifying-reasoning-models-cameron-r-]. The field is converging on **GRPO + verifiable rewards + long-CoT cold-start + multi-stage RL/SFT** as the canonical recipe. However, critical details remain **not widely reported**: optimal data composition (verifiable vs. general), reward-model choices for Stage 3/4, KL schedules, and infrastructure for 1000s of RL steps [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and]. The survey [source:github:a-survey-of-reinforcement-learning-for-l] identifies future directions, indicating the literature is still rapidly expanding.
 
 **Alternative reasoning paradigms** (STaR, Quiet-STaR, Fast Quiet-STaR) demonstrate that reasoning can also be bootstrapped from self-generated rationales without verifiable rewards, though they currently lag RLVR on competitive benchmarks. Fast Quiet-STaR's success in internalizing reasoning into standard NTP via RL suggests a path toward efficient inference-time reasoning without explicit CoT tokens [source:arxiv:2505.17746].
 
@@ -217,19 +215,6 @@ RLVR is the **default and rising** paradigm for frontier reasoning models (o1/o3
 - [Async and off-policy RL](async-and-off-policy-rl.md)
 - [Nash and game-theoretic preference optimization](nash-and-game-theoretic-po.md)
 - [DPO variants deep-dive](dpo-variants.md)
-
-## References
-- [source:arxiv:2506.14245] [Reinforcement Learning with Verifiable Rewards Implicitly Incentivizes Correct Reasoning in Base LLMs - arXiv](https://arxiv.org/html/2506.14245v2)
-- [source:magazine:the-state-of-reinforcement-learning-for-] [The State of Reinforcement Learning for LLM Reasoning - Ahead of AI](https://magazine.sebastianraschka.com/p/the-state-of-llm-reasoning-model-training)
-- [source:interconnects:deepseek-r1-s-recipe-to-replicate-o1-and] [DeepSeek R1's recipe to replicate o1 and the future of reasoning LMs](https://www.interconnects.ai/p/deepseek-r1-recipe-for-o1)
-- [source:github:a-survey-of-reinforcement-learning-for-l] [A Survey of Reinforcement Learning for Large Reasoning Models](https://github.com/TsinghuaC3I/Awesome-RL-for-LRMs)
-- [source:cameronrwolfe:demystifying-reasoning-models-by-cameron] [Demystifying Reasoning Models - by Cameron R. Wolfe, Ph.D.](https://cameronrwolfe.substack.com/p/demystifying-reasoning-models)
-- [source:rlhfbook:reasoning-and-inference-time-scaling-nat] [Reasoning and Inference-Time Scaling - Nathan Lambert](https://rlhfbook.com/c/07-reasoning)
-- [source:arxiv:2501.12948] [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948)
-- [source:arxiv:2203.14465] [STaR: Self-Taught Reasoner: Bootstrapping Reasoning With Reasoning](https://arxiv.org/abs/2203.14465)
-- [source:arxiv:2403.09629] [Quiet-STaR: Language Models Can Teach Themselves to Think Before Speaking](https://arxiv.org/abs/2403.09629)
-- [source:cameronrwolfe:demystifying-reasoning-models-cameron-r-] [Demystifying Reasoning Models (Cameron R. Wolfe)](https://cameronrwolfe.substack.com/p/demystifying-reasoning-models)
-- [source:arxiv:2505.17746] [Fast Quiet-STaR: Thinking Without Thought Tokens](https://arxiv.org/abs/2505.17746)
 
 ## References
 - [source:cameronrwolfe:demystifying-reasoning-models-by-cameron] [Demystifying Reasoning Models - by Cameron R. Wolfe, Ph.D.](https://cameronrwolfe.substack.com/p/demystifying-reasoning-models)

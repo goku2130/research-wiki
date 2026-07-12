@@ -3,7 +3,7 @@ id: rlhfbook:reasoning-and-inference-time-scaling-nat
 type: web
 title: Reasoning and Inference-Time Scaling - Nathan Lambert
 url: https://rlhfbook.com/c/07-reasoning
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rl-for-reasoning
 ---

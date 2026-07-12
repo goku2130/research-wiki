@@ -3,9 +3,9 @@ id: arxiv:2203.14465
 type: paper
 title: 'STaR: Self-Taught Reasoner: Bootstrapping Reasoning With Reasoning'
 url: https://arxiv.org/abs/2203.14465
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: test-time-and-rl-interplay
+topic: rl-for-reasoning
 ---
 
 # STaR: Self-Taught Reasoner

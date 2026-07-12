@@ -3,7 +3,7 @@ id: magazine:the-state-of-reinforcement-learning-for-
 type: web
 title: The State of Reinforcement Learning for LLM Reasoning - Ahead of AI
 url: https://magazine.sebastianraschka.com/p/the-state-of-llm-reasoning-model-training
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rl-for-reasoning
 ---

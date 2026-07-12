@@ -3,7 +3,7 @@ id: interconnects:deepseek-r1-s-recipe-to-replicate-o1-and
 type: web
 title: DeepSeek R1's recipe to replicate o1 and the future of reasoning LMs
 url: https://www.interconnects.ai/p/deepseek-r1-recipe-for-o1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rl-for-reasoning
 ---

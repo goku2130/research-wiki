@@ -3,9 +3,9 @@ id: github:a-survey-of-reinforcement-learning-for-l
 type: web
 title: A Survey of Reinforcement Learning for Large Reasoning Models
 url: https://github.com/TsinghuaC3I/Awesome-RL-for-LRMs
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: rl-for-math-and-code
+topic: rl-for-reasoning
 ---
 
 # Summary: A Survey of Reinforcement Learning for Large Reasoning Models

@@ -4,9 +4,9 @@ type: paper
 title: 'DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement
   Learning'
 url: https://arxiv.org/abs/2501.12948
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: rl-for-math-and-code
+topic: rl-for-reasoning
 ---
 
 # DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning

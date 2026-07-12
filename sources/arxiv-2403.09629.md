@@ -3,9 +3,9 @@ id: arxiv:2403.09629
 type: paper
 title: 'Quiet-STaR: Language Models Can Teach Themselves to Think Before Speaking'
 url: https://arxiv.org/abs/2403.09629
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: test-time-and-rl-interplay
+topic: rl-for-reasoning
 ---
 
 # Quiet-STaR: Language Models Can Teach Themselves to Think Before Speaking

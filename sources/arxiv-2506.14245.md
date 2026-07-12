@@ -4,7 +4,7 @@ type: paper
 title: Reinforcement Learning with Verifiable Rewards Implicitly Incentivizes Correct
   Reasoning in Base LLMs - arXiv
 url: https://arxiv.org/html/2506.14245v2
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rl-for-reasoning
 ---

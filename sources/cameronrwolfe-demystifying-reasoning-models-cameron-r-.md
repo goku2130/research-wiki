@@ -3,7 +3,7 @@ id: cameronrwolfe:demystifying-reasoning-models-cameron-r-
 type: web
 title: Demystifying Reasoning Models (Cameron R. Wolfe)
 url: https://cameronrwolfe.substack.com/p/demystifying-reasoning-models
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: rl-for-reasoning
 ---
