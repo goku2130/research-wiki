@@ -3,7 +3,7 @@ id: cameronrwolfe:reinforce-easy-online-rl-for-llms
 type: web
 title: 'REINFORCE: Easy Online RL for LLMs'
 url: https://cameronrwolfe.substack.com/p/reinforce
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: mdp-formulation
 ---

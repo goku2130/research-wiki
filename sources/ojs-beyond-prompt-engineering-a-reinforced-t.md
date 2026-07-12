@@ -4,7 +4,7 @@ type: web
 title: 'Beyond Prompt Engineering: A Reinforced Token-Level Input Refinement for Large
   Language Models'
 url: https://ojs.aaai.org/index.php/AAAI/article/view/34586/36741
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: mdp-formulation
 ---

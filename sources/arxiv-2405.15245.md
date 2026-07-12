@@ -4,7 +4,7 @@ type: paper
 title: 'TDPO: Harnessing Token-level Reward Guidance for Enhancing Direct Preference
   Optimization'
 url: https://arxiv.org/abs/2405.15245
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: mdp-formulation
 ---

@@ -4,7 +4,7 @@ type: paper
 title: RL in Name Only? Analyzing the Structural Assumptions in RL post-training for
   LLMs
 url: https://arxiv.org/html/2505.13697v4
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: mdp-formulation
 ---

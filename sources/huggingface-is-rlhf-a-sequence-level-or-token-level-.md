@@ -3,7 +3,7 @@ id: huggingface:is-rlhf-a-sequence-level-or-token-level-
 type: web
 title: Is RLHF a Sequence-level or Token-level Problem? (RL-LLM Wiki)
 url: https://huggingface.co/datasets/rl-llm-wiki/knowledge-base/blob/main/topics/foundations/mdp-formulation.md
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: mdp-formulation
 ---

@@ -3,7 +3,7 @@ id: x:there-are-two-common-rl-training-formula
 type: web
 title: 'There are two common RL training formulations for LLMs: Markov ...'
 url: https://x.com/cwolferesearch/status/1975209587453440344
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: mdp-formulation
 ---

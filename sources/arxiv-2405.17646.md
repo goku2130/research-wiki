@@ -3,7 +3,7 @@ id: arxiv:2405.17646
 type: paper
 title: 'SPPO: Sequence-Level PPO for Long-Horizon Reasoning Tasks'
 url: https://arxiv.org/abs/2405.17646
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: mdp-formulation
 ---

@@ -5,7 +5,7 @@ title: Deep reinforcement learning from human preferences (Christiano et al. 201
 url: https://arxiv.org/abs/1706.03741
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: policy-gradient-methods
+topic: mdp-formulation
 ---
 
 # Deep Reinforcement Learning from Human Preferences

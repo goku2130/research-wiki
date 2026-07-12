@@ -1,7 +1,7 @@
 ---
 title: MDP formulation of LLM generation
 maturity: comprehensive
-updated: '2026-07-11'
+updated: '2026-07-12'
 sources:
 - linkedin:rl-formulations-for-llms-mdp-vs-bandit-l
 - ojs:beyond-prompt-engineering-a-reinforced-t
@@ -17,15 +17,14 @@ sources:
 - arxiv:1707.06347
 - huggingface:is-rlhf-a-sequence-level-or-token-level-
 open_questions:
-- Can token-wise reward learning (RTO) be combined with process supervision for even
-  finer-grained credit assignment in reasoning tasks?
-- Does the MDL-based state representation offer practical advantages for long-horizon
-  generation tasks where the history-as-state convention becomes computationally prohibitive?
-- How does the sample complexity advantage of token-wise rewards ($A^{\min \{\xi +
-  1, H\}}$ vs $A^H$) manifest in practice for very long sequences (e.g., 32k+ tokens)?
-- Can REINFORCE/RLOO with bandit formulation match PPO/RTO with token-wise rewards
-  on complex reasoning benchmarks, or is dense credit assignment necessary for hard
-  exploration problems?
+- Can learned token-level state representations (MDL/DBN) improve credit assignment
+  in generation tasks compared to the fixed history-as-state convention?
+- Does modeling intermediate state value provide benefits beyond what is achieved
+  by process rewards in token-level MDPs for generation?
+- 'What is the optimal method for per-token credit assignment when using terminal
+  rewards: uniform broadcast, learned value functions, or process rewards?'
+- Are there optimization methods that can specifically exploit the deterministic-transition
+  structure of LLMs, rather than relying on generic stochastic-dynamics RL machinery?
 ---
 
 Large Language Model (LLM) generation is naturally framed as sequential decision-making, but the choice between modeling each token as an MDP step versus treating the full completion as a single bandit action fundamentally shapes credit assignment, algorithm design, and the inductive biases of post-training. This article dissects the token-level MDP formulation, its degeneration into a contextual bandit under standard structural assumptions, the role of terminal rewards, and alternative token-level RL applications.
@@ -116,7 +115,7 @@ $$
 \nabla_\theta J(\theta) = \mathbb{E}_{o \sim \pi_\theta(\cdot|q)} \left[ (R(q,o) - b(q)) \nabla_\theta \log \pi_\theta(o|q) \right]
 $$
 
-where $b(q)$ is a baseline (e.g., average reward over a group). This is mathematically identical to the F-ISFT gradient derived above when the advantage is uniform and the baseline is the group mean [source:arxiv:2505.13697]. The bandit formulation is therefore not an approximation — it is the *correct* abstraction for outcome-supervised LLM post-training.
+where $b(q)$ is a baseline (e.g., average reward over a group). This is mathematically identical to the F-ISFT gradient derived above when the advantage is uniform and the baseline is the group mean [source:huggingface:is-rlhf-a-sequence-level-or-token-level-]. The bandit formulation is therefore not an approximation — it is the *correct* abstraction for outcome-supervised LLM post-training.
 
 **REINFORCE and RLOO for LLMs.** [source:cameronrwolfe:reinforce-easy-online-rl-for-llms] provides a practical recipe for REINFORCE and REINFORCE Leave-One-Out (RLOO) as simpler alternatives to PPO for online RL. While RL can be modeled as an MDP where each token is an action, REINFORCE and RLOO typically adopt a **bandit formulation**: the entire generated completion is treated as a single action receiving a single outcome reward after the stop token. The REINFORCE recipe: (1) Generate completions using current policy $\pi_\theta$; (2) Store log probabilities; (3) Assign reward $R(\tau)$ via reward model or verifier; (4) Compute baseline $b$ (moving average or batch average); (5) Compute advantage $R(\tau) - b$; (6) Update policy using $\nabla_\theta J(\theta) \approx \frac{1}{N} \sum_{i=1}^N \left( \sum_{t=0}^{T-1} \nabla_\theta \log \pi_\theta(a_{i,t} | s_{i,t}) \right) (R(\tau_i) - b)$. The source notes that despite higher theoretical gradient variance compared to actor-critic methods, this does not negatively impact LLM training in practice, and REINFORCE/RLOO achieve performance similar to PPO with far less complexity (no critic, no clipping, no GAE).
 
@@ -131,7 +130,7 @@ where $b(q)$ is a baseline (e.g., average reward over a group). This is mathemat
 
 **RTLIR** [source:ojs:beyond-prompt-engineering-a-reinforced-t; ojs:pdf-beyond-prompt-engineering-a-reinforc] demonstrates a *different* token-level MDP: **input refinement**, not generation. The state $s_i = \text{CONCAT}[v_1, a_1, \dots, v_i, a_i]$ includes embeddings $v_j$ and binary keep/delete actions $a_j \in \{0,1\}$ for each input token. The agent traverses the input sequence once, deciding per token. Rewards combine:
 - **Immediate**: cosine similarity of kept token to target embedding
-- **Terminal**: log-prob ratio of refined vs original vs optimal input under a downstream LLM
+- **Terminal**: log-prob ratio of refined vs original vs optimal input
 
 Policy learning uses Q-learning with value decomposition ($Q = V + \mathcal{A} - \text{mean}(\mathcal{A})$) and prioritized experience replay [source:ojs:pdf-beyond-prompt-engineering-a-reinforc]. This is a *bona fide* token-level MDP with per-step decisions and non-uniform credits — but it operates on *input* tokens, not generated output tokens.
 
@@ -196,6 +195,6 @@ The **token-level MDP for generation is fading as a *distinct* formulation** for
 - [source:arxiv:2405.15245] [TDPO: Harnessing Token-level Reward Guidance for Enhancing Direct Preference Optimization](https://arxiv.org/abs/2405.15245)
 - [source:arxiv:2405.17646] [SPPO: Sequence-Level PPO for Long-Horizon Reasoning Tasks](https://arxiv.org/abs/2405.17646)
 - [source:cameronrwolfe:reinforce-easy-online-rl-for-llms] [REINFORCE: Easy Online RL for LLMs](https://cameronrwolfe.substack.com/p/reinforce)
-- [source:arxiv:1706.03741] [Deep Reinforcement Learning from Human Preferences (Christiano et al., 2017)](https://arxiv.org/abs/1706.03741)
-- [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms (Schulman et al., 2017)](https://arxiv.org/abs/1707.06347)
+- [source:arxiv:1706.03741] [Deep reinforcement learning from human preferences (Christiano et al. 2017)](https://arxiv.org/abs/1706.03741)
+- [source:arxiv:1707.06347] [Proximal Policy Optimization Algorithms (Schulman et al. 2017)](https://arxiv.org/abs/1707.06347)
 - [source:huggingface:is-rlhf-a-sequence-level-or-token-level-] [Is RLHF a Sequence-level or Token-level Problem? (RL-LLM Wiki)](https://huggingface.co/datasets/rl-llm-wiki/knowledge-base/blob/main/topics/foundations/mdp-formulation.md)

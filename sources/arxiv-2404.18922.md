@@ -3,7 +3,7 @@ id: arxiv:2404.18922
 type: paper
 title: 'DPO Meets PPO: Reinforced Token Optimization for RLHF'
 url: https://arxiv.org/html/2404.18922v2
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: mdp-formulation
 ---

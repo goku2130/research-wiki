@@ -3,7 +3,7 @@ id: linkedin:rl-formulations-for-llms-mdp-vs-bandit-l
 type: web
 title: 'RL formulations for LLMs: MDP vs Bandit - LinkedIn'
 url: https://www.linkedin.com/posts/cwolferesearch_there-are-two-common-rl-training-formulations-activity-7380972876264497153-J2gt
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: mdp-formulation
 ---

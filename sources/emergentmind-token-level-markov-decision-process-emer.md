@@ -3,7 +3,7 @@ id: emergentmind:token-level-markov-decision-process-emer
 type: web
 title: Token-Level Markov Decision Process - Emergent Mind
 url: https://www.emergentmind.com/topics/token-level-markov-decision-process-mdp
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: mdp-formulation
 ---
