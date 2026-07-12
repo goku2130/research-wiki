@@ -6,7 +6,7 @@ title: 'Reward Hacking in the Era of Large Models: Mechanisms, Emergent Misalign
 url: https://arxiv.org/abs/2604.13602
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: reward-modeling
+topic: length-and-format-bias
 ---
 
 # Summary: Reward Hacking in the Era of Large Models

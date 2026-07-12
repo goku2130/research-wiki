@@ -3,7 +3,7 @@ id: aclanthology:adaptive-length-bias-mitigation-in-rewar
 type: web
 title: Adaptive Length Bias Mitigation in Reward Models for RLHF
 url: https://aclanthology.org/2025.findings-naacl.169.pdf
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: length-and-format-bias
 ---

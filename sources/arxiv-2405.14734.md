@@ -5,7 +5,7 @@ title: 'SimPO: Simple Preference Optimization with a Reference-Free Reward'
 url: https://arxiv.org/abs/2405.14734
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: dpo-variants
+topic: length-and-format-bias
 ---
 
 # SimPO: Simple Preference Optimization with a Reference-Free Reward

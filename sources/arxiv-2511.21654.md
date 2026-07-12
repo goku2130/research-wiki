@@ -3,7 +3,7 @@ id: arxiv:2511.21654
 type: paper
 title: 'EvilGenie: A Reward Hacking Benchmark'
 url: https://arxiv.org/abs/2511.21654
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: length-and-format-bias
 ---

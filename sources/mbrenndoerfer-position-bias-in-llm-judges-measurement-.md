@@ -3,9 +3,9 @@ id: mbrenndoerfer:position-bias-in-llm-judges-measurement-
 type: web
 title: 'Position Bias in LLM Judges: Measurement and Mitigation'
 url: https://mbrenndoerfer.com/writing/position-bias-in-llm-judges
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: llm-as-judge
+topic: length-and-format-bias
 ---
 
 # Position Bias in LLM Judges: Measurement and Mitigation

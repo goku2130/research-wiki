@@ -3,7 +3,7 @@ id: arxiv:2511.12573
 type: paper
 title: Mitigating Length Bias in RLHF through a Causal Lens
 url: https://arxiv.org/abs/2511.12573
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: length-and-format-bias
 ---

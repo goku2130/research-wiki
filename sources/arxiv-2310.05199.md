@@ -4,7 +4,7 @@ type: paper
 title: 'Loose lips sink ships: Mitigating Length Bias in Reinforcement Learning from
   Human Feedback'
 url: https://arxiv.org/abs/2310.05199
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: length-and-format-bias
 ---

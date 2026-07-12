@@ -3,7 +3,7 @@ id: arxiv:2505.12843
 type: paper
 title: Bias Fitting to Mitigate Length Bias of Reward Model in RLHF
 url: https://arxiv.org/html/2505.12843v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: length-and-format-bias
 ---

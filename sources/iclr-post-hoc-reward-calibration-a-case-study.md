@@ -3,7 +3,7 @@ id: iclr:post-hoc-reward-calibration-a-case-study
 type: web
 title: 'Post-Hoc Reward Calibration: A Case Study on Length Bias'
 url: https://iclr.cc/media/iclr-2025/Slides/30144.pdf
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: length-and-format-bias
 ---

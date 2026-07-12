@@ -5,7 +5,7 @@ title: 'ODIN: Disentangled Reward Mitigates Hacking in RLHF'
 url: https://arxiv.org/abs/2402.07319
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: reward-hacking
+topic: length-and-format-bias
 ---
 
 # ODIN: Disentangled Reward Mitigates Hacking in RLHF

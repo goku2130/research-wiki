@@ -3,7 +3,7 @@ id: arxiv:2406.06528
 type: paper
 title: 'AlpacaEval 2.0: A Generalized Automatic Evaluation for Instruction-tuned LLMs'
 url: https://arxiv.org/abs/2406.06528
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: length-and-format-bias
 ---

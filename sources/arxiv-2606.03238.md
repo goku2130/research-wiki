@@ -6,7 +6,7 @@ title: 'When RLHF Fails: A Mechanistic Taxonomy of Reward Hacking, Collapse, and
 url: https://arxiv.org/abs/2606.03238
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: reward-hacking
+topic: length-and-format-bias
 ---
 
 # Summary: When RLHF Fails: A Mechanistic Taxonomy of Reward Hacking, Collapse, and Evaluator Gaming

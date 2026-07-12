@@ -5,7 +5,7 @@ title: Mitigating Reward Hacking in RLHF via Bayesian Non-negative Reward Modeli
 url: https://arxiv.org/abs/2602.10623
 retrieved: '2026-07-12'
 maturity: comprehensive
-topic: reward-hacking
+topic: length-and-format-bias
 ---
 
 # Summary: Mitigating Reward Hacking in RLHF via Bayesian Non-negative Reward Modeling
