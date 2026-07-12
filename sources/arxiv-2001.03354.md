@@ -3,7 +3,7 @@ id: arxiv:2001.03354
 type: paper
 title: Learning credit assignment
 url: https://arxiv.org/abs/2001.03354
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

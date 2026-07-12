@@ -3,7 +3,7 @@ id: arxiv:2510.01132
 type: paper
 title: A Practitioner's Guide to Multi-turn Agentic Reinforcement Learning
 url: https://arxiv.org/html/2510.01132v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

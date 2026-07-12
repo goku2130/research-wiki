@@ -3,7 +3,7 @@ id: arxiv:2102.03740
 type: paper
 title: Ensemble perspective for understanding temporal credit assignment
 url: https://arxiv.org/abs/2102.03740
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

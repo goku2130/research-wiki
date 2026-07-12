@@ -3,7 +3,7 @@ id: arxiv:2409.02392
 type: paper
 title: Building Math Agents with Multi-Turn Iterative Preference Learning
 url: https://arxiv.org/abs/2409.02392
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

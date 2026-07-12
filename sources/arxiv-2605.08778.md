@@ -3,7 +3,7 @@ id: arxiv:2605.08778
 type: paper
 title: 'Not All Turns Matter: Credit Assignment for Multi-Turn Jailbreaking'
 url: https://arxiv.org/abs/2605.08778
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

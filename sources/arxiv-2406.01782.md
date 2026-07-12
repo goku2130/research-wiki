@@ -3,7 +3,7 @@ id: arxiv:2406.01782
 type: paper
 title: Multi-agent assignment via state augmented reinforcement learning
 url: https://arxiv.org/abs/2406.01782
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

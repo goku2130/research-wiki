@@ -3,7 +3,7 @@ id: github:awesome-rl-based-agentic-search-papers
 type: web
 title: Awesome-RL-based-Agentic-Search-Papers
 url: https://github.com/ventr1c/Awesome-RL-based-Agentic-Search-Papers
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

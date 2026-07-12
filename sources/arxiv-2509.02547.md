@@ -3,7 +3,7 @@ id: arxiv:2509.02547
 type: paper
 title: 'The Landscape of Agentic Reinforcement Learning for LLMs: A Survey'
 url: https://arxiv.org/abs/2509.02547
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

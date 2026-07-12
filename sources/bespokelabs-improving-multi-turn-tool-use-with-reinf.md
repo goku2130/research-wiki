@@ -3,7 +3,7 @@ id: bespokelabs:improving-multi-turn-tool-use-with-reinf
 type: web
 title: Improving Multi-Turn Tool Use with Reinforcement Learning
 url: https://bespokelabs.ai/blog/improving-multi-turn-tool-use-with-reinforcement-learning
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

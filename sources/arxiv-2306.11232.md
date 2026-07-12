@@ -3,7 +3,7 @@ id: arxiv:2306.11232
 type: paper
 title: Eight challenges in developing theory of intelligence
 url: https://arxiv.org/abs/2306.11232
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

@@ -4,7 +4,7 @@ type: paper
 title: An Information-Theoretic Perspective on Credit Assignment in Reinforcement
   Learning
 url: https://arxiv.org/abs/2103.06224
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

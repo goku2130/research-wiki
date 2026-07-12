@@ -3,7 +3,7 @@ id: research:advancing-search-augmented-language-mode
 type: web
 title: Advancing Search-Augmented Language Models
 url: https://research.perplexity.ai/articles/advancing-search-augmented-language-models
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

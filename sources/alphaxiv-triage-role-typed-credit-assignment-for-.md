@@ -3,7 +3,7 @@ id: alphaxiv:triage-role-typed-credit-assignment-for-
 type: web
 title: 'TRIAGE: Role-Typed Credit Assignment for Agentic Reinforcement Learning'
 url: https://www.alphaxiv.org/abs/2606.32017
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---

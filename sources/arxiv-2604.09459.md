@@ -4,7 +4,7 @@ type: paper
 title: 'From Reasoning to Agentic: Credit Assignment in Reinforcement Learning for
   Large Language Models'
 url: https://arxiv.org/html/2604.09459v1
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: agentic-and-tool-use-rl
 ---
