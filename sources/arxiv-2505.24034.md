@@ -4,7 +4,7 @@ type: paper
 title: 'LlamaRL: A Distributed Asynchronous Reinforcement Learning Framework for Efficient
   Large-scale LLM Training'
 url: https://arxiv.org/html/2505.24034v2
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: distributed-rl-training
 ---

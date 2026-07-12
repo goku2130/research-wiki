@@ -4,7 +4,7 @@ type: paper
 title: 'DeepSpeed-Chat: Easy, Fast and Affordable RLHF Training of ChatGPT-like Models
   at All Scales'
 url: https://arxiv.org/abs/2308.01320
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: distributed-rl-training
 ---

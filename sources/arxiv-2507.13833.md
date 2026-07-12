@@ -4,7 +4,7 @@ type: paper
 title: 'DistFlow: A Fully Distributed RL Framework for Scalable and Efficient LLM
   Alignment'
 url: https://arxiv.org/html/2507.13833v2
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: distributed-rl-training
 ---

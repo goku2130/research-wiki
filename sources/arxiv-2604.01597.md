@@ -3,7 +3,7 @@ id: arxiv:2604.01597
 type: paper
 title: 'Learning from the Right Rollouts: Data Attribution for PPO-based LLM Post-Training'
 url: https://arxiv.org/abs/2604.01597
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: distributed-rl-training
 ---

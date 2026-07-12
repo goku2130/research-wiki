@@ -3,7 +3,7 @@ id: github:openrlhf-an-easy-fast-and-scalable-rlhf-
 type: web
 title: 'OpenRLHF: An Easy, Fast, and Scalable RLHF Framework for Large Language Models'
 url: https://github.com/OpenRLHF/OpenRLHF
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: distributed-rl-training
 ---

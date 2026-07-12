@@ -3,7 +3,7 @@ id: arxiv:2001.08361
 type: paper
 title: Scaling Laws for Neural Language Models
 url: https://arxiv.org/abs/2001.08361
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: distributed-rl-training
 ---

@@ -3,7 +3,7 @@ id: arxiv:2012.00839
 type: paper
 title: 'TRL: Transformer Reinforcement Learning Library'
 url: https://arxiv.org/abs/2012.00839
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: distributed-rl-training
 ---

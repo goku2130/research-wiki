@@ -4,9 +4,9 @@ type: paper
 title: 'IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner
   Architectures'
 url: https://arxiv.org/abs/1802.01561
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
-topic: async-and-off-policy-rl
+topic: distributed-rl-training
 ---
 
 # IMPALA: Importance Weighted Actor-Learner Architectures

@@ -3,7 +3,7 @@ id: github:verl-hybridflow-a-flexible-and-efficient
 type: web
 title: 'verl: HybridFlow - A Flexible and Efficient RL Post-Training Framework'
 url: https://github.com/verl-project/verl
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: distributed-rl-training
 ---

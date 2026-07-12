@@ -3,7 +3,7 @@ id: arxiv:1909.08053
 type: paper
 title: Efficient Large-Scale Language Model Training on GPU Clusters Using Megatron-LM
 url: https://arxiv.org/abs/1909.08053
-retrieved: '2026-07-11'
+retrieved: '2026-07-12'
 maturity: comprehensive
 topic: distributed-rl-training
 ---
